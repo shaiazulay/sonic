@@ -22,7 +22,7 @@ class Upperlake(Platform):
       switchChip = SwitchChip(PciAddr(bus=0x01))
       self.addComponent(switchChip)
 
-      scd = Scd(PciAddr(bus=0x02), newDriver=True)
+      scd = Scd(PciAddr(bus=0x02))
       self.addComponent(scd)
 
       scd.addComponents([

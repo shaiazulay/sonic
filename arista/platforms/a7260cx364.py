@@ -25,7 +25,7 @@ class Gardena(Platform):
       switchChip = SwitchChip(PciAddr(bus=0x07))
       self.addComponent(switchChip)
 
-      scd = Scd(PciAddr(bus=0x06), newDriver=True)
+      scd = Scd(PciAddr(bus=0x06))
       self.addComponent(scd)
 
       scd.addComponents([

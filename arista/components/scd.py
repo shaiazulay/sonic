@@ -8,8 +8,7 @@ from collections import OrderedDict, namedtuple
 
 from ..core.inventory import Xcvr, Psu
 from ..core.types import Gpio, ResetGpio, NamedGpio
-from ..core.utils import sysfsFmtHex, sysfsFmtDec, sysfsFmtStr, simulateWith, \
-                         inSimulation
+from ..core.utils import sysfsFmtHex, sysfsFmtDec, sysfsFmtStr, simulateWith
 
 from .common import PciComponent, KernelDriver, PciKernelDriver
 
@@ -108,9 +107,9 @@ class ScdKernelPsu(Psu):
       else:
          return self.getPresence()
 
-class ScdHwmonKernelDriver(PciKernelDriver):
+class ScdKernelDriver(PciKernelDriver):
    def __init__(self, scd):
-      super(ScdHwmonKernelDriver, self).__init__(scd, 'scd-hwmon')
+      super(ScdKernelDriver, self).__init__(scd, 'scd-hwmon')
 
    def writeConfigSim(self, path, data):
       for filename, value in data.items():
@@ -163,7 +162,7 @@ class ScdHwmonKernelDriver(PciKernelDriver):
          logging.error('Waiting SCD %s failed.', path)
 
    def setup(self):
-      super(ScdHwmonKernelDriver, self).setup()
+      super(ScdKernelDriver, self).setup()
 
       scd = self.component
       data = []
@@ -174,11 +173,11 @@ class ScdHwmonKernelDriver(PciKernelDriver):
       for addr, name in scd.leds:
          data += ["led %#x %s" % (addr, name)]
 
-      for addr, info in scd.qsfps.items():
-         data += ["qsfp %#x %u" % (addr, info['id'])]
+      for addr, xcvrId in scd.qsfps:
+         data += ["qsfp %#x %u" % (addr, xcvrId)]
 
-      for addr, info in scd.sfps.items():
-         data += ["sfp %#x %u" % (addr, info['id'])]
+      for addr, xcvrId in scd.sfps:
+         data += ["sfp %#x %u" % (addr, xcvrId)]
 
       for reset in scd.resets:
          data += ["reset %#x %s %u" % (reset.addr, reset.name, reset.bit)]
@@ -205,7 +204,7 @@ class ScdHwmonKernelDriver(PciKernelDriver):
       logging.debug('applying scd configuration')
       path = self.getSysfsPath()
       self.writeConfig(path, {'init_trigger': '1'})
-      super(ScdHwmonKernelDriver, self).finish()
+      super(ScdKernelDriver, self).finish()
 
    def resetSim(self, value):
       resets = self.component.getSysfsResetNameList()
@@ -224,180 +223,27 @@ class ScdHwmonKernelDriver(PciKernelDriver):
    def resetOut(self):
       self.reset(False)
 
-class ScdKernelDriver(PciKernelDriver):
-   def __init__(self, scd):
-      super(ScdKernelDriver, self).__init__(scd, 'sonic-support-driver')
-
-   def oldSetup(self):
-      # converting internals to old format
-      scd = self.component
-
-      qsfpType = 0
-      sfpType = 1
-      psuType = 2
-      muxType = 3
-
-      resets = {}
-      for reset in scd.resets:
-         assert isinstance(reset, ResetGpio), "Invalid type for reset %s" % reset
-         v = resets.setdefault(reset.addr, [])
-         v.append((reset.bit, reset.name))
-
-      gpios = OrderedDict()
-      gpio_names = []
-      gpio_type = []
-      for gpio in scd.gpios:
-         assert isinstance(gpio, NamedGpio), "Invalid type for gpio %s" % gpio
-         v = gpios.setdefault(gpio.addr, [])
-         v.append(Gpio(gpio.bit, gpio.ro, gpio.activeLow))
-
-      # FIXME: works since only psus are gpios and the driver behave strangely
-      gpio_type.append(psuType)
-      gpio_names.append("psu")
-      if len(scd.gpios) > 2:
-         gpio_type.append(muxType)
-         gpio_names.append("mux")
-
-      for addr, data in scd.qsfps.items():
-         gpio_names.append("qsfp%d" % data['id'])
-         gpio_type.append(qsfpType)
-         gpios[addr] = data['gpios']
-
-      for addr, data in scd.sfps.items():
-         gpio_names.append("sfp%d" % data['id'])
-         gpio_type.append(sfpType)
-         gpios[addr] = data['gpios']
-
-      # generating values
-
-      reset_addrs = sorted(resets)
-      reset_names = []
-      reset_masks = []
-
-      for addr in reset_addrs:
-         mask = 0
-         (bits, names) = zip(*resets[addr])
-         reset_names.extend(names)
-         for bit in bits:
-            mask |= (1 << bit)
-         reset_masks.append(mask)
-
-      gpio_addrs = gpios.keys()
-      gpio_masks = []
-      gpio_ro = []
-      gpio_active_low = []
-
-      for addr in gpio_addrs:
-         mask = 0
-         ro_mask = 0
-         active_low_mask = 0
-         for (bit, ro, active_low) in gpios[addr]:
-            mask |= (1 << bit)
-            if ro:
-               ro_mask |= (1 << bit)
-            if active_low:
-               active_low_mask |= (1 << bit)
-         gpio_masks.append(mask)
-         gpio_ro.append(ro_mask)
-         gpio_active_low.append(active_low_mask)
-
-      (led_addrs, led_names) = zip(*scd.leds)
-      master_addrs = scd.masters.keys()
-
-      files = [
-         ('master_addrs', sysfsFmtHex),
-         ('reset_addrs', sysfsFmtHex),
-         ('reset_names', sysfsFmtStr),
-         ('reset_masks', sysfsFmtHex),
-         ('gpio_addrs', sysfsFmtHex),
-         ('gpio_masks', sysfsFmtHex),
-         ('gpio_names', sysfsFmtStr),
-         ('gpio_ro', sysfsFmtDec),
-         ('gpio_type', sysfsFmtHex),
-         ('gpio_active_low', sysfsFmtDec),
-         ('led_addrs', sysfsFmtHex),
-         ('led_names', sysfsFmtStr)
-      ]
-      variables = locals()
-      return {key: ",".join(map(fmt, variables[key])) for key, fmt in files}
-
-   def writeConfig(self, path, data):
-      if inSimulation():
-         print(data)
-      else:
-         for filename, value in data.items():
-            try:
-               with open(os.path.join(path, filename), 'w') as f:
-                  f.write(value)
-            except IOError as e:
-               logging.error('%s %s' % (e.filename, e.strerror))
-
-   def getConfigSysfsPath(self):
-      return os.path.join(self.getSysfsPath(), 'sonic_support_driver',
-                          'sonic_support_driver')
-   def setup(self):
-      super(ScdKernelDriver, self).setup()
-      data = self.oldSetup()
-      self.writeConfig(self.getConfigSysfsPath(), data)
-
-   def finish(self):
-      logging.debug('applying scd configuration')
-      path = self.getSysfsPath()
-      self.writeConfig(path, {'init_trigger': '1'})
-
-      # FIXME: the direction should be set properly by the driver
-      logging.debug('setting gpio directions')
-      data = {
-         os.path.join(name, 'direction'): 'out'
-         for name, ro in self.component.allGpios() if not ro
-      }
-      self.writeConfig(path, data)
-      super(ScdKernelDriver, self).finish()
-
-   def reset(self, value):
-      path = self.getSysfsPath()
-      if inSimulation():
-         resets = self.component.getSysfsResetNameList()
-         logging.debug('reseting devices %s', resets)
-         return
-      for reset in self.component.getSysfsResetNameList():
-         activeLow = False
-         with open(os.path.join(path, reset, 'active_low')) as f:
-            activeLow = bool(int(f.read(), 0))
-         with open(os.path.join(path, reset, 'value'), 'w') as f:
-            f.write('1' if value != activeLow else '0') # logical xor
-
-   def resetIn(self):
-      self.reset(True)
-
-   def resetOut(self):
-      self.reset(False)
-
 class Scd(PciComponent):
    BusTweak = namedtuple('BusTweak', 'bus, addr, t, datr, datw')
-   def __init__(self, addr, newDriver=False):
+   def __init__(self, addr, **kwargs):
       super(Scd, self).__init__(addr)
       self.addDriver(KernelDriver, 'scd')
-      if newDriver:
-         self.addDriver(ScdHwmonKernelDriver)
-         self.rwCls = ScdSysfsRW
-      else:
-         self.addDriver(ScdKernelDriver)
-         self.rwCls = ScdSysfsOldRW
+      self.addDriver(ScdKernelDriver)
+      self.rwCls = ScdSysfsRW
       self.masters = OrderedDict()
       self.resets = []
       self.gpios = []
-      self.qsfps = OrderedDict()
-      self.sfps = OrderedDict()
+      self.qsfps = []
+      self.sfps = []
       self.leds = []
       self.tweaks = []
 
    def addBusTweak(self, bus, addr, t=1, datr=1, datw=3):
       self.tweaks.append(Scd.BusTweak(bus, addr, t, datr, datw))
 
-   def addSmbusMaster(self, addr, id, bus=8):
+   def addSmbusMaster(self, addr, mid, bus=8):
       self.masters[addr] = {
-         'id': id,
+         'id': mid,
          'bus': bus,
       }
 
@@ -425,38 +271,12 @@ class Scd(PciComponent):
       self.gpios += gpios
 
    def addQsfp(self, addr, xcvrId, bus, eepromAddr=0x50):
-      self.qsfps[addr] = {
-         'id': xcvrId,
-         'bus': bus,
-         'gpios': [
-            Gpio(0, True, True),
-            Gpio(2, True, True),
-            Gpio(3, True, False),
-            Gpio(5, True, False),
-            Gpio(6, False, False),
-            Gpio(7, False, False),
-            Gpio(8, False, True),
-         ]
-      }
+      self.qsfps += [(addr, xcvrId)]
       return ScdKernelXcvr(xcvrId, Xcvr.QSFP, eepromAddr, bus, self.drivers[1],
                            self.rwCls)
 
    def addSfp(self, addr, xcvrId, bus, eepromAddr=0x50):
-      self.sfps[addr] = {
-         'id': xcvrId,
-         'bus': bus,
-         'gpios': [
-            Gpio(0, True, False),
-            Gpio(1, True, False),
-            Gpio(2, True, True),
-            Gpio(3, True, False),
-            Gpio(4, True, False),
-            Gpio(5, True, False),
-            Gpio(6, False, False),
-            Gpio(7, False, False),
-            Gpio(8, False, False),
-         ]
-      }
+      self.sfps += [(addr, xcvrId)]
       return ScdKernelXcvr(xcvrId, Xcvr.SFP, eepromAddr, bus, self.drivers[1],
                            self.rwCls)
 
@@ -486,11 +306,12 @@ class Scd(PciComponent):
       gpios += zipXcvr("qsfp", qsfp_names, self.qsfps)
       gpios += [ (gpio.name, gpio.ro) for gpio in self.gpios ]
       gpios += [ (reset.name, False) for reset in self.resets ]
+
       return gpios
 
    def getSysfsResetNameList(self, xcvrs=True):
       entries = [reset.name for reset in self.resets]
       if xcvrs:
-         entries += ['qsfp%d_reset' % data['id'] for data in self.qsfps.values()]
+         entries += ['qsfp%d_reset' % xcvrId for _, xcvrId in self.qsfps]
       return entries
 

@@ -13,14 +13,12 @@ class Clearlake(Platform):
    def __init__(self):
       super(Clearlake, self).__init__()
 
-      # FIXME: due to an issue with the kernel drivers, the sfp ports are disabled
-      # self.sfpRange = incrange(1, 4)
-      self.sfpRange = []
+      self.sfpRange = incrange(1, 4)
       self.qsfp40gAutoRange = incrange(5, 28)
       self.qsfp40gOnlyRange = incrange(29, 36)
       self.allQsfps = sorted(self.qsfp40gAutoRange + self.qsfp40gOnlyRange)
 
-      self.inventory.addPorts(qsfps=self.allQsfps)
+      self.inventory.addPorts(sfps=self.sfpRange, qsfps=self.allQsfps)
 
       self.addDriver(KernelDriver, 'crow-fan-driver', '/sys/class/hwmon/hwmon1')
 
