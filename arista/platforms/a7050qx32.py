@@ -1,7 +1,7 @@
 from ..core.platform import registerPlatform, Platform
 from ..core.driver import KernelDriver
 from ..core.utils import incrange
-from ..core.types import PciAddr, I2cAddr, Gpio, NamedGpio, ResetGpio
+from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
