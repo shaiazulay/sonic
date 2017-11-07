@@ -1,67 +1,25 @@
-import re
-from collections import namedtuple, defaultdict
+from collections import defaultdict
 
+from arista.utils.sonic_utils import parsePortConfig
 from ..core import platform
+
+# DO NOT REMOVE THIS LINE. Needed to import all the platform info.
 import arista.platforms
 
 try:
    from sonic_led import led_control_base
 except ImportError as e:
-   raise ImportError ('%s - required module not found' % str(e))
-
-Port = namedtuple('Port', ['portNum', 'lanes', 'offset', 'singular'])
-
-def parsePortConfig(portConfigPath):
-   '''
-   Returns a dictionary mapping port name ("Ethernet48") to a named tuple of port
-   number, # of lanes, the offset (0 to 3 from the first lane in qsfp) and the
-   singularity of the lane (if it is in 100G/40G mode)
-   '''
-   portMapping = {}
-
-   with open(portConfigPath) as fp:
-      for line in fp:
-         line = line.strip()
-         if not line or line[0] == '#':
-            continue
-
-         fields = line.split()
-         # "portNum" is determined from the fourth column (port), or the first number
-         # in the third column (alias).
-         # "lanes" is determined from the number of lanes in the second column.
-         # "offset" is determined from the second number in the third column (alias).
-         # "singular" is determined by if the alias has a '/' character or not.
-         if len(fields) < 3:
-            continue
-         name = fields[0]
-         lanes = len(fields[1].split(','))
-         alias = fields[2]
-         aliasRe = re.findall(r'\d+', alias)
-         try:
-            portNum = int(fields[3])
-         except IndexError:
-            portNum = int(aliasRe[0])
-         if len(aliasRe) < 2:
-            offset = 0
-            singular = True
-         else:
-            offset = int(aliasRe[1]) - 1
-            singular = False
-
-         portMapping[name] = Port(portNum, lanes, offset, singular)
-
-   return portMapping
+   raise ImportError('%s - required module not found' % str(e))
 
 class LedControl(led_control_base.LedControlBase):
-   PORT_CONFIG_PATH = '/usr/share/sonic/hwsku/port_config.ini'
-   LED_SYSFS_PATH = '/sys/class/leds/{0}/brightness'
+   LED_SYSFS_PATH = "/sys/class/leds/{0}/brightness"
 
    LED_COLOR_OFF = 0
    LED_COLOR_GREEN = 1
    LED_COLOR_YELLOW = 2
 
    def __init__(self):
-      self.portMapping = parsePortConfig(self.PORT_CONFIG_PATH)
+      self.portMapping = parsePortConfig()
       self.portSysfsMapping = defaultdict(list)
 
       inventory = platform.getPlatform().getInventory()
