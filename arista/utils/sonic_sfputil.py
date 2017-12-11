@@ -1,5 +1,8 @@
+import json
 import time
 
+from .sonic_ceos_utils import runCliCmd
+from .sonic_utils import parsePortConfig, getSonicVersVar
 from ..core import platform as core_platform
 from .. import platforms
 
@@ -13,9 +16,7 @@ def getSfpUtil():
     platform = core_platform.getPlatform()
     inventory = platform.getInventory()
 
-    class SfpUtil(SfpUtilBase):
-        """Platform-specific SfpUtil class"""
-
+    class SfpUtilCommon(SfpUtilBase):
         @property
         def port_start(self):
             return inventory.portStart
@@ -46,6 +47,8 @@ def getSfpUtil():
         def __init__(self):
             SfpUtilBase.__init__(self)
 
+    class SfpUtilNative(SfpUtilCommon):
+        """Native Sonic SfpUtil class"""
         def get_presence(self, port_num):
             if not self._is_valid_port(port_num):
                 return False
@@ -92,4 +95,59 @@ def getSfpUtil():
 
             return True
 
-    return SfpUtil
+    class SfpUtilCeos(SfpUtilCommon):
+        def __init__(self):
+           self.portMapping = parsePortConfig()
+           # Using a different command to get presentXcvrs as it takes care of
+           # the port mapping for us.
+           cliCmd = ['show interface transceiver hardware | json']
+           self.presentXcvrs = json.loads(runCliCmd(cliCmd))['interfaces']
+           cliCmd = ['show idprom interface extended | json']
+           self.eepromIntfMap = json.loads(runCliCmd(cliCmd))['interfaces']
+           SfpUtilBase.__init__(self)
+
+        def _read_eeprom_devid(self, port_num, devid, offset):
+           num_bytes = 256
+           registers = []
+           eeprom_raw = ['0x00'  for _ in range(num_bytes)]
+           for port in self.portMapping.values():
+              if port.portNum == port_num:
+                  break
+
+           if port.alias not in self.presentXcvrs:
+              return None
+
+           for intf in self.eepromIntfMap:
+              if intf in port.alias:
+                 break
+
+           pages = self.eepromIntfMap[intf]['pages']
+           for page in pages.values():
+              registers += page['registers']
+           idx = 0
+           for reg in registers:
+              eeprom_raw[idx] = hex(reg)[2:].zfill(2)
+              idx = idx + 1
+           return eeprom_raw
+
+        def get_presence(self, port_num):
+           if not self._is_valid_port(port_num):
+              return False
+           for port in self.portMapping.values():
+              if port.portNum == port_num:
+                 break
+           return port.alias in self.presentXcvrs
+
+        def get_low_power_mode(self, port_num):
+           pass
+
+        def set_low_power_mode(self, port_num, lpmode):
+           pass
+
+        def reset(self, port_num):
+           pass
+
+    if getSonicVersVar('asic_type') == 'ceos':
+       return SfpUtilCeos
+    else:
+       return SfpUtilNative
