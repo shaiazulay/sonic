@@ -31,7 +31,7 @@ typeMap = {
 }
 
 idToNameMap = {}
-for k, v in typeMap.iteritems():
+for k, v in typeMap.items():
    idToNameMap[ v[0] ] = k
 
 def crc32( data ):

@@ -7,12 +7,12 @@ import sys
 
 from collections import OrderedDict, namedtuple, defaultdict
 
-from inventory import Inventory
-from component import Component, Priority
-from utils import simulateWith
-from driver import modprobe, rmmod, KernelDriver
+from .inventory import Inventory
+from .component import Component, Priority
+from .utils import simulateWith
+from .driver import modprobe, rmmod, KernelDriver
 
-import prefdl
+from . import prefdl
 
 platforms = {}
 syseeprom = None

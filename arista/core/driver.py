@@ -5,7 +5,7 @@ import os
 import subprocess
 import time
 
-from utils import inDebug, inSimulation
+from .utils import inDebug, inSimulation
 
 def modprobe(name, args=None):
    logging.debug('loading module %s', name)

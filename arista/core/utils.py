@@ -13,7 +13,7 @@ def sysfsFmtStr(x):
    return str(x)
 
 def incrange(start, stop):
-   return range(start, stop + 1)
+   return list(range(start, stop + 1))
 
 def flatten(nestedList):
    return [val for sublist in nestedList for val in sublist]
@@ -43,7 +43,7 @@ class NoopObj(object):
 
    def _fmtArgs(self, *args, **kwargs):
       kw = ['%s=%s' % (k,v) for k, v in kwargs.items()]
-      return ', '.join(map(str, args) + kw)
+      return ', '.join(list(map(str, args)) + kw)
 
    def noop(self, attr):
       def wrapped(*args, **kwargs):

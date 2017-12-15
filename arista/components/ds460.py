@@ -2,7 +2,7 @@ import logging
 
 from ..core.utils import SMBus
 
-from common import I2cKernelComponent
+from .common import I2cKernelComponent
 
 class Ds460(I2cKernelComponent):
    def __init__(self, addr, **kwargs):

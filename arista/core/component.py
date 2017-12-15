@@ -1,8 +1,8 @@
 from __future__ import print_function
 from collections import defaultdict
 
-from driver import Driver
-from utils import flatten
+from .driver import Driver
+from .utils import flatten
 
 DEFAULT_WAIT_TIMEOUT = 5
 

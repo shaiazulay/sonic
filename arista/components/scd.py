@@ -10,7 +10,7 @@ from ..core.types import Gpio, ResetGpio, NamedGpio
 from ..core.utils import sysfsFmtHex, sysfsFmtDec, sysfsFmtStr, simulateWith, \
                          inSimulation
 
-from common import PciComponent, KernelDriver, PciKernelDriver
+from .common import PciComponent, KernelDriver, PciKernelDriver
 
 class ScdSysfsGroup(object):
    def __init__(self, objNum, typeStr, driver):

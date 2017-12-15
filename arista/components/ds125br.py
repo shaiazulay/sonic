@@ -2,7 +2,7 @@ import logging
 import copy
 
 from ..core.utils import SMBus
-from common import I2cComponent
+from .common import I2cComponent
 
 class Ds125Br(I2cComponent):
    def __init__(self, addr, **kwargs):
