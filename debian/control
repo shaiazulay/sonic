@@ -18,5 +18,6 @@ Depends:
    linux-image-3.16.0-4-amd64,
    python-smbus,
    i2c-tools
+Recommends: python3-smbus
 Description: kernel modules for arista platform devices such as fan, led, sfp
 

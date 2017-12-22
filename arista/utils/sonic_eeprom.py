@@ -23,7 +23,7 @@ from ..core.platform import fmted_prefdl_path
 try:
    from sonic_eeprom import eeprom_base
    from sonic_eeprom import eeprom_tlvinfo
-except ImportError, e:
+except ImportError as e:
    raise ImportError (str(e) + " - required module not found")
 
 class board(eeprom_tlvinfo.TlvInfoDecoder):
