@@ -3,7 +3,7 @@ import arista.platforms
 
 from collections import defaultdict
 
-from arista.utils.sonic_utils import parsePortConfig, getSonicVersVar
+from arista.utils.sonic_utils import parsePortConfig, ceosManagesLeds
 from ..core import platform
 
 try:
@@ -102,6 +102,6 @@ class LedControlCeos(LedControlCommon):
       return
 
 def getLedControl():
-   if getSonicVersVar('asic_type') == 'ceos':
+   if ceosManagesLeds():
       return LedControlCeos
    return LedControlSysfs

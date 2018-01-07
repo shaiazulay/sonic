@@ -1,8 +1,8 @@
 import json
 import time
 
-from .sonic_ceos_utils import runCliCmd
-from .sonic_utils import parsePortConfig, getSonicVersVar
+from .sonic_ceos_utils import runCliCmd, ceosManagesXcvrs
+from .sonic_utils import parsePortConfig
 from ..core import platform as core_platform
 from .. import platforms
 
@@ -139,15 +139,15 @@ def getSfpUtil():
            return port.alias in self.presentXcvrs
 
         def get_low_power_mode(self, port_num):
-           pass
+           return False
 
         def set_low_power_mode(self, port_num, lpmode):
-           pass
+           return False
 
         def reset(self, port_num):
-           pass
+           return False
 
-    if getSonicVersVar('asic_type') == 'ceos':
+    if ceosManagesXcvrs():
        return SfpUtilCeos
     else:
        return SfpUtilNative
