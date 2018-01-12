@@ -28,8 +28,6 @@ override_dh_auto_build:
 	python2 setup.py build
 
 override_dh_auto_install:
-	dh_installdirs -p$(DEB_SOURCE) $(KERNEL_DST)/$(INSTALL_MOD_DIR)
-	cp $(MODULE_SRC)/*.ko debian/$(DEB_SOURCE)/$(KERNEL_DST)/$(INSTALL_MOD_DIR)
 	dh_installdirs -p$(DEB_SOURCE) usr/bin
 	cp $(BIN_SRC) debian/$(DEB_SOURCE)/usr/bin
 	dh_installdirs -p$(DEB_SOURCE) usr/share/arista
@@ -38,8 +36,6 @@ override_dh_auto_install:
 	cp $(SERVICE_SRC) debian/$(DEB_SOURCE)/etc/systemd/system
 	dh_installdirs -pdrivers-$(DEB_SOURCE) $(KERNEL_DST)/$(INSTALL_MOD_DIR)
 	cp $(MODULE_SRC)/*.ko debian/drivers-$(DEB_SOURCE)/$(KERNEL_DST)/$(INSTALL_MOD_DIR)
-	python2 setup.py install --root=$(BASE_DIR)/debian/$(DEB_SOURCE) --install-layout=deb
-	python3 setup.py install --root=$(BASE_DIR)/debian/$(DEB_SOURCE) --install-layout=deb
 	python2 setup.py install --root=$(BASE_DIR)/debian/python-$(DEB_SOURCE) --install-layout=deb
 	python3 setup.py install --root=$(BASE_DIR)/debian/python3-$(DEB_SOURCE) --install-layout=deb
 
