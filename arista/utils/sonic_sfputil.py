@@ -41,7 +41,7 @@ def getSfpUtil():
 
         @property
         def port_to_i2cbus_mapping(self):
-            return inventory.getPortToI2cMapping()
+            return inventory.getPortToI2cAdapterMapping()
 
         def __init__(self):
             SfpUtilBase.__init__(self)
