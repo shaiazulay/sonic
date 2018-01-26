@@ -3,7 +3,7 @@ import arista.platforms
 
 from collections import defaultdict
 
-from .sonic_ceos_utils import ceosManagesLeds
+from .sonic_ceos_utils import ceosManagesLeds, CeosCli
 from .sonic_utils import parsePortConfig
 from ..core import platform
 
@@ -78,8 +78,7 @@ class LedControlCeos(LedControlCommon):
    LED_COLOR_YELLOW = 'yellow'
 
    def __init__(self):
-      from jsonrpclib import Server
-      self.ceos = Server("http://localhost:8080/command-api)")
+      self.ceos = CeosCli()
       #TODO: add status and check fan_status equivalent in EOS
       self.invToCliStatusLedMap = {'status' : 'status',
                                    'fan_status' : 'fantray',
@@ -95,11 +94,7 @@ class LedControlCeos(LedControlCommon):
       ceosIntfName = "Ethernet%d" % port.portNum
       if not port.singular:
          ceosIntfName = "%s/%s" % (ceosIntfName, idx + 1)
-      try:
-         self.ceos.runCmds(1,
-                           ['enable', 'led interface %s %s' % (ceosIntfName, color)])
-      except:
-         pass
+      self.ceos.runCmds(['enable', 'led interface %s %s' % (ceosIntfName, color)])
       return
 
 def getLedControl():
