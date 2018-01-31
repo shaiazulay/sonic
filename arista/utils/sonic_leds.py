@@ -3,7 +3,8 @@ import arista.platforms
 
 from collections import defaultdict
 
-from arista.utils.sonic_utils import parsePortConfig, ceosManagesLeds
+from .sonic_ceos_utils import ceosManagesLeds
+from .sonic_utils import parsePortConfig
 from ..core import platform
 
 try:
