@@ -100,6 +100,7 @@
 #include <asm/nmi.h>
 #include <linux/sched.h>
 #include <linux/device.h>
+#include <linux/version.h>
 
 #define SCD_MODULE_NAME "scd"
 
@@ -1557,7 +1558,11 @@ scd_lpc_mmap_resource(struct file *filp, struct kobject *kobj,
 
    vma->vm_pgoff += lpc_res_addr >> PAGE_SHIFT;
    prot = pgprot_val(vma->vm_page_prot);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
    prot |= _PAGE_CACHE_UC;
+#else
+   prot |= cachemode2protval(_PAGE_CACHE_MODE_UC);
+#endif
    vma->vm_page_prot = __pgprot(prot);
 
    // map resource0 into user space
