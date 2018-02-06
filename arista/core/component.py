@@ -4,7 +4,10 @@ from collections import defaultdict
 from .driver import Driver
 from .utils import flatten
 
-DEFAULT_WAIT_TIMEOUT = 5
+import os
+
+DEFAULT_WAIT_TIMEOUT = 15
+ASIC_YIELD_TIME = os.getenv( 'ASIC_YIELD_TIME', 2 )
 
 class Priority:
    DEFAULT = 0

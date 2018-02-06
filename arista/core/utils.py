@@ -18,6 +18,13 @@ def incrange(start, stop):
 def flatten(nestedList):
    return [val for sublist in nestedList for val in sublist]
 
+def klog(msg, level=2, *args):
+   try:
+      with open('/dev/kmsg', 'w') as f:
+         f.write('<%d>arista: %s\n' % (level, msg % tuple(*args)))
+   except:
+      pass
+
 class FileLock:
    def __init__(self, lock_file):
       self.f = open(lock_file, 'w')
