@@ -7,8 +7,8 @@ include /usr/share/dpkg/pkg-info.mk
 export INSTALL_MOD_DIR:=extra
 
 SCRIPT_FILES   := reset
-BIN_FILES      := arista boot-eos
-SERVICE_FILES  := arista-drivers.service
+BIN_FILES      := arista boot-eos arista-gardena-watchdog
+SERVICE_FILES  := gardena-watchdog-stop.service
 
 KVERSION       ?= $(shell uname -r)
 KERNEL_SRC     ?= /lib/modules/$(KVERSION)/build
@@ -21,7 +21,7 @@ BIN_SRC        := $(addprefix $(BASE_DIR)/utils/,$(BIN_FILES))
 SERVICE_SRC    := $(addprefix $(BASE_DIR)/confs/,$(SERVICE_FILES))
 
 %:
-	dh $@ --with python2,python3 --buildsystem=pybuild
+	dh $@ --with python2,python3,systemd --buildsystem=pybuild
 
 override_dh_auto_build:
 	$(MAKE) -C $(KERNEL_SRC) M=$(MODULE_SRC)
@@ -32,8 +32,8 @@ override_dh_auto_install:
 	cp $(BIN_SRC) debian/$(DEB_SOURCE)/usr/bin
 	dh_installdirs -p$(DEB_SOURCE) usr/share/arista
 	cp $(SCRIPT_SRC) debian/$(DEB_SOURCE)/usr/share/arista
-	dh_installdirs -p$(DEB_SOURCE) etc/systemd/system
-	cp $(SERVICE_SRC) debian/$(DEB_SOURCE)/etc/systemd/system
+	dh_installdirs -p$(DEB_SOURCE) lib/systemd/system
+	cp $(SERVICE_SRC) debian/$(DEB_SOURCE)/lib/systemd/system
 	dh_installdirs -pdrivers-$(DEB_SOURCE) $(KERNEL_DST)/$(INSTALL_MOD_DIR)
 	cp $(MODULE_SRC)/*.ko debian/drivers-$(DEB_SOURCE)/$(KERNEL_DST)/$(INSTALL_MOD_DIR)
 	python2 setup.py install --root=$(BASE_DIR)/debian/python-$(DEB_SOURCE) --install-layout=deb
