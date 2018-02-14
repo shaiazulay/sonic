@@ -1,5 +1,7 @@
 import logging
 
+from contextlib import closing
+
 from ..core.utils import SMBus
 
 from .common import I2cKernelComponent
@@ -13,24 +15,20 @@ class Ds460(I2cKernelComponent):
       addr = self.addr.address
 
       logging.debug('initializing ds460 registers')
-      bus = SMBus(self.addr.bus)
+      with closing(SMBus(self.addr.bus)) as bus:
+         try:
+            bus.read_byte_data(addr, 0x00)
+         except IOError:
+            logging.debug('device ds460 not found')
+            return
 
-      try:
-         bus.read_byte_data(addr, 0x00)
-      except IOError:
-         logging.debug('device ds460 not found')
-         bus.close()
-         return
-
-      try:
-         byte = bus.read_byte_data(addr, 0x10)
-         bus.write_byte_data(addr, 0x10, 0)
-         bus.write_byte_data(addr, 0x03, 1)
-         bus.write_byte_data(addr, 0x10, byte)
-      except IOError:
-         logging.debug('failed to initialize ds460')
-
-      bus.close()
+         try:
+            byte = bus.read_byte_data(addr, 0x10)
+            bus.write_byte_data(addr, 0x10, 0)
+            bus.write_byte_data(addr, 0x03, 1)
+            bus.write_byte_data(addr, 0x10, byte)
+         except IOError:
+            logging.debug('failed to initialize ds460')
 
       super(Ds460, self).setup()
 

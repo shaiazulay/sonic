@@ -1,6 +1,8 @@
 import logging
 import copy
 
+from contextlib import closing
+
 from ..core.utils import SMBus
 from .common import I2cComponent
 
@@ -75,9 +77,9 @@ class Ds125Br(I2cComponent):
    def setup(self):
       logging.debug('setting up ds125br repeaters')
 
-      bus = SMBus(self.addr.bus)
-      for addr, config in self.getPortConfigs():
-         self.setupPort(bus, addr, config)
+      with closing(SMBus(self.addr.bus)) as bus:
+         for addr, config in self.getPortConfigs():
+            self.setupPort(bus, addr, config)
 
    def clean(self):
       pass
