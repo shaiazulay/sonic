@@ -1,7 +1,56 @@
 import logging
+import mmap
 import fcntl
+import os
 
+from struct import pack, unpack
 from functools import wraps
+
+class MmapResource(object):
+   """Resource implementation for a directly-mapped memory region."""
+   def __init__(self, path):
+      self.path = path
+      self.mmap_ = None
+
+   def map(self):
+      try:
+         fd = os.open(self.path, os.O_RDWR)
+      except EnvironmentError:
+         logging.error("FAIL can not open scd memory-map resource file")
+         logging.error("FAIL are you running on the proper platform?")
+         return False
+
+      try:
+         size = os.fstat(fd).st_size
+      except EnvironmentError:
+         logging.error("FAIL can not fstat scd memory-map resource file")
+         logging.error("FAIL are you running on the proper platform?")
+         return False
+
+      try:
+         self.mmap_ = mmap.mmap(fd, size, mmap.MAP_SHARED,
+                                mmap.PROT_READ | mmap.PROT_WRITE)
+      except EnvironmentError:
+         logging.error("FAIL can not map scd memory-map file")
+         logging.error("FAIL are you running on the proper platform?")
+         return False
+      finally:
+         try:
+            # Note that closing the file descriptor has no effect on the memory map
+            os.close(fd)
+         except EnvironmentError:
+            logging.error("FAIL failed to close scd memory-map file")
+            return False
+      return True
+
+   def close( self ):
+      self.mmap_.close()
+
+   def read32( self, addr ):
+      return unpack( '<L', self.mmap_[ addr : addr + 4 ] )[ 0 ]
+
+   def write32( self, addr, value ):
+      self.mmap_[ addr: addr + 4 ] = pack( '<L', value )
 
 def sysfsFmtHex(x):
    return "0x%08x" % x
