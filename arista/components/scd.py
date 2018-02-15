@@ -1,7 +1,8 @@
 from __future__ import print_function, with_statement
 
-import os
 import logging
+import os
+import time
 
 from collections import OrderedDict, namedtuple
 
@@ -11,6 +12,8 @@ from ..core.utils import sysfsFmtHex, sysfsFmtDec, sysfsFmtStr, simulateWith, \
                          inSimulation
 
 from .common import PciComponent, KernelDriver, PciKernelDriver
+
+SCD_WAIT_TIMEOUT = 5.
 
 class ScdSysfsGroup(object):
    def __init__(self, objNum, typeStr, driver):
@@ -141,6 +144,24 @@ class ScdHwmonKernelDriver(PciKernelDriver):
       if data:
          self.writeConfig(self.getSysfsPath(), {filename: '\n'.join(data)})
 
+   def waitReadySim(self):
+      logging.info('Waiting SCD %s.', self.getSysfsPath())
+      logging.info('Done.')
+
+   @simulateWith(waitReadySim)
+   def waitReady(self):
+      path = self.getSysfsPath()
+      logging.debug('Waiting SCD %s.', path)
+
+      count = 0
+      retries = 100
+      while not os.path.exists(path) and count <= retries:
+         time.sleep(SCD_WAIT_TIMEOUT / retries)
+         count = count + 1
+         logging.debug('Waiting SCD %s attempt %d.', path, count)
+      if not os.path.exists(path):
+         logging.error('Waiting SCD %s failed.', path)
+
    def setup(self):
       super(ScdHwmonKernelDriver, self).setup()
 
@@ -170,6 +191,8 @@ class ScdHwmonKernelDriver(PciKernelDriver):
       for tweak in scd.tweaks:
          tweaks += ["%#x %#x %#x %#x %#x" % (
             tweak.bus, tweak.addr, tweak.t, tweak.datr, tweak.datw)]
+
+      self.waitReady()
 
       logging.debug('creating scd objects')
       self.writeComponents(data, "new_object")

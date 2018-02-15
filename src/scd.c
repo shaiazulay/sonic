@@ -339,11 +339,10 @@ EXPORT_SYMBOL(scd_unregister_em_ops);
 int scd_register_ext_ops(struct scd_ext_ops *ops) {
    struct scd_dev_priv *priv;
 
-   ASSERT(scd_ext_ops == NULL);
-   scd_ext_ops = ops;
-
    // call probe() for any existing scd
    scd_lock();
+   ASSERT(scd_ext_ops == NULL);
+   scd_ext_ops = ops;
    list_for_each_entry(priv, &scd_list, list) {
       if (scd_ext_ops->probe) {
          scd_ext_ops->probe(priv->pdev);
@@ -356,30 +355,30 @@ int scd_register_ext_ops(struct scd_ext_ops *ops) {
 void scd_unregister_ext_ops() {
    struct scd_dev_priv *priv;
 
-   if (!scd_ext_ops) {
-      return;
-   }
-
    // call remove() for any existing scd
    scd_lock();
+   if (!scd_ext_ops) {
+      scd_unlock();
+      return;
+   }
    list_for_each_entry(priv, &scd_list, list) {
       if (scd_ext_ops->remove) {
          scd_ext_ops->remove(priv->pdev);
       }
    }
-   scd_unlock();
    scd_ext_ops = NULL;
+   scd_unlock();
 }
 
 void scd_ext_init_trigger(void){
    struct scd_dev_priv *priv;
 
-   if (!scd_ext_ops) {
-      return;
-   }
-
    // call init_trigger() for any existing scd
    scd_lock();
+   if (!scd_ext_ops) {
+      scd_unlock();
+      return;
+   }
    list_for_each_entry(priv, &scd_list, list) {
       if (scd_ext_ops->init_trigger) {
          scd_ext_ops->init_trigger(priv->pdev);
@@ -1230,6 +1229,9 @@ static int scd_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
    // add to our list
    scd_lock();
    list_add_tail(&priv->list, &scd_list);
+   if (scd_ext_ops && scd_ext_ops->probe) {
+      scd_ext_ops->probe(priv->pdev);
+   }
    scd_unlock();
 
    priv->revision = ioread32(priv->mem + SCD_REVISION_OFFSET);
