@@ -66,7 +66,10 @@ class Cloverdale(Platform):
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
       ])
-      self.inventory.addPsus([scd.createPsu(1, False), scd.createPsu(2, False)])
+      self.inventory.addPsus([
+         scd.createPsu(1, statusGpios=None),
+         scd.createPsu(2, statusGpios=None),
+      ])
 
       addr = 0x6100
       for xcvrId in self.qsfp40gAutoRange:
