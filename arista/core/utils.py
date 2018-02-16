@@ -2,8 +2,10 @@ import logging
 import mmap
 import fcntl
 import os
-
+import time
 from struct import pack, unpack
+
+from datetime import datetime
 from functools import wraps
 
 class MmapResource(object):
@@ -73,6 +75,39 @@ def klog(msg, level=2, *args):
          f.write('<%d>arista: %s\n' % (level, msg % tuple(*args)))
    except:
       pass
+
+class Retrying:
+   def __init__(self, interval=1.0, delay=0.05, maxAttempts=None):
+      self.interval = interval
+      self.delay = delay
+      self.maxAttempts = maxAttempts
+
+   def __iter__(self):
+      class Iterator:
+         def __init__(self, interval, delay, maxAttempts):
+            self.attempt = 0
+
+            self.startedAt_ = datetime.now()
+            self.interval_ = interval
+            self.delay_ = delay
+            self.maxAttempts_ = maxAttempts
+
+         def __next__(self):
+            time.sleep(self.delay_)
+            if self.isExpired() or \
+               self.maxAttempts_ and self.attempt >= self.maxAttempts_:
+               raise StopIteration
+            self.attempt += 1
+            return self
+
+         def next(self):
+            return self.__next__()
+
+         def isExpired(self):
+            return self.interval_ and \
+               (datetime.now() - self.startedAt_).total_seconds() > self.interval_
+
+      return Iterator(self.interval, self.delay, self.maxAttempts)
 
 class FileLock:
    def __init__(self, lock_file):

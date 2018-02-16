@@ -5,6 +5,7 @@ from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.psu import PmbusPsuComponent, ScdPmbusPsu
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
 
@@ -32,8 +33,6 @@ class Cloverdale(Platform):
       scd.addComponents([
          I2cKernelComponent(I2cAddr(5, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
          I2cKernelComponent(I2cAddr(6, 0x48), 'lm73', '/sys/class/hwmon/hwmon3'),
-         Ds460(I2cAddr(8, 0x58), priority=Priority.BACKGROUND),
-         Ds460(I2cAddr(9, 0x58), priority=Priority.BACKGROUND),
 
          # Due to a risk of an unrecoverable firmware corruption when a pmbus
          # transaction is done at the same moment of the poweroff, the handling of
@@ -41,6 +40,16 @@ class Cloverdale(Platform):
          #I2cKernelComponent(I2cAddr(5, 0x4e), 'pmbus'), # ucd90120A
          #I2cKernelComponent(I2cAddr(10, 0x4e), 'pmbus'), # ucd90120A
       ])
+
+      psu1 = Ds460(I2cAddr(8, 0x58), '/sys/class/hwmon/hwmon4',
+                   priority=Priority.BACKGROUND,
+                   waitTimeout=30.0)
+      psu2 = Ds460(I2cAddr(9, 0x58), '/sys/class/hwmon/hwmon5',
+                   priority=Priority.BACKGROUND,
+                   waitTimeout=30.0)
+      scd.addComponents([psu1, psu2])
+      scd.addBusTweak(8, 0x58, 3, 3, 3, 1)
+      scd.addBusTweak(9, 0x58, 3, 3, 3, 1)
 
       scd.addSmbusMasterRange(0x8000, 5)
 
@@ -67,8 +76,8 @@ class Cloverdale(Platform):
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
       ])
       self.inventory.addPsus([
-         scd.createPsu(1, statusGpios=None),
-         scd.createPsu(2, statusGpios=None),
+         ScdPmbusPsu(scd.createPsu(1, statusGpios=None), psu1),
+         ScdPmbusPsu(scd.createPsu(2, statusGpios=None), psu2),
       ])
 
       addr = 0x6100
