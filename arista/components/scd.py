@@ -82,18 +82,20 @@ class ScdKernelXcvr(Xcvr):
       return self.rw.writeValue('reset', '1' if value else '0')
 
 class ScdKernelPsu(Psu):
-   def __init__(self, portNum, driver, sysfsRWClass, statusSupported):
-      self.rw = sysfsRWClass(portNum, 'psu', driver)
-      self.statusSupported = statusSupported
+   def __init__(self, psuId, rw, presenceGpios, statusGpios):
+      self.psuId = psuId
+      self.rw_ = rw
+      self.presenceGpios_ = presenceGpios
+      self.statusGpios_ = statusGpios
 
    def getPresence(self):
-      return self.rw.readValue('present') == '1'
+      return all(self.rw_.readValue(pin) == '1' for pin in self.presenceGpios_)
 
    def getStatus(self):
-      if self.statusSupported:
-         return self.rw.readValue('status') == '1'
-      else:
+      if not self.statusGpios_:
          return self.getPresence()
+
+      return all(self.rw_.readValue(pin) == '1' for pin in self.statusGpios_)
 
 class ScdKernelDriver(PciKernelDriver):
    def __init__(self, scd):
@@ -370,8 +372,11 @@ class Scd(PciComponent):
       self.xcvrs.append(xcvr)
       return xcvr
 
-   def createPsu(self, psuId, statusSupported):
-      return ScdKernelPsu(psuId, self.drivers[1], self.rwCls, statusSupported)
+   def createPsu(self, psuId, presenceGpios=['present'], statusGpios=['status', 'ac_status']):
+      sysfs = self.rwCls(psuId, 'psu', self.drivers[1])
+      presenceGpios = presenceGpios[:] if presenceGpios else []
+      statusGpios = statusGpios[:] if statusGpios else []
+      return ScdKernelPsu(psuId, sysfs, presenceGpios, statusGpios)
 
    def allGpios(self):
       def zipXcvr(xcvrType, gpio_names, entries):
