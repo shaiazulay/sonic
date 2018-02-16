@@ -5,7 +5,7 @@ import os
 import subprocess
 import time
 
-from .utils import inDebug, inSimulation
+from .utils import Retrying, inDebug, inSimulation
 
 def modprobe(name, args=None):
    logging.debug('loading module %s', name)
@@ -60,12 +60,15 @@ class Driver(object):
 
 class KernelDriver(Driver):
    # TODO: handle multiple kernel modules
-   def __init__(self, component, module, waitFile=None, args=None):
+   def __init__(self, component, module,
+                waitFile=None, waitTimeout=None,
+                args=None):
       super(KernelDriver, self).__init__(component)
       self.component = component
       self.module = module
       self.args = args if args is not None else []
       self.waitFile = waitFile
+      self.waitTimeout = float(waitTimeout) if waitTimeout else 1.0
 
    def waitFileReady(self):
       if not self.waitFile:
@@ -73,12 +76,12 @@ class KernelDriver(Driver):
 
       logging.debug('Starting driver. Waiting file %s.', self.waitFile)
 
-      count = 0
-      while not os.path.exists(self.waitFile) and count <= 20:
-         time.sleep(0.05)
-         count = count + 1
+      for r in Retrying(interval=self.waitTimeout):
+         if os.path.exists(self.waitFile):
+            break
          logging.debug('Starting driver. Waiting file %s attempt %d.',
-                       self.waitFile, count)
+                       self.waitFile, r.attempt)
+
       if not os.path.exists(self.waitFile):
          logging.error('Starting driver. Waiting file %s failed.',
                        self.waitFile)

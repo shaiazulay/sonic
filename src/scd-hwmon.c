@@ -67,12 +67,14 @@ struct bus_params {
    u8 t;
    u8 datw;
    u8 datr;
+   u8 ed;
 };
 
 const struct bus_params default_bus_params = {
    .t = 1,
    .datw = 3,
    .datr = 3,
+   .ed = 0,
 };
 
 struct scd_bus {
@@ -183,7 +185,8 @@ union request_reg {
    struct {
       u32 d:8;
       u32 ss:6;
-      u32 reserved1:2;
+      u32 ed:1;
+      u32 reserved1:1;
       u32 dat:2;
       u32 t:2;
       u32 sp:1;
@@ -327,7 +330,7 @@ static s32 smbus_check_resp(union response_reg resp, u32 tid)
    return 0;
 
 fail:
-   scd_dbg("smbus response: %s error. reg=0x%08x", error, resp.reg);
+   scd_warn("smbus response: %s error. reg=0x%08x", error, resp.reg);
    return error_ret;
 }
 
@@ -437,6 +440,7 @@ static s32 scd_smbus_do(struct scd_bus *bus, u16 addr, unsigned short flags,
    for (i = 0; i < ss; i++) {
       if (i == ss - 1) {
          req.sp = 1;
+         req.ed = params->ed;
          if (read_write == I2C_SMBUS_WRITE) {
             req.dat = params->datw;
          } else {
@@ -1393,6 +1397,7 @@ static ssize_t set_bus_params(struct scd_context *ctx, u16 bus,
          p->t = params->t;
          p->datw = params->datw;
          p->datr = params->datr;
+         p->ed = params->ed;
          return 0;
       }
    }
@@ -1406,6 +1411,7 @@ static ssize_t set_bus_params(struct scd_context *ctx, u16 bus,
    p->t = params->t;
    p->datw = params->datw;
    p->datr = params->datr;
+   p->ed = params->ed;
    list_add_tail(&p->list, &scd_bus->params);
    return 0;
 }
@@ -1433,6 +1439,7 @@ static ssize_t parse_smbus_tweak(struct scd_context *ctx, const char *buf,
    PARSE_INT_OR_RETURN(&ptr, tmp, u8, &params.t);
    PARSE_INT_OR_RETURN(&ptr, tmp, u8, &params.datr);
    PARSE_INT_OR_RETURN(&ptr, tmp, u8, &params.datw);
+   PARSE_INT_OR_RETURN(&ptr, tmp, u8, &params.ed);
 
    err = set_bus_params(ctx, bus, &params);
    if (err == 0)

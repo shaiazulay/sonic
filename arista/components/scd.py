@@ -178,8 +178,8 @@ class ScdKernelDriver(PciKernelDriver):
 
       tweaks = []
       for tweak in scd.tweaks:
-         tweaks += ["%#x %#x %#x %#x %#x" % (
-            tweak.bus, tweak.addr, tweak.t, tweak.datr, tweak.datw)]
+         tweaks += ["%#x %#x %#x %#x %#x %#x" % (
+            tweak.bus, tweak.addr, tweak.t, tweak.datr, tweak.datw, tweak.ed)]
 
       self.waitReady()
 
@@ -306,7 +306,7 @@ class ScdWatchdog(Watchdog):
          return None
 
 class Scd(PciComponent):
-   BusTweak = namedtuple('BusTweak', 'bus, addr, t, datr, datw')
+   BusTweak = namedtuple('BusTweak', 'bus, addr, t, datr, datw, ed')
    def __init__(self, addr, **kwargs):
       super(Scd, self).__init__(addr)
       self.addDriver(KernelDriver, 'scd')
@@ -326,8 +326,8 @@ class Scd(PciComponent):
                          os.path.join(self.getSysfsPath(), "resource0"),
                          reg=reg, scr=scr)
 
-   def addBusTweak(self, bus, addr, t=1, datr=1, datw=3):
-      self.tweaks.append(Scd.BusTweak(bus, addr, t, datr, datw))
+   def addBusTweak(self, bus, addr, t=1, datr=1, datw=3, ed=0):
+      self.tweaks.append(Scd.BusTweak(bus, addr, t, datr, datw, ed))
 
    def addSmbusMaster(self, addr, mid, bus=8):
       self.masters[addr] = {

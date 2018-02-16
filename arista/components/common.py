@@ -22,22 +22,27 @@ class I2cComponent(Component):
       super(I2cComponent, self).__init__(addr=addr, **kwargs)
 
 class I2cKernelComponent(I2cComponent):
-   def __init__(self, addr, name, waitFile=None, **kwargs):
+   def __init__(self, addr, name, waitFile=None, waitTimeout=None, **kwargs):
       super(I2cKernelComponent, self).__init__(addr, **kwargs)
-      self.addDriver(I2cKernelDriver, name, waitFile)
+      self.addDriver(I2cKernelDriver, name,
+                     waitFile=waitFile,
+                     waitTimeout=waitTimeout)
 
 class PciKernelDriver(KernelDriver):
    def __init__(self, component, name, args=None):
       assert isinstance(component, PciComponent)
-      super(PciKernelDriver, self).__init__(component, name, args)
+      super(PciKernelDriver, self).__init__(component, name,
+                                            args=args)
 
    def getSysfsPath(self):
       return self.component.getSysfsPath()
 
 class I2cKernelDriver(KernelDriver):
-   def __init__(self, component, name, waitFile=None):
+   def __init__(self, component, name, waitFile=None, waitTimeout=None):
       assert isinstance(component, I2cComponent)
-      super(I2cKernelDriver, self).__init__(component, None, waitFile)
+      super(I2cKernelDriver, self).__init__(component, None,
+                                            waitFile=waitFile,
+                                            waitTimeout=waitTimeout)
       self.name = name
 
    def getSysfsPath(self):
