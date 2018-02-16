@@ -13,6 +13,9 @@ class PciComponent(Component):
       assert isinstance(addr, PciAddr)
       super(PciComponent, self).__init__(addr=addr, **kwargs)
 
+   def getSysfsPath(self):
+      return os.path.join('/sys/bus/pci/devices', str(self.addr))
+
 class I2cComponent(Component):
    def __init__(self, addr, **kwargs):
       assert isinstance(addr, I2cAddr)
@@ -29,7 +32,7 @@ class PciKernelDriver(KernelDriver):
       super(PciKernelDriver, self).__init__(component, name, args)
 
    def getSysfsPath(self):
-      return os.path.join('/sys/bus/pci/devices', str(self.component.addr))
+      return self.component.getSysfsPath()
 
 class I2cKernelDriver(KernelDriver):
    def __init__(self, component, name, waitFile=None):
@@ -75,7 +78,7 @@ class I2cKernelDriver(KernelDriver):
 class SwitchChip(PciComponent):
    def waitForIt(self, timeout=DEFAULT_WAIT_TIMEOUT):
       end = time.time() + timeout
-      devPath = os.path.join('/sys/bus/pci/devices/', str(self.addr))
+      devPath = self.getSysfsPath()
 
       logging.debug('waiting for switch chip %s', devPath)
       if inSimulation():
