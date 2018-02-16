@@ -3,12 +3,26 @@ from ..core.driver import KernelDriver
 from ..core.utils import incrange
 from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
+from ..core.inventory import Psu
 
 from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.psu import UpperlakePsuComponent
 from ..components.scd import Scd
 
 @registerPlatform(['DCS-7060CX-32S', 'DCS-7060CX-32S-ES'])
 class Upperlake(Platform):
+   class UpperlakePsu(Psu):
+      def __init__(self, scd, psu):
+         self.psuId = scd.psuId
+         self.scd_ = scd
+         self.psu_ = psu
+
+      def getPresence(self):
+         return self.scd_.getPresence()
+
+      def getStatus(self):
+         return self.psu_.getStatus()
+
    def __init__(self):
       super(Upperlake, self).__init__()
 
@@ -59,13 +73,16 @@ class Upperlake(Platform):
          ResetGpio(0x4000, 2, False, 'switch_chip_pcie_reset'),
       ])
 
+      psu1 = UpperlakePsuComponent(1, I2cAddr(1, 0x23), priority=Priority.BACKGROUND)
+      psu2 = UpperlakePsuComponent(2, I2cAddr(1, 0x23), priority=Priority.BACKGROUND)
+      scd.addComponents([psu1, psu2])
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
       ])
       self.inventory.addPsus([
-         scd.createPsu(1, statusGpios=None),
-         scd.createPsu(2, statusGpios=None),
+         self.UpperlakePsu(scd.createPsu(1), psu1),
+         self.UpperlakePsu(scd.createPsu(2), psu2),
       ])
 
       addr = 0x6100

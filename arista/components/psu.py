@@ -1,10 +1,11 @@
+import logging
 import os.path
 
 from contextlib import closing
 
 from ..core.inventory import Psu
-from ..core.utils import simulateWith
-from .common import I2cKernelComponent
+from ..core.utils import SMBus, simulateWith
+from .common import I2cComponent, I2cKernelComponent
 
 class ScdPmbusPsu(Psu):
    def __init__(self, scd, pmbus):
@@ -67,3 +68,24 @@ class PmbusPsuComponent(I2cKernelComponent):
             return False
 
       return nonZero
+
+class UpperlakePsuComponent(I2cComponent):
+   def __init__(self, psuId, addr, **kwargs):
+      super(UpperlakePsuComponent, self).__init__(addr, **kwargs)
+
+      # MSB: Description (Good/bad values)
+      # 3:   PSU1 AC OK (1/0)
+      # 2:   PSU2 AC OK (1/0)
+      # 1:   PSU1 DC OK (1/0)
+      # 0:   PSU2 DC OK (1/0)
+      self.statusMask_ = 0b1010 >> (psuId - 1)
+
+   def getStatus(self):
+      reg = 0x0c
+      logging.debug('i2c-read %d %#02x %#02x', self.addr.bus, self.addr.address, reg)
+
+      # Both AC and DC status bits must be on.
+      with closing(SMBus(self.addr.bus)) as bus:
+         state = bus.read_byte_data(self.addr.address, reg)
+         logging.debug('psu state is %#02x', state)
+         return state & self.statusMask_ == self.statusMask_
