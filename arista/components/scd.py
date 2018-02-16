@@ -5,10 +5,12 @@ import os
 import time
 
 from collections import OrderedDict, namedtuple
+from contextlib import contextmanager
 
-from ..core.inventory import Xcvr, Psu
+from ..core.inventory import Xcvr, Psu, Watchdog
 from ..core.types import Gpio, ResetGpio, NamedGpio
-from ..core.utils import sysfsFmtHex, sysfsFmtDec, sysfsFmtStr, simulateWith
+from ..core.utils import sysfsFmtHex, sysfsFmtDec, sysfsFmtStr, simulateWith, \
+                         inSimulation, MmapResource
 
 from .common import PciComponent, KernelDriver, PciKernelDriver
 
@@ -223,6 +225,98 @@ class ScdKernelDriver(PciKernelDriver):
    def resetOut(self):
       self.reset(False)
 
+def scdRegTest(mmap, offset, val1, count):
+   mmap.write32(offset, val1)
+   val2 = mmap.read32(offset)
+   if val1 != val2:
+      logging.error("FAIL: scd write 0x%08x but read back 0x%08x in iter %d" %
+                    (val1, val2, count))
+      return False
+   return True
+
+def scdScrRegTest(mmap, scrOffset):
+   for i in range(0, 3):
+      if not scdRegTest(mmap, scrOffset, 0xdeadbeef, i):
+         return False
+      if not scdRegTest(mmap, scrOffset, 0xa5a5a5a5, i):
+         return False
+      if not scdRegTest(mmap, scrOffset, 0x00000000, i):
+         return False
+   return True
+
+class ScdWatchdog(Watchdog):
+   def __init__(self, driver, path, reg=0x0120, scr=0x0130):
+      self.driver = driver
+      self.path = path
+      self.scr = scr
+      self.reg = reg
+
+   @contextmanager
+   def getMmap(self):
+      self.driver.setup()
+      mmap = MmapResource(self.path)
+      if not mmap.map():
+         raise RuntimeError("cannot mmap %s" % self.path)
+      try:
+         if not scdScrRegTest(mmap, self.scr):
+            raise RuntimeError("scr reg tests failed")
+         yield mmap
+      finally:
+         mmap.close()
+
+   @staticmethod
+   def armReg(timeout):
+      regValue = 0
+      if timeout > 0:
+         # Set enable bit
+         regValue |= 1 << 31
+         # Powercycle
+         regValue |= 2 << 29
+         # Timeout value
+         regValue |= timeout
+      return regValue
+
+   def armSim(self, timeout):
+      regValue = self.armReg(timeout)
+      logging.info("watchdog arm reg={0:32b}".format(regValue))
+      return True
+
+   @simulateWith(armSim)
+   def arm(self, timeout):
+      regValue = self.armReg(timeout)
+      try:
+         with self.getMmap() as mmap:
+            logging.info('arm reg = {0:32b}'.format(regValue))
+            mmap.write32(self.reg, regValue)
+      except RuntimeError as e:
+         logging.error("watchdog arm/stop error: {}".format(e))
+         return False
+      return True
+
+   def stopSim(self):
+      logging.info("watchdog stop")
+      return True
+
+   @simulateWith(stopSim)
+   def stop(self):
+      return self.arm(0)
+
+   def statusSim(self):
+      logging.info("watchdog status")
+      return { "enabled": True, "timeout": 300 }
+
+   @simulateWith(statusSim)
+   def status(self):
+      try:
+         with self.getMmap() as mmap:
+            regValue = mmap.read32(self.reg)
+            enabled = bool(regValue >> 31)
+            timeout = regValue & ((1<<16)-1)
+         return { "enabled": enabled, "timeout": timeout }
+      except RuntimeError as e:
+         logging.error("watchdog status error: {}".format(e))
+         return None
+
 class Scd(PciComponent):
    BusTweak = namedtuple('BusTweak', 'bus, addr, t, datr, datw')
    def __init__(self, addr, **kwargs):
@@ -237,6 +331,11 @@ class Scd(PciComponent):
       self.sfps = []
       self.leds = []
       self.tweaks = []
+
+   def createWatchdog(self, reg=0x0120, scr=0x0130):
+      return ScdWatchdog(KernelDriver(self, "scd"),
+                         os.path.join(self.getSysfsPath(), "resource0"),
+                         reg=reg, scr=scr)
 
    def addBusTweak(self, bus, addr, t=1, datr=1, datw=3):
       self.tweaks.append(Scd.BusTweak(bus, addr, t, datr, datw))

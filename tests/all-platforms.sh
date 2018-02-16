@@ -41,6 +41,12 @@ for platform in $($script $extra_args platforms | awk '/ - / { print $2 }'); do
    try_execute -p $platform reset --toggle
    try_execute -p $platform clean
    try_execute -p $platform dump
+
+   try_execute -p $platform watchdog --status
+   try_execute -p $platform watchdog --arm
+   try_execute -p $platform watchdog --arm 500
+   try_execute -p $platform watchdog --stop
+   try_execute -p $platform watchdog --status
    echo
 done
 

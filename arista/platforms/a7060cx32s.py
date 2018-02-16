@@ -25,6 +25,8 @@ class Upperlake(Platform):
       scd = Scd(PciAddr(bus=0x02))
       self.addComponent(scd)
 
+      self.inventory.addWatchdog(scd.createWatchdog())
+
       scd.addComponents([
          I2cKernelComponent(I2cAddr(2, 0x1a), 'max6697', '/sys/class/hwmon/hwmon1'),
          I2cKernelComponent(I2cAddr(3, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),

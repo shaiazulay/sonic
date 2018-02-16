@@ -114,6 +114,31 @@ def doReset(args, platform):
    else:
       logging.info('nothing to do')
 
+def doWatchdog(args, platform):
+   watchdog = platform.getInventory().getWatchdog()
+   if args.watchdog_status:
+      st = watchdog.status()
+      if st:
+         kv = ' '.join('%s=%s' % (k, v) for k, v in st.items())
+         print("Watchdog status: %s" % kv)
+      else:
+         print("Watchdog status - error.")
+   elif args.watchdog_stop:
+      logging.info('disabling the hardware watchdog')
+      if not watchdog.stop():
+         logging.error('failed to stop the hardware watchdog')
+         sys.exit(1)
+   else:
+      logging.info('arming the hardware watchdog for %ds' % args.watchdog_timeout)
+      # Tens of milliseconds
+      watchdog_timeout = args.watchdog_timeout * 100
+      if watchdog_timeout >= 65536:
+         logging.error('failed to arm the hardware watchdog: time value is too big')
+         sys.exit(1)
+      if not watchdog.arm(watchdog_timeout):
+         logging.error('failed to arm the hardware watchdog')
+         sys.exit(1)
+
 def doPlatforms(args):
    print('supported platforms:')
    for platform in sorted(getPlatforms()):
@@ -167,6 +192,15 @@ def parseArgs():
                     help='put components out of reset')
    sub.add_argument('-d', '--delay', type=int, default=1, dest='reset_delay',
                     help='time to wait between in and out in seconds')
+   sub = subparsers.add_parser('watchdog', help='configure the hardware watchdog')
+   sub = sub.add_mutually_exclusive_group(required=True)
+   sub.add_argument('--status', action='store_true', dest='watchdog_status',
+                    help='print the hardware watchdog status')
+   sub.add_argument('--stop', action='store_true', dest='watchdog_stop',
+                    help='stop the hardware watchdog')
+   sub.add_argument('--arm', type=int, nargs='?', const=300, dest='watchdog_timeout',
+                    help='arm the hardware watchdog for X seconds ' \
+                         'before the watchdog triggers')
 
    args = parser.parse_args()
    if args.action == 'help':
@@ -195,6 +229,7 @@ def main():
       'clean': doClean,
       'status': todo,
       'reset': doReset,
+      'watchdog': doWatchdog,
    }
 
    if args.action in generic_commands:

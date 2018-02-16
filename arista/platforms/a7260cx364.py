@@ -28,6 +28,8 @@ class Gardena(Platform):
       scd = Scd(PciAddr(bus=0x06))
       self.addComponent(scd)
 
+      self.inventory.addWatchdog(scd.createWatchdog())
+
       scd.addComponents([
          I2cKernelComponent(I2cAddr(1, 0x4c), 'max6658', '/sys/class/hwmon/hwmon1'),
          I2cKernelComponent(I2cAddr(3, 0x58), 'pmbus',
