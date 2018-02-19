@@ -122,8 +122,11 @@ def getSfpUtil():
                  break
 
            pages = self.eepromIntfMap[intf]['pages']
-           for page in pages.values():
-              registers += page['registers']
+           pagesToRead = [ 'upper0', 'lower0' ]
+           for page in pagesToRead:
+              if page not in pages:
+                 return None
+              registers += pages[page]['registers']
            idx = 0
            for reg in registers:
               eeprom_raw[idx] = hex(reg)[2:].zfill(2)
