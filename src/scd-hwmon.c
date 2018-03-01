@@ -521,6 +521,8 @@ static s32 scd_smbus_access(struct i2c_adapter *adap, u16 addr,
    int retry = 0;
    int ret;
 
+   scd_dbg("smbus %s do addr=0x%02x reg=0x%02x size=0x%02x adapter=\"%s\"\n",
+         (read_write) ? "read" : "write", addr, command, size, bus->adap.name);
    do {
       ret = scd_smbus_do(bus, addr, flags, read_write, command, size, data);
       if (ret != -EAGAIN)
