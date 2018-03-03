@@ -13,11 +13,9 @@ class Cloverdale(Platform):
    def __init__(self):
       super(Cloverdale, self).__init__()
 
-      self.fanCount = 4
       self.qsfp40gAutoRange = incrange(1, 24)
       self.qsfp40gOnlyRange = incrange(25, 32)
       self.allQsfps = sorted(self.qsfp40gAutoRange + self.qsfp40gOnlyRange)
-      self.sfpRange = []
 
       self.inventory.addPorts(qsfps=self.allQsfps)
 
@@ -89,8 +87,9 @@ class Cloverdale(Platform):
       bus = 10
       for xcvrId in self.allQsfps:
          xcvr = scd.addQsfp(addr, xcvrId, bus)
+         self.inventory.addXcvr(xcvr)
          scd.addComponent(I2cKernelComponent(
             I2cAddr(bus, xcvr.eepromAddr), 'sff8436'))
-         self.inventory.addXcvr(xcvr)
+         scd.addBusTweak(bus, xcvr.eepromAddr)
          addr += 0x10
          bus += 1

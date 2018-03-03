@@ -48,29 +48,6 @@ class ScdSysfsRW(ScdSysfsGroup):
          f.write(str(value))
       return True
 
-class ScdSysfsOldRW(ScdSysfsRW):
-   def __init__(self, objNum, typeStr, driver):
-      ScdSysfsRW.__init__(self, objNum, typeStr, driver)
-
-   def readValue(self, name):
-      gpio =  self.getSysfsGpio(name)
-      directionPath = os.path.join(gpio, 'direction')
-      if os.path.exists(directionPath):
-         with open(directionPath, 'w') as f:
-            f.write("in")
-      with open(os.path.join(gpio, 'value'), 'r') as f:
-         return f.read().rstrip()
-
-   def writeValue(self, name, value):
-      gpio =  self.getSysfsGpio(name)
-      directionPath = os.path.join(gpio, 'direction')
-      if os.path.exists(directionPath):
-         with open(directionPath, 'w') as f:
-            f.write("out")
-      with open(os.path.join(gpio, 'value'), 'w') as f:
-         f.write(str(value))
-      return True
-
 class ScdKernelXcvr(Xcvr):
    def __init__(self, portNum, xcvrType, eepromAddr, bus, driver, sysfsRWClass):
       Xcvr.__init__(self, portNum, xcvrType, eepromAddr, bus)
