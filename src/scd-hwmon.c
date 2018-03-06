@@ -505,8 +505,15 @@ static s32 scd_smbus_do(struct scd_bus *bus, u16 addr, unsigned short flags,
    return 0;
 
 fail:
-   scd_warn("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x adapter=\"%s\"\n",
-            (read_write) ? "read" : "write", addr, command, size, bus->adap.name);
+   if (ret != -EAGAIN) {
+      scd_warn("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x "
+               "adapter=\"%s\"\n", (read_write) ? "read" : "write",
+               addr, command, size, bus->adap.name);
+   } else {
+      scd_dbg("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x "
+              "adapter=\"%s\"\n", (read_write) ? "read" : "write",
+              addr, command, size, bus->adap.name);
+   }
    smbus_master_reset(master);
    master_unlock(master);
    return ret;
@@ -530,6 +537,10 @@ static s32 scd_smbus_access(struct i2c_adapter *adap, u16 addr,
       retry++;
       scd_dbg("smbus retrying... %d/%d", retry, master->max_retries);
    } while (retry < master->max_retries);
+
+   scd_warn("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x "
+            "adapter=\"%s\"\n", (read_write) ? "read" : "write",
+            addr, command, size, bus->adap.name);
 
    return -EIO;
 }
