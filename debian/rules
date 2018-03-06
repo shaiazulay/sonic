@@ -8,7 +8,7 @@ export INSTALL_MOD_DIR:=extra
 
 SCRIPT_FILES   := reset
 BIN_FILES      := arista boot-eos
-SERVICE_FILES  := watchdog-stop.service
+SERVICE_FILES  := sonic-platform-arista.service watchdog-stop.service
 
 KVERSION       ?= $(shell uname -r)
 KERNEL_SRC     ?= /lib/modules/$(KVERSION)/build

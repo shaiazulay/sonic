@@ -6,9 +6,19 @@ ConditionKernelCommandLine=Aboot
 
 [Service]
 Type=oneshot
+RemainAfterExit=yes
+
+ExecStartPre=-/bin/bash -c ' \
+    if grep -q Gardena /proc/cmdline; then \
+        if !systemctl is-active swss; then \
+            timeout=300 \
+            echo "Enabling watchdog for $timeout seconds" \
+            /usr/bin/arista watchdog --arm $timeout" \
+        fi \
+    fi'
+
 ExecStart=/usr/bin/arista -l /var/log/arista.log setup --reset --background
 ExecStop=/usr/bin/arista -l /var/log/arista.log clean
-RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target
