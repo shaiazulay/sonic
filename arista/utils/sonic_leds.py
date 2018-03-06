@@ -1,5 +1,5 @@
 # DO NOT REMOVE THIS LINE. Needed to import all the platform info.
-import arista.platforms
+import arista.platforms # pylint: disable=W0611
 
 from collections import defaultdict
 
@@ -8,7 +8,7 @@ from .sonic_utils import parsePortConfig
 from ..core import platform
 
 try:
-   from sonic_led import led_control_base
+   from sonic_led import led_control_base # pylint: disable=F0401
 except ImportError as e:
    raise ImportError('%s - required module not found' % str(e))
 
@@ -82,7 +82,7 @@ class LedControlCeos(LedControlCommon):
       #TODO: add status and check fan_status equivalent in EOS
       self.invToCliStatusLedMap = {'status' : 'status',
                                    'fan_status' : 'fantray',
-                                   'psu(?P<num>\d+' : 'powersupply',
+                                   r'psu(?P<num>\d+' : 'powersupply',
                                    'beacon' : 'chassis'}
       LedControlCommon.__init__(self)
 
@@ -94,7 +94,8 @@ class LedControlCeos(LedControlCommon):
       ceosIntfName = "Ethernet%d" % port.portNum
       if not port.singular:
          ceosIntfName = "%s/%s" % (ceosIntfName, idx + 1)
-      self.ceos.runCmds(['enable', 'led interface %s %s' % (ceosIntfName, color)])
+      self.ceos.runCmds(['enable', 'config', 'hardware led',
+                         '%s %s' % (ceosIntfName, color), 'exit'])
       return
 
 def getLedControl():
