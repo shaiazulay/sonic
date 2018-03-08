@@ -58,6 +58,12 @@ class Component(object):
       for component in self.components[Priority.DEFAULT]:
          component.finish(priority)
 
+   def refresh(self):
+      for component in flatten(self.components.values()):
+         component.refresh()
+      for driver in self.drivers:
+         driver.refresh()
+
    def clean(self):
       for component in flatten(self.components.values()):
          component.clean()

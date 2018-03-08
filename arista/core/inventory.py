@@ -8,11 +8,12 @@ class Xcvr(object):
    SFP = 0
    QSFP = 1
 
-   def __init__(self, portNum, xcvrType, eepromAddr, bus):
+   ADDR = 0x50
+
+   def __init__(self, portNum, xcvrType, addr):
       self.portNum = portNum
       self.xcvrType = xcvrType
-      self.bus = bus
-      self.eepromAddr = eepromAddr
+      self.addr = addr
 
    def getPresence(self):
       raise NotImplementedError()
@@ -139,11 +140,11 @@ class Inventory(object):
 
    def getPortToEepromMapping(self):
       eepromPath = '/sys/class/i2c-adapter/i2c-{0}/{0}-{1:04x}/eeprom'
-      return { xcvrId : eepromPath.format(xcvr.bus, xcvr.eepromAddr)
+      return { xcvrId : eepromPath.format(xcvr.addr.bus, xcvr.addr.address)
                for xcvrId, xcvr in self.xcvrs.items() }
 
    def getPortToI2cAdapterMapping(self):
-      return { xcvrId : xcvr.bus for xcvrId, xcvr in self.xcvrs.items() }
+      return { xcvrId : xcvr.addr.bus for xcvrId, xcvr in self.xcvrs.items() }
 
    def addXcvrLed(self, xcvrId, name):
       self.xcvrLeds[xcvrId].append(name)

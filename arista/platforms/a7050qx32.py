@@ -1,7 +1,7 @@
 from ..core.platform import registerPlatform, Platform
 from ..core.driver import KernelDriver
 from ..core.utils import incrange
-from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
+from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
@@ -34,26 +34,28 @@ class Cloverdale(Platform):
       self.inventory.addPowerCycle(scd.createPowerCycle())
 
       scd.addComponents([
-         I2cKernelComponent(I2cAddr(2, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
-         I2cKernelComponent(I2cAddr(3, 0x48), 'lm73', '/sys/class/hwmon/hwmon3'),
+         I2cKernelComponent(scd.i2cAddr(0, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
+         I2cKernelComponent(scd.i2cAddr(1, 0x48), 'lm73', '/sys/class/hwmon/hwmon3'),
 
          # Due to a risk of an unrecoverable firmware corruption when a pmbus
          # transaction is done at the same moment of the poweroff, the handling of
          # the DPM is disabled. If you want rail information use it at your own risk
          # The current implementation will just read the firmware information once.
-         Ucd90120A(I2cAddr(3, 0x4e), priority=Priority.BACKGROUND),
-         Ucd90160(I2cAddr(7, 0x4e), priority=Priority.BACKGROUND),
+         Ucd90120A(scd.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
+         Ucd90160(scd.i2cAddr(5, 0x4e), priority=Priority.BACKGROUND),
       ])
 
-      psu1 = Ds460(I2cAddr(5, 0x58), '/sys/class/hwmon/hwmon4',
+      psu1Addr = scd.i2cAddr(3, 0x58)
+      psu1 = Ds460(psu1Addr, '/sys/class/hwmon/hwmon4',
                    priority=Priority.BACKGROUND,
                    waitTimeout=30.0)
-      psu2 = Ds460(I2cAddr(6, 0x58), '/sys/class/hwmon/hwmon5',
+      psu2Addr = scd.i2cAddr(4, 0x58)
+      psu2 = Ds460(psu2Addr, '/sys/class/hwmon/hwmon5',
                    priority=Priority.BACKGROUND,
                    waitTimeout=30.0)
       scd.addComponents([psu1, psu2])
-      scd.addBusTweak(5, 0x58, 3, 3, 3, 1)
-      scd.addBusTweak(6, 0x58, 3, 3, 3, 1)
+      scd.addBusTweak(psu1Addr, 3, 3, 3, 1)
+      scd.addBusTweak(psu2Addr, 3, 3, 3, 1)
 
       scd.addSmbusMasterRange(0x8000, 5)
 
@@ -105,14 +107,11 @@ class Cloverdale(Platform):
       ]
 
       addr = 0x5010
-      bus = 10
+      bus = 8
       for xcvrId in self.allQsfps:
          intr = intrRegs[1].getInterruptBit(xcvrId - 1)
          self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
          xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
          self.inventory.addXcvr(xcvr)
-         scd.addComponent(I2cKernelComponent(
-            I2cAddr(bus, xcvr.eepromAddr), 'sff8436'))
-         scd.addBusTweak(bus, xcvr.eepromAddr)
          addr += 0x10
          bus += 1

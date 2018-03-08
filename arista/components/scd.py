@@ -7,13 +7,24 @@ import time
 from collections import OrderedDict, namedtuple
 
 from ..core.config import Config
+from ..core.driver import i2cBusFromName
 from ..core.inventory import Interrupt, PowerCycle, Psu, Watchdog, Xcvr, Reset
+from ..core.types import I2cAddr
 from ..core.utils import MmapResource, inSimulation, simulateWith, writeConfig
 
-from .common import PciComponent, KernelDriver, PciKernelDriver
+from .common import PciComponent, KernelDriver, PciKernelDriver, I2cKernelComponent
 
 SCD_WAIT_TIMEOUT = 5.
 SYS_UIO_PATH = '/sys/class/uio'
+
+class ScdI2cAddr(I2cAddr):
+   def __init__(self, scd, bus, addr):
+      super(ScdI2cAddr, self).__init__(bus, addr)
+      self.scd_ = scd
+
+   @property
+   def bus(self):
+      return self.scd_.i2cOffset + self.bus_
 
 class ScdSysfsGroup(object):
    def __init__(self, objNum, typeStr, driver):
@@ -48,9 +59,9 @@ class ScdSysfsRW(ScdSysfsGroup):
       return True
 
 class ScdKernelXcvr(Xcvr):
-   def __init__(self, portNum, xcvrType, eepromAddr, bus, driver, sysfsRWClass,
+   def __init__(self, portNum, xcvrType, addr, driver, sysfsRWClass,
                 interruptLine=None):
-      Xcvr.__init__(self, portNum, xcvrType, eepromAddr, bus)
+      Xcvr.__init__(self, portNum, xcvrType, addr)
       typeStr = 'qsfp' if xcvrType == Xcvr.QSFP else 'sfp'
       self.rw = sysfsRWClass(portNum, typeStr, driver)
       self.interruptLine = interruptLine
@@ -143,6 +154,14 @@ class ScdKernelDriver(PciKernelDriver):
       if not os.path.exists(path):
          logging.error('Waiting SCD %s failed.', path)
 
+   def refresh(self):
+      # reload i2c bus cache
+      masterName = "SCD %s SMBus master %d bus %d" % (self.component.addr, 0, 0)
+      if not inSimulation():
+         self.component.i2cOffset = i2cBusFromName(masterName, force=True)
+      else:
+         self.component.i2cOffset = 2
+
    def setup(self):
       super(ScdKernelDriver, self).setup()
 
@@ -168,11 +187,6 @@ class ScdKernelDriver(PciKernelDriver):
          data += ["gpio %#x %s %u %d %d" % (gpio.addr, gpio.name, gpio.bit,
                                             int(gpio.ro), int(gpio.activeLow))]
 
-      tweaks = []
-      for tweak in scd.tweaks:
-         tweaks += ["%#x %#x %#x %#x %#x %#x" % (
-            tweak.bus, tweak.addr, tweak.t, tweak.datr, tweak.datw, tweak.ed)]
-
       self.waitReady()
 
       logging.debug('creating scd objects')
@@ -180,6 +194,14 @@ class ScdKernelDriver(PciKernelDriver):
 
       for intrReg in scd.interrupts:
          intrReg.setup()
+
+      self.refresh() # sync with kernel runtime state
+
+      tweaks = []
+      for tweak in scd.tweaks:
+         tweaks += ["%#x %#x %#x %#x %#x %#x" % (
+            tweak.addr.bus, tweak.addr.address, tweak.t, tweak.datr, tweak.datw,
+            tweak.ed)]
 
       if tweaks:
          logging.debug('applying scd tweaks')
@@ -381,7 +403,7 @@ class ScdInterruptRegister(object):
       return ScdInterrupt(self, bit) if Config().init_irq else None
 
 class Scd(PciComponent):
-   BusTweak = namedtuple('BusTweak', 'bus, addr, t, datr, datw, ed')
+   BusTweak = namedtuple('BusTweak', 'addr, t, datr, datw, ed')
    def __init__(self, addr, **kwargs):
       super(Scd, self).__init__(addr)
       self.addDriver(KernelDriver, 'scd')
@@ -401,6 +423,7 @@ class Scd(PciComponent):
       self.uioMap = {}
       self.scdresets = []
       self.path = self.getSysfsPath()
+      self.i2cOffset = 0
 
    def createPowerCycle(self, reg=0x7000, wr=0xDEAD):
       powerCycle = ScdPowerCycle(self, reg=reg, wr=wr)
@@ -428,11 +451,15 @@ class Scd(PciComponent):
          self.mmapReady = True
       return MmapResource(os.path.join(self.path, "resource0"))
 
+   def i2cAddr(self, bus, addr):
+      return ScdI2cAddr(self, bus, addr)
+
    def getInterrupts(self):
       return self.interrupts
 
-   def addBusTweak(self, bus, addr, t=1, datr=1, datw=3, ed=0):
-      self.tweaks.append(Scd.BusTweak(bus, addr, t, datr, datw, ed))
+   def addBusTweak(self, addr, t=1, datr=1, datw=3, ed=0):
+      addr = self.i2cAddr(addr.bus, addr.address)
+      self.tweaks.append(Scd.BusTweak(addr, t, datr, datw, ed))
 
    def addSmbusMaster(self, addr, mid, bus=8):
       self.masters[addr] = {
@@ -469,19 +496,23 @@ class Scd(PciComponent):
    def addGpios(self, gpios):
       self.gpios += gpios
 
-   def addQsfp(self, addr, xcvrId, bus, eepromAddr=0x50, interruptLine=None):
-      self.qsfps += [(addr, xcvrId)]
-      xcvr = ScdKernelXcvr(xcvrId, Xcvr.QSFP, eepromAddr, bus, self.drivers[1],
+   def _addXcvr(self, xcvrId, xcvrType, bus, interruptLine):
+      devAddr = self.i2cAddr(bus, Xcvr.ADDR)
+      xcvr = ScdKernelXcvr(xcvrId, xcvrType, devAddr, self.drivers[1],
                            self.rwCls, interruptLine=interruptLine)
+      # XXX: An abstraction should be added for the xcvr driver as it assumes kernel
+      self.addComponent(I2cKernelComponent(devAddr, 'sff8436'))
+      self.addBusTweak(devAddr)
       self.xcvrs.append(xcvr)
       return xcvr
 
-   def addSfp(self, addr, xcvrId, bus, eepromAddr=0x50, interruptLine=None):
+   def addQsfp(self, addr, xcvrId, bus, interruptLine=None):
+      self.qsfps += [(addr, xcvrId)]
+      return self._addXcvr(xcvrId, Xcvr.QSFP, bus, interruptLine)
+
+   def addSfp(self, addr, xcvrId, bus, interruptLine=None):
       self.sfps += [(addr, xcvrId)]
-      xcvr = ScdKernelXcvr(xcvrId, Xcvr.SFP, eepromAddr, bus, self.drivers[1],
-                           self.rwCls, interruptLine=interruptLine)
-      self.xcvrs.append(xcvr)
-      return xcvr
+      return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine)
 
    def createPsu(self, psuId, presenceGpios=['present'], statusGpios=['status', 'ac_status']):
       sysfs = self.rwCls(psuId, 'psu', self.drivers[1])

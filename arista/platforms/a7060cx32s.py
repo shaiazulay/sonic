@@ -43,15 +43,18 @@ class Upperlake(Platform):
       self.inventory.addWatchdog(scd.createWatchdog())
 
       scd.addComponents([
-         I2cKernelComponent(I2cAddr(2, 0x1a), 'max6697', '/sys/class/hwmon/hwmon1'),
-         I2cKernelComponent(I2cAddr(3, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
-         I2cKernelComponent(I2cAddr(3, 0x60), 'crow_cpld', '/sys/class/hwmon/hwmon3'),
-         Ucd90120A(I2cAddr(3, 0x4e), priority=Priority.BACKGROUND),
-         I2cKernelComponent(I2cAddr(5, 0x58), 'pmbus',
+         I2cKernelComponent(scd.i2cAddr(0, 0x1a), 'max6697',
+                            '/sys/class/hwmon/hwmon2'),
+         I2cKernelComponent(scd.i2cAddr(1, 0x4c), 'max6658',
+                            '/sys/class/hwmon/hwmon3'),
+         I2cKernelComponent(scd.i2cAddr(1, 0x60), 'crow_cpld',
+                            '/sys/class/hwmon/hwmon4'),
+         Ucd90120A(scd.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
+         I2cKernelComponent(scd.i2cAddr(3, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
-         I2cKernelComponent(I2cAddr(6, 0x58), 'pmbus',
+         I2cKernelComponent(scd.i2cAddr(4, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
-         Ucd90120A(I2cAddr(7, 0x4e), priority=Priority.BACKGROUND),
+         Ucd90120A(scd.i2cAddr(5, 0x4e), priority=Priority.BACKGROUND),
       ])
 
       scd.addSmbusMasterRange(0x8000, 5, 0x80)
@@ -100,13 +103,10 @@ class Upperlake(Platform):
             addr += 0x10
 
       addr = 0x5010
-      bus = 10
+      bus = 8
       for xcvrId in self.sfpRange:
          xcvr = scd.addSfp(addr, xcvrId, bus)
          self.inventory.addXcvr(xcvr)
-         scd.addComponent(I2cKernelComponent(
-            I2cAddr(bus, xcvr.eepromAddr), 'sff8436'))
-         scd.addBusTweak(bus, xcvr.eepromAddr)
          addr += 0x10
          bus += 1
 
@@ -116,15 +116,12 @@ class Upperlake(Platform):
       ]
 
       addr = 0x5050
-      bus = 18
+      bus = 16
       for xcvrId in self.qsfp100gRange:
          intr = intrRegs[1].getInterruptBit(xcvrId - 1)
          self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
          xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
          self.inventory.addXcvr(xcvr)
-         scd.addComponent(I2cKernelComponent(
-            I2cAddr(bus, xcvr.eepromAddr), 'sff8436'))
-         scd.addBusTweak(bus, xcvr.eepromAddr)
          addr += 0x10
          bus += 1
 

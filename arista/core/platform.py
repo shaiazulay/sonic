@@ -92,9 +92,11 @@ def detectPlatform():
    return getSysEeprom()['SKU']
 
 def getPlatform(name=None):
-   if name == None:
+   if name is None:
       name = detectPlatform()
-   return platforms[name]()
+   platform = platforms[name]()
+   platform.refresh()
+   return platform
 
 def getPlatforms():
    return platforms

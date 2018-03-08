@@ -30,12 +30,13 @@ class Gardena(Platform):
       self.inventory.addWatchdog(scd.createWatchdog())
 
       scd.addComponents([
-         I2cKernelComponent(I2cAddr(1, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
-         I2cKernelComponent(I2cAddr(3, 0x58), 'pmbus',
+         I2cKernelComponent(scd.i2cAddr(0, 0x4c), 'max6658',
+                            '/sys/class/hwmon/hwmon2'),
+         I2cKernelComponent(scd.i2cAddr(2, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
-         I2cKernelComponent(I2cAddr(4, 0x58), 'pmbus',
+         I2cKernelComponent(scd.i2cAddr(3, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
-      ]) # Incomplete
+      ])
 
       scd.addSmbusMasterRange(0x8000, 8, 0x80)
 
@@ -80,26 +81,20 @@ class Gardena(Platform):
       ]
 
       addr = 0xA010
-      bus = 9
+      bus = 8
       for xcvrId in sorted(self.qsfpRange):
          intr = intrRegs[xcvrId // 33 + 1].getInterruptBit((xcvrId - 1) % 32)
          self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
          xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
          self.inventory.addXcvr(xcvr)
-         scd.addComponent(I2cKernelComponent(
-            I2cAddr(bus, xcvr.eepromAddr), 'sff8436'))
-         scd.addBusTweak(bus, xcvr.eepromAddr)
          addr += 0x10
          bus += 1
 
       addr = 0xA410
-      bus = 7
+      bus = 6
       for xcvrId in sorted(self.sfpRange):
          xcvr = scd.addSfp(addr, xcvrId, bus)
          self.inventory.addXcvr(xcvr)
-         scd.addComponent(I2cKernelComponent(
-            I2cAddr(bus, xcvr.eepromAddr), 'sff8436'))
-         scd.addBusTweak(bus, xcvr.eepromAddr)
          addr += 0x10
          bus += 1
 
@@ -108,12 +103,14 @@ class Gardena(Platform):
 
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.addComponents([
-         I2cKernelComponent(I2cAddr(73, 0x4c), 'max6658', '/sys/class/hwmon/hwmon3'),
-         Ucd90160(I2cAddr(74, 0x4e), priority=Priority.BACKGROUND),
-         Ucd90120A(I2cAddr(83, 0x34), priority=Priority.BACKGROUND),
-         I2cKernelComponent(I2cAddr(85, 0x60), 'rook_cpld', '/sys/class/hwmon/hwmon4'),
-         I2cKernelComponent(I2cAddr(88, 0x20), 'rook_leds'),
-         I2cKernelComponent(I2cAddr(88, 0x48), 'lm73'),
+         I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
+                            '/sys/class/hwmon/hwmon3'),
+         Ucd90160(cpld.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
+         Ucd90120A(cpld.i2cAddr(10, 0x34), priority=Priority.BACKGROUND),
+         I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'rook_cpld',
+                            '/sys/class/hwmon/hwmon4'),
+         I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
+         I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73'),
       ])
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
