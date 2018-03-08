@@ -1,7 +1,7 @@
 from ..core.platform import registerPlatform, Platform
 from ..core.driver import KernelDriver
 from ..core.utils import incrange
-from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
+from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
@@ -34,20 +34,23 @@ class Clearlake(Platform):
       self.inventory.addPowerCycle(scd.createPowerCycle())
 
       scd.addComponents([
-         I2cKernelComponent(I2cAddr(2, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
-         I2cKernelComponent(I2cAddr(3, 0x4c), 'max6658', '/sys/class/hwmon/hwmon3'),
-         I2cKernelComponent(I2cAddr(3, 0x60), 'crow_cpld', '/sys/class/hwmon/hwmon4'),
+         I2cKernelComponent(scd.i2cAddr(0, 0x4c), 'max6658',
+                            '/sys/class/hwmon/hwmon2'),
+         I2cKernelComponent(scd.i2cAddr(1, 0x4c), 'max6658',
+                            '/sys/class/hwmon/hwmon3'),
+         I2cKernelComponent(scd.i2cAddr(1, 0x60), 'crow_cpld',
+                            '/sys/class/hwmon/hwmon4'),
          # Handling of the DPM is disabled because this functionality is unstable.
          #I2cKernelComponent(I2cAddr(3, 0x4e), 'pmbus',
          #                   priority=Priority.BACKGROUND), # ucd90120A
-         I2cKernelComponent(I2cAddr(5, 0x58), 'pmbus',
+         I2cKernelComponent(scd.i2cAddr(3, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
-         I2cKernelComponent(I2cAddr(6, 0x58), 'pmbus',
+         I2cKernelComponent(scd.i2cAddr(4, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
          # Handling of the DPM is disabled because this functionality is unstable.
          #I2cKernelComponent(I2cAddr(7, 0x4e), 'pmbus',
          #                   priority=Priority.BACKGROUND), # ucd90120A
-         Ds125Br(I2cAddr(8, 0xff)),
+         Ds125Br(scd.i2cAddr(6, 0xff)),
       ])
 
       scd.addSmbusMasterRange(0x8000, 6)
@@ -64,9 +67,9 @@ class Clearlake(Platform):
 
       scd.addReset(ResetGpio(0x4000, 0, False, 'switch_chip_reset'))
 
-      psu1 = PmbusPsuComponent(I2cAddr(5, 0x58), '/sys/class/hwmon/hwmon5',
+      psu1 = PmbusPsuComponent(scd.i2cAddr(3, 0x58), '/sys/class/hwmon/hwmon5',
                                priority=Priority.BACKGROUND)
-      psu2 = PmbusPsuComponent(I2cAddr(6, 0x58), '/sys/class/hwmon/hwmon6',
+      psu2 = PmbusPsuComponent(scd.i2cAddr(4, 0x58), '/sys/class/hwmon/hwmon6',
                                priority=Priority.BACKGROUND)
       scd.addComponents([psu1, psu2])
       scd.addGpios([
@@ -107,26 +110,20 @@ class Clearlake(Platform):
       ]
 
       addr = 0x5010
-      bus = 10
+      bus = 8
       for xcvrId in self.allQsfps:
          intr = intrRegs[1].getInterruptBit(xcvrId - 5)
          self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
          xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
          self.inventory.addXcvr(xcvr)
-         scd.addComponent(I2cKernelComponent(
-            I2cAddr(bus, xcvr.eepromAddr), 'sff8436'))
-         scd.addBusTweak(bus, xcvr.eepromAddr)
          addr += 0x10
          bus += 1
 
       addr = 0x5210
-      bus = 42
+      bus = 40
       for xcvrId in sorted(self.sfpRange):
          xcvr = scd.addSfp(addr, xcvrId, bus)
          self.inventory.addXcvr(xcvr)
-         scd.addComponent(I2cKernelComponent(
-            I2cAddr(bus, xcvr.eepromAddr), 'sff8436'))
-         scd.addBusTweak(bus, xcvr.eepromAddr)
          addr += 0x10
          bus += 1
 

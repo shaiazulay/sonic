@@ -10,8 +10,16 @@ ResetGpio = namedtuple("ResetGpio", ["addr", "bit", "activeLow", "name"])
 
 class I2cAddr(object):
    def __init__(self, bus, address):
-      self.bus = bus
-      self.address = address
+      self.bus_ = bus
+      self.address_ = address
+
+   @property
+   def bus(self):
+      return self.bus_
+
+   @property
+   def address(self):
+      return self.address_
 
    def __str__(self):
       return '%d-00%02x' % (self.bus, self.address)
