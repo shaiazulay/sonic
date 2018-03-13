@@ -30,16 +30,16 @@ class Cloverdale(Platform):
       self.inventory.addWatchdog(scd.createWatchdog())
 
       scd.addComponents([
-         I2cKernelComponent(I2cAddr(2, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
-         I2cKernelComponent(I2cAddr(3, 0x48), 'lm73', '/sys/class/hwmon/hwmon3'),
-         Ds460(I2cAddr(5, 0x58), priority=Priority.BACKGROUND),
-         Ds460(I2cAddr(6, 0x58), priority=Priority.BACKGROUND),
+         I2cKernelComponent(I2cAddr(5, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
+         I2cKernelComponent(I2cAddr(6, 0x48), 'lm73', '/sys/class/hwmon/hwmon3'),
+         Ds460(I2cAddr(8, 0x58), priority=Priority.BACKGROUND),
+         Ds460(I2cAddr(9, 0x58), priority=Priority.BACKGROUND),
 
          # Due to a risk of an unrecoverable firmware corruption when a pmbus
          # transaction is done at the same moment of the poweroff, the handling of
          # the DPM is disabled. If you want rail information use it at your own risk
-         #I2cKernelComponent(I2cAddr(3, 0x4e), 'pmbus'), # ucd90120A
-         #I2cKernelComponent(I2cAddr(7, 0x4e), 'pmbus'), # ucd90120A
+         #I2cKernelComponent(I2cAddr(5, 0x4e), 'pmbus'), # ucd90120A
+         #I2cKernelComponent(I2cAddr(10, 0x4e), 'pmbus'), # ucd90120A
       ])
 
       scd.addSmbusMasterRange(0x8000, 5)
@@ -84,7 +84,7 @@ class Cloverdale(Platform):
          addr += 0x30 if xcvrId % 2 else 0x50
 
       addr = 0x5010
-      bus = 10
+      bus = 13
       for xcvrId in self.allQsfps:
          xcvr = scd.addQsfp(addr, xcvrId, bus)
          self.inventory.addXcvr(xcvr)

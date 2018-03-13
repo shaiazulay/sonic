@@ -58,7 +58,7 @@ def readPrefdl():
          return prefdl.PreFdlFromFile(fp)
 
    modprobe('eeprom')
-   for addr in ['1-0052']:
+   for addr in ['1-0052', '2-0052', '4-0052']:
       eeprompath = os.path.join('/sys/bus/i2c/drivers/eeprom', addr, 'eeprom')
       if not os.path.exists(eeprompath):
          continue
