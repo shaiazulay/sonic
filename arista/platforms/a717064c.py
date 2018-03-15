@@ -7,13 +7,13 @@ from ..core.component import Priority
 from ..components.common import I2cKernelComponent
 from ..components.scd import Scd
 
-@registerPlatform('DCS-7170-64')
+@registerPlatform(['DCS-7170-64', 'DCS-7170-64C-SSD'])
 class Alhambra(Platform):
    def __init__(self):
       super(Alhambra, self).__init__()
 
-      self.sfpRange = incrange(65, 66)
       self.qsfpRange = incrange(1, 64)
+      self.sfpRange = incrange(65, 66)
 
       self.inventory.addPorts(qsfps=self.qsfpRange, sfps=self.sfpRange)
 
@@ -31,7 +31,7 @@ class Alhambra(Platform):
                             priority=Priority.BACKGROUND),
       ])
 
-      scd.addSmbusMasterRange(0x8000, 8, 0x80)
+      scd.addSmbusMasterRange(0x8000, 9, 0x80)
 
       scd.addResets([
          ResetGpio(0x4000, 8, False, 'switch_chip_reset'),
@@ -59,7 +59,7 @@ class Alhambra(Platform):
          addr += 0x10
 
       addr = 0xA010
-      bus = 7
+      bus = 9
       for xcvrId in sorted(self.qsfpRange):
          xcvr = scd.addQsfp(addr, xcvrId, bus)
          self.inventory.addXcvr(xcvr)
@@ -69,7 +69,7 @@ class Alhambra(Platform):
          bus += 1
 
       addr = 0xA500
-      bus = 9
+      bus = 73
       for xcvrId in sorted(self.sfpRange):
          xcvr = scd.addSfp(addr, xcvrId, bus)
          self.inventory.addXcvr(xcvr)
@@ -83,10 +83,11 @@ class Alhambra(Platform):
 
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.addComponents([
-         I2cKernelComponent(I2cAddr(73, 0x4c), 'max6658'),
-         I2cKernelComponent(I2cAddr(74, 0x4e), 'pmbus',
-                            priority=Priority.BACKGROUND),
-         I2cKernelComponent(I2cAddr(85, 0x60), 'rook_cpld'),
-         I2cKernelComponent(I2cAddr(88, 0x20), 'rook_leds'),
-         I2cKernelComponent(I2cAddr(88, 0x48), 'lm73'),
+         I2cKernelComponent(I2cAddr(81, 0x4c), 'max6658'),
+         # Handling of the DPM is disabled because this functionality is unstable.
+         #I2cKernelComponent(I2cAddr(82, 0x4e), 'pmbus',
+         #                   priority=Priority.BACKGROUND),
+         I2cKernelComponent(I2cAddr(93, 0x60), 'rook_cpld'),
+         I2cKernelComponent(I2cAddr(96, 0x20), 'rook_leds'),
+         I2cKernelComponent(I2cAddr(96, 0x48), 'lm73'),
       ])
