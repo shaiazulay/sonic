@@ -31,9 +31,13 @@ unsupportedPlatforms = ["x86_64-arista_7050_qx32", "x86_64-arista_7050_qx32s"]
 
 def verifyPlatform():
    # Check that this script run on an ext4 flash
-   platform = subprocess.check_output(["sonic-cfggen", "-v", "platform", "-m",
-      "/etc/sonic/minigraph.xml"])
-   return (platform.rstrip() not in unsupportedPlatforms)
+   platform = subprocess.check_output(["sonic-cfggen",
+      "-v", "DEVICE_METADATA.localhost.platform", "-d"]).rstrip()
+   if not platform:
+      platform = subprocess.check_output(["sonic-cfggen",
+         "-v", "platform", "-m", "/etc/sonic/minigraph.xml"]).rstrip()
+
+   return (platform not in unsupportedPlatforms)
 
 def checkSpace(swiPath):
    # for EOS we need ~(2 * <swi size>). swi already on fs, so we need additional
