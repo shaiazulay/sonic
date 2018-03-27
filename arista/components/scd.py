@@ -8,9 +8,7 @@ from collections import OrderedDict, namedtuple
 from contextlib import contextmanager
 
 from ..core.inventory import Xcvr, Psu, Watchdog
-from ..core.types import Gpio, ResetGpio, NamedGpio
-from ..core.utils import sysfsFmtHex, sysfsFmtDec, sysfsFmtStr, simulateWith, \
-                         inSimulation, MmapResource
+from ..core.utils import simulateWith, MmapResource
 
 from .common import PciComponent, KernelDriver, PciKernelDriver
 
@@ -66,6 +64,17 @@ class ScdKernelXcvr(Xcvr):
       if self.xcvrType == Xcvr.SFP:
          return False
       return self.rw.writeValue('lp_mode', '1' if value else '0')
+
+   def getModuleSelect(self):
+      if self.xcvrType == Xcvr.SFP:
+         return True
+      return self.rw.readValue('modsel')
+
+   def setModuleSelect(self, value):
+      if self.xcvrType == Xcvr.SFP:
+         return True
+      logging.debug('setting modsel for qsfp %s to %s', self.portNum, value)
+      return self.rw.writeValue('modsel', '1' if value else '0')
 
    def reset(self, value):
       if self.xcvrType == Xcvr.SFP:
@@ -206,8 +215,8 @@ def scdRegTest(mmap, offset, val1, count):
    mmap.write32(offset, val1)
    val2 = mmap.read32(offset)
    if val1 != val2:
-      logging.error("FAIL: scd write 0x%08x but read back 0x%08x in iter %d" %
-                    (val1, val2, count))
+      logging.error("FAIL: scd write 0x%08x but read back 0x%08x in iter %d",
+                    val1, val2, count)
       return False
    return True
 
@@ -308,6 +317,7 @@ class Scd(PciComponent):
       self.sfps = []
       self.leds = []
       self.tweaks = []
+      self.xcvrs = []
 
    def createWatchdog(self, reg=0x0120, scr=0x0130):
       return ScdWatchdog(KernelDriver(self, "scd"),
@@ -348,13 +358,17 @@ class Scd(PciComponent):
 
    def addQsfp(self, addr, xcvrId, bus, eepromAddr=0x50):
       self.qsfps += [(addr, xcvrId)]
-      return ScdKernelXcvr(xcvrId, Xcvr.QSFP, eepromAddr, bus, self.drivers[1],
+      xcvr = ScdKernelXcvr(xcvrId, Xcvr.QSFP, eepromAddr, bus, self.drivers[1],
                            self.rwCls)
+      self.xcvrs.append(xcvr)
+      return xcvr
 
    def addSfp(self, addr, xcvrId, bus, eepromAddr=0x50):
       self.sfps += [(addr, xcvrId)]
-      return ScdKernelXcvr(xcvrId, Xcvr.SFP, eepromAddr, bus, self.drivers[1],
+      xcvr = ScdKernelXcvr(xcvrId, Xcvr.SFP, eepromAddr, bus, self.drivers[1],
                            self.rwCls)
+      self.xcvrs.append(xcvr)
+      return xcvr
 
    def createPsu(self, psuId, statusSupported):
       return ScdKernelPsu(psuId, self.drivers[1], self.rwCls, statusSupported)
@@ -390,4 +404,9 @@ class Scd(PciComponent):
       if xcvrs:
          entries += ['qsfp%d_reset' % xcvrId for _, xcvrId in self.qsfps]
       return entries
+
+   def resetOut(self):
+      super(Scd, self).resetOut()
+      for xcvr in self.xcvrs:
+         xcvr.setModuleSelect(True)
 
