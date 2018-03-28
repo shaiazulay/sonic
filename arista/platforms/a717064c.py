@@ -23,6 +23,8 @@ class Alhambra(Platform):
       scd = Scd(PciAddr(bus=0x06), newDriver=True)
       self.addComponent(scd)
 
+      self.inventory.addWatchdog(scd.createWatchdog())
+
       scd.addComponents([
          I2cKernelComponent(I2cAddr(8, 0x4c), 'max6658'),
          I2cKernelComponent(I2cAddr(6, 0x58), 'dps1900',
