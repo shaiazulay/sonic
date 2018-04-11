@@ -11,7 +11,7 @@ RemainAfterExit=yes
 ExecStartPre=-/bin/bash -c ' \
     if grep -q Gardena /proc/cmdline; then \
         if !systemctl is-active swss; then \
-            timeout=300 \
+            timeout=600 \
             echo "Enabling watchdog for $timeout seconds" \
             /usr/bin/arista watchdog --arm $timeout" \
         fi \
