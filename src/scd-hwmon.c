@@ -953,7 +953,6 @@ static int scd_xcvr_add(struct scd_context *ctx, const char *prefix,
 
       err = scd_gpio_register(ctx, gpio);
       if (err) {
-         kfree(gpio);
          goto fail;
       }
    }
