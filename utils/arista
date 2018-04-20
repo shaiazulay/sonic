@@ -3,6 +3,7 @@
 from __future__ import print_function, with_statement
 
 import logging
+import logging.handlers
 import argparse
 import tempfile
 import time
@@ -24,7 +25,14 @@ def checkRootPermissions():
       logging.error('You must be root to use this feature')
       sys.exit(1)
 
-def setupLogging(verbose=False, logfile=None):
+def getHostname():
+   import socket
+   try:
+      return socket.gethostname()
+   except:
+      return 'localhost'
+
+def setupLogging(verbose=False, logfile=None, syslog=False):
    loglevel = logging.DEBUG if verbose else logging.INFO
    dateFmt = '%Y-%m-%d %H:%M:%S'
 
@@ -41,6 +49,20 @@ def setupLogging(verbose=False, logfile=None):
       logFile.setFormatter(logging.Formatter(
             '%(asctime)s.%(msecs)03d %(levelname)s: %(message)s', datefmt=dateFmt))
       log.addHandler(logFile)
+
+   if syslog:
+      logSys = logging.handlers.SysLogHandler()
+      # format to rfc5424 format
+      logSys.setFormatter(
+            logging.Formatter('{} arista: %(message)s'.format(getHostname())))
+      logSys.setLevel(logging.WARNING)
+      log.addHandler(logSys)
+      try:
+         # the connection to the syslog socket happens with the first message
+         log.info('Attaching to syslog')
+      except:
+         log.warning('Failed open syslog')
+
 
 def setupSimulation():
    global lock_file, log_file
@@ -164,6 +186,8 @@ def parseArgs():
                        help='increase verbosity')
    parser.add_argument('-s', '--simulation', action='store_true',
                        help='force simulation mode')
+   parser.add_argument('--syslog', action='store_true',
+                       help='also send logs to syslog' )
 
    subparsers = parser.add_subparsers(dest='action')
    sub = subparsers.add_parser('help', help='print a help message')
@@ -211,7 +235,7 @@ def parseArgs():
 def main():
    args = parseArgs()
 
-   setupLogging(args.verbose, args.logfile)
+   setupLogging(args.verbose, args.logfile, args.syslog)
 
    if args.simulation:
       setupSimulation()
