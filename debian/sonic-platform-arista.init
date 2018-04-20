@@ -19,12 +19,12 @@ drivers_start() {
         echo "Enabling watchdog for $timeout seconds"
         /usr/bin/arista-gardena-watchdog -o $timeout
     fi
-    /usr/bin/arista -l /var/log/arista.log setup --reset --background
+    /usr/bin/arista --syslog -l /var/log/arista.log setup --reset --background
     echo "done."
 }
 drivers_stop() {
     echo "Unloading arista drivers..."
-    /usr/bin/arista -l /var/log/arista.log clean
+    /usr/bin/arista --syslog -l /var/log/arista.log clean
     echo "done."
 }
 
