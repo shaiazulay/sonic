@@ -95,7 +95,7 @@ class LedControlCeos(LedControlCommon):
       if not port.singular:
          ceosIntfName = "%s/%s" % (ceosIntfName, idx + 1)
       self.ceos.runCmds(['enable', 'config', 'hardware led',
-                         '%s %s' % (ceosIntfName, color), 'exit'])
+                         'interface %s color %s' % (ceosIntfName, color), 'exit'])
       return
 
 def getLedControl():
