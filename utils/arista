@@ -21,7 +21,7 @@ def checkRootPermissions():
       return
 
    if os.geteuid() != 0:
-      log.error('You must be root to use this feature')
+      logging.error('You must be root to use this feature')
       sys.exit(1)
 
 def setupLogging(verbose=False, logfile=None):
