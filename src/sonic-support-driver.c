@@ -300,7 +300,6 @@ static s32 check_resp(struct sonic_master *pmaster,
    }
    if (resp.ti != tid) {
       error = "tid";
-      error_ret = -EAGAIN;
       goto fail;
    }
    return 0;
@@ -464,10 +463,8 @@ static s32 sonic_smbus_access(struct i2c_adapter *adap, u16 addr,
    return 0;
 
   fail:
-   sonic_warn("smbus access failed address=0x%02x on adapter=\"%s\"\n",
-              addr, adap->name);
-   sonic_dbg("smbus read_write = %u, command = %u, size = %d\n", read_write,
-             command, size);
+   sonic_dbg("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x adapter=\"%s\"\n",
+             (read_write) ? "read" : "write", addr, command, size, adap->name);
    smbus_reset(pmaster);
    master_unlock(pmaster);
    return ret;
@@ -483,11 +480,15 @@ static s32 sonic_smbus_access_retry(struct i2c_adapter *adap, u16 addr,
 
    do {
       ret = sonic_smbus_access(adap, addr, flags, read_write, command, size, data);
-      if (ret != -EAGAIN)
+      if (ret != -EIO)
          return ret;
       retry++;
       sonic_dbg("smbus retrying... %d/%d", retry, SMBUS_RETRY_COUNT);
    } while (retry < SMBUS_RETRY_COUNT);
+
+   sonic_warn("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x "
+              "adapter=\"%s\"\n", (read_write) ? "read" : "write",
+              addr, command, size, adap->name);
 
    return -EIO;
 }
