@@ -73,8 +73,15 @@ class I2cKernelDriver(KernelDriver):
       return '%s(%s)' % (self.__class__.__name__, self.name)
 
 class SwitchChip(PciComponent):
+   def pciRescan(self):
+      logging.info('triggering kernel pci rescan')
+      with open('/sys/bus/pci/rescan', 'w') as f:
+         f.write('1\n')
+
    def waitForIt(self, timeout=DEFAULT_WAIT_TIMEOUT):
-      end = time.time() + timeout
+      begin = time.time()
+      end = begin + timeout
+      rescanTime = begin + (timeout / 2)
       devPath = os.path.join('/sys/bus/pci/devices/', str(self.addr))
 
       logging.debug('waiting for switch chip %s', devPath)
@@ -82,13 +89,19 @@ class SwitchChip(PciComponent):
          return True
 
       klog('waiting for switch chip')
-      while time.time() < end:
+      while True:
+         now = time.time()
+         if now > end:
+            break
          if os.path.exists(devPath):
             logging.debug('switch chip is ready')
             klog('switch chip is ready')
             time.sleep(ASIC_YIELD_TIME)
             klog('yielding...')
             return True
+         if now > rescanTime:
+            self.pciRescan()
+            rescanTime = end
          time.sleep(0.1)
 
       logging.error('timed out waiting for the switch chip %s', devPath)
