@@ -1495,6 +1495,11 @@ static int scd_ext_hwmon_probe(struct pci_dev *pdev)
    INIT_LIST_HEAD(&ctx->reset_list);
 
    kobject_get(&pdev->dev.kobj);
+
+   module_lock();
+   list_add_tail(&ctx->list, &scd_list);
+   module_unlock();
+
    err = sysfs_create_file(&pdev->dev.kobj, &dev_attr_new_object.attr);
    if (err) {
       goto fail_sysfs;
@@ -1506,13 +1511,13 @@ static int scd_ext_hwmon_probe(struct pci_dev *pdev)
       goto fail_sysfs;
    }
 
-   module_lock();
-   list_add_tail(&ctx->list, &scd_list);
-   module_unlock();
-
    return 0;
 
 fail_sysfs:
+   module_lock();
+   list_del(&ctx->list);
+   module_unlock();
+
    kobject_put(&pdev->dev.kobj);
    kfree(ctx);
    put_device(&pdev->dev);

@@ -134,12 +134,13 @@ class ScdKernelDriver(PciKernelDriver):
          self.writeConfig(self.getSysfsPath(), {filename: '\n'.join(data)})
 
    def waitReadySim(self):
-      logging.info('Waiting SCD %s.', self.getSysfsPath())
+      logging.info('Waiting SCD %s.', os.path.join(self.getSysfsPath(),
+                                                   'smbus_tweaks'))
       logging.info('Done.')
 
    @simulateWith(waitReadySim)
    def waitReady(self):
-      path = self.getSysfsPath()
+      path = os.path.join(self.getSysfsPath(), 'smbus_tweaks')
       logging.debug('Waiting SCD %s.', path)
 
       count = 0
