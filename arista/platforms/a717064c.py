@@ -4,7 +4,7 @@ from ..core.utils import incrange
 from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
-from ..components.common import I2cKernelComponent
+from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.scd import Scd
 
 @registerPlatform(['DCS-7170-64', 'DCS-7170-64C', 'DCS-7170-64C-SSD'])
@@ -19,6 +19,9 @@ class Alhambra(Platform):
 
       self.addDriver(KernelDriver, 'rook-fan-cpld')
       self.addDriver(KernelDriver, 'rook-led-driver')
+
+      switchChip = SwitchChip(PciAddr(bus=0x07))
+      self.addComponent(switchChip)
 
       scd = Scd(PciAddr(bus=0x06), newDriver=True)
       self.addComponent(scd)
@@ -38,16 +41,18 @@ class Alhambra(Platform):
       scd.addResets([
          ResetGpio(0x4000, 8, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 1, False, 'security_chip_reset'),
+         ResetGpio(0x4000, 0, False, 'repeater_sfp_reset'),
       ])
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
+         NamedGpio(0x5000, 8, True, False, "psu1_status"),
+         NamedGpio(0x5000, 9, True, False, "psu2_status"),
+         NamedGpio(0x5000, 10, True, False, "psu1_ac_status"),
+         NamedGpio(0x5000, 11, True, False, "psu2_ac_status"),
       ])
-      self.inventory.addPsus([
-         scd.createPsu(1, statusGpios=None),
-         scd.createPsu(2, statusGpios=None),
-      ])
+      self.inventory.addPsus([scd.createPsu(1), scd.createPsu(2)])
 
       addr = 0x6100
       for xcvrId in self.qsfpRange:
