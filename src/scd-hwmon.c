@@ -330,7 +330,7 @@ static s32 smbus_check_resp(union response_reg resp, u32 tid)
    return 0;
 
 fail:
-   scd_warn("smbus response: %s error. reg=0x%08x", error, resp.reg);
+   scd_dbg("smbus response: %s error. reg=0x%08x", error, resp.reg);
    return error_ret;
 }
 
