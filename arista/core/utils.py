@@ -110,8 +110,9 @@ class Retrying:
       return Iterator(self.interval, self.delay, self.maxAttempts)
 
 class FileLock:
-   def __init__(self, lock_file):
+   def __init__(self, lock_file, auto_release=False):
       self.f = open(lock_file, 'w')
+      self.auto_release = auto_release
 
    def lock(self):
       fcntl.flock(self.f, fcntl.LOCK_EX)
@@ -124,7 +125,10 @@ class FileLock:
       self.lock()
 
    def __exit__(self, exc_type, exc_val, traceback):
-      self.unlock()
+      if self.auto_release:
+         self.unlock()
+      else:
+         self.f.close()
 
 class NoopObj(object):
    def __init__(self, *args, **kwargs):
