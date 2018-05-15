@@ -6,7 +6,7 @@ from ..core.component import Priority
 from ..core.inventory import Psu
 
 from ..components.common import SwitchChip, I2cKernelComponent
-from ..components.psu import UpperlakePsuComponent
+from ..components.cpld import CrowCpld
 from ..components.scd import Scd
 
 @registerPlatform(['DCS-7060CX-32S', 'DCS-7060CX-32S-ES'])
@@ -73,17 +73,19 @@ class Upperlake(Platform):
          ResetGpio(0x4000, 2, False, 'switch_chip_pcie_reset'),
       ])
 
-      psu1 = UpperlakePsuComponent(1, I2cAddr(1, 0x23), priority=Priority.BACKGROUND)
-      psu2 = UpperlakePsuComponent(2, I2cAddr(1, 0x23), priority=Priority.BACKGROUND)
-      scd.addComponents([psu1, psu2])
+      cpld = CrowCpld(I2cAddr(1, 0x23))
+      self.inventory.addPowerCycle(cpld.createPowerCycle())
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
       ])
       self.inventory.addPsus([
-         self.UpperlakePsu(scd.createPsu(1), psu1),
-         self.UpperlakePsu(scd.createPsu(2), psu2),
+         self.UpperlakePsu(scd.createPsu(1),
+                           cpld.createPsuComponent(1, priority=Priority.BACKGROUND)),
+         self.UpperlakePsu(scd.createPsu(2),
+                           cpld.createPsuComponent(2, priority=Priority.BACKGROUND)),
       ])
+      scd.addComponents(cpld.getPsuComponents())
 
       addr = 0x6100
       for xcvrId in self.sfpRange:

@@ -5,7 +5,7 @@ from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
-from ..components.psu import PmbusPsuComponent, ScdPmbusPsu
+from ..components.psu import ScdPmbusPsu
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
 
@@ -29,6 +29,8 @@ class Cloverdale(Platform):
       self.addComponent(scd)
 
       self.inventory.addWatchdog(scd.createWatchdog())
+
+      self.inventory.addPowerCycle(scd.createPowerCycle())
 
       scd.addComponents([
          I2cKernelComponent(I2cAddr(5, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),

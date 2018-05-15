@@ -58,6 +58,10 @@ class Watchdog(object):
    def status(self):
       raise NotImplementedError()
 
+class PowerCycle(object):
+   def powerCycle(self):
+      raise NotImplementedError()
+
 class Inventory(object):
    def __init__(self):
       self.sfpRange = []
@@ -75,6 +79,8 @@ class Inventory(object):
       self.psus = []
 
       self.watchdog = Watchdog()
+
+      self.powerCycles = []
 
    def freeze(self):
       # XXX: compute the range and some basic information from the various
@@ -133,4 +139,8 @@ class Inventory(object):
    def getWatchdog(self):
       return self.watchdog
 
+   def addPowerCycle(self, powerCycle):
+      self.powerCycles.append(powerCycle)
 
+   def getPowerCycles(self):
+      return self.powerCycles

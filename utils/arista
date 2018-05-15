@@ -170,6 +170,10 @@ def doSysEeprom(args):
    for key, value in getSysEeprom().items():
       print('%s: %s' % (key, value))
 
+def doReboot(args, platform):
+   import arista.utils.sonic_reboot
+   arista.utils.sonic_reboot.reboot(platform)
+
 def todo(*args, **kwargs):
    raise NotImplementedError
 
@@ -225,6 +229,7 @@ def parseArgs():
    sub.add_argument('--arm', type=int, nargs='?', const=300, dest='watchdog_timeout',
                     help='arm the hardware watchdog for X seconds ' \
                          'before the watchdog triggers')
+   sub = subparsers.add_parser('reboot', help='perform a cold reboot for platform')
 
    args = parser.parse_args()
    if args.action == 'help':
@@ -254,6 +259,7 @@ def main():
       'status': todo,
       'reset': doReset,
       'watchdog': doWatchdog,
+      'reboot': doReboot,
    }
 
    if args.action in generic_commands:
