@@ -1134,16 +1134,16 @@ static void scd_pci_disable(struct pci_dev *pdev)
 {
    struct scd_dev_priv *priv = pci_get_drvdata(pdev);
 
-   if (priv->mem) {
-      pci_iounmap(pdev, priv->mem);
-      pci_release_region(pdev, SCD_BAR_REGS);
-      priv->mem = NULL;
-   }
-
    if (priv->localbus) {
       pci_iounmap(pdev, priv->localbus);
       pci_release_region(pdev, SCD_BAR_1);
       priv->localbus = NULL;
+   }
+
+   if (priv->mem) {
+      pci_iounmap(pdev, priv->mem);
+      pci_release_region(pdev, SCD_BAR_REGS);
+      priv->mem = NULL;
    }
 
    pci_disable_device(pdev);
