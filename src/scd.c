@@ -1159,20 +1159,20 @@ scd_pci_enable(struct pci_dev *pdev)
    err = pci_enable_device(pdev);
    if (err) {
       dev_err(&pdev->dev, "cannot enable PCI device (%d)\n", err);
-      goto fail;
+      goto out;
    }
 
    err = pci_request_region(pdev, SCD_BAR_REGS, SCD_MODULE_NAME);
    if (err) {
       dev_err(&pdev->dev, "cannot obtain PCI memory region (%d)\n", err);
-      goto fail;
+      goto out_disable;
    }
 
    priv->mem = pci_iomap(pdev, SCD_BAR_REGS, 0);
-   if(!priv->mem) {
+   if (!priv->mem) {
       dev_err(&pdev->dev, "cannot remap PCI memory region\n");
-      err = -ENOMEM;
-      goto fail;
+      err = -ENXIO;
+      goto out_release_bar_regs;
    }
 
    priv->mem_len = pci_resource_len(pdev, SCD_BAR_REGS);
@@ -1186,17 +1186,33 @@ scd_pci_enable(struct pci_dev *pdev)
          err = pci_request_region(pdev, SCD_BAR_1, SCD_MODULE_NAME);
          if (err) {
             dev_err(&pdev->dev, "cannot obtain PCI memory region 1 (%d)\n", err);
-            goto fail;
+            goto out_unmap_bar_regs;
          }
          priv->localbus = pci_iomap(pdev, SCD_BAR_1, 0);
          if (!priv->localbus) {
             dev_err(&pdev->dev, "cannot remap memory region 1\n");
-            err = -ENOMEM;
-            goto fail;
+            err = -ENXIO;
+            goto out_release_bar_1;
          }
       }
    }
-  fail:
+
+   return 0;
+
+out_release_bar_1:
+   pci_release_region(pdev, SCD_BAR_1);
+
+out_unmap_bar_regs:
+   pci_iounmap(pdev, priv->mem);
+   priv->mem = NULL;
+
+out_release_bar_regs:
+   pci_release_region(pdev, SCD_BAR_REGS);
+
+out_disable:
+   pci_disable_device(pdev);
+
+out:
    return err;
 }
 
