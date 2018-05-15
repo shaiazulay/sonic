@@ -1669,13 +1669,12 @@ static const struct file_operations scd_dump_file_ops = {
    .release = single_release,
 };
 
-static void scd_procfs_create( void ) {
-   struct proc_dir_entry *entry;
-   entry = proc_create( SCD_MODULE_NAME, 0, NULL, &scd_dump_file_ops );
+static struct proc_dir_entry *scd_procfs_create(void) {
+   return proc_create(SCD_MODULE_NAME, 0, NULL, &scd_dump_file_ops);
 }
 
-static void scd_procfs_remove( void ) {
-   (void) remove_proc_entry( SCD_MODULE_NAME, NULL );
+static void scd_procfs_remove(void) {
+   remove_proc_entry(SCD_MODULE_NAME, NULL);
 }
 
 MODULE_DEVICE_TABLE(pci, scd_pci_table);
@@ -1831,11 +1830,30 @@ static int __init scd_init(void)
 
    printk(KERN_INFO "scd module installed\n");
    err = pci_register_driver(&scd_driver);
-   if(!err) {
-      scd_procfs_create();
-      class_register(&scd_class);
+   if (unlikely(err)) {
+      printk(KERN_ERR "pci_register_driver failed\n");
+      goto out_fail;
    }
 
+   if (unlikely(scd_procfs_create() == NULL)) {
+      printk(KERN_ERR "scd_procfs_create failed\n");
+      err = -EIO;
+      goto out_procfs_fail;
+   }
+
+   err = class_register(&scd_class);
+   if (unlikely(err)) {
+      printk(KERN_ERR "class_register failed\n");
+      goto out_class_fail;
+   }
+
+   return err;
+
+out_class_fail:
+   scd_procfs_remove();
+out_procfs_fail:
+   pci_unregister_driver(&scd_driver);
+out_fail:
    return err;
 }
 
