@@ -263,11 +263,11 @@ static struct scd_ext_ops *scd_ext_ops = NULL;
 int scd_register_ardma_ops(struct scd_ardma_ops *ops) {
    struct scd_dev_priv *priv;
 
+   scd_lock();
    ASSERT(scd_ardma_ops == NULL);
    scd_ardma_ops = ops;
 
    // call ardma probe() for any existing scd having ardma
-   scd_lock();
    list_for_each_entry(priv, &scd_list, list) {
       if (priv->initialized && priv->ardma_offset) {
          scd_ardma_ops->probe(priv->pdev, (void*)priv->mem,
@@ -286,19 +286,21 @@ int scd_register_ardma_ops(struct scd_ardma_ops *ops) {
 void scd_unregister_ardma_ops() {
    struct scd_dev_priv *priv;
 
+   scd_lock();
    if (!scd_ardma_ops) {
-      return;
+      goto out_unlock;
    }
 
    // call ardma remove() for any existing scd having ardma
-   scd_lock();
    list_for_each_entry(priv, &scd_list, list) {
       if (priv->initialized && priv->ardma_offset) {
          scd_ardma_ops->remove(priv->pdev);
       }
    }
-   scd_unlock();
    scd_ardma_ops = NULL;
+
+out_unlock:
+   scd_unlock();
 }
 
 EXPORT_SYMBOL(scd_register_ardma_ops);
@@ -307,10 +309,11 @@ EXPORT_SYMBOL(scd_unregister_ardma_ops);
 int scd_register_ext_ops(struct scd_ext_ops *ops) {
    struct scd_dev_priv *priv;
 
-   // call probe() for any existing scd
    scd_lock();
    ASSERT(scd_ext_ops == NULL);
    scd_ext_ops = ops;
+
+   // call probe() for any existing scd
    list_for_each_entry(priv, &scd_list, list) {
       if (scd_ext_ops->probe) {
          scd_ext_ops->probe(priv->pdev);
@@ -323,12 +326,13 @@ int scd_register_ext_ops(struct scd_ext_ops *ops) {
 void scd_unregister_ext_ops() {
    struct scd_dev_priv *priv;
 
-   // call remove() for any existing scd
    scd_lock();
    if (!scd_ext_ops) {
       scd_unlock();
       return;
    }
+
+   // call remove() for any existing scd
    list_for_each_entry(priv, &scd_list, list) {
       if (scd_ext_ops->remove) {
          scd_ext_ops->remove(priv->pdev);
@@ -341,12 +345,13 @@ void scd_unregister_ext_ops() {
 void scd_ext_init_trigger(void){
    struct scd_dev_priv *priv;
 
-   // call init_trigger() for any existing scd
    scd_lock();
    if (!scd_ext_ops) {
       scd_unlock();
       return;
    }
+
+   // call init_trigger() for any existing scd
    list_for_each_entry(priv, &scd_list, list) {
       if (scd_ext_ops->init_trigger) {
          scd_ext_ops->init_trigger(priv->pdev);
