@@ -280,7 +280,7 @@ int scd_register_ardma_ops(struct scd_ardma_ops *ops) {
       }
    }
    scd_unlock();
-   return (0);
+   return 0;
 }
 
 void scd_unregister_ardma_ops() {
@@ -819,9 +819,14 @@ err_out:
 static ssize_t show_attr(struct scd_dev_priv *priv, unsigned long *value, char *buf)
 {
    ssize_t ret;
+
+   /* The pointer value points out to a mapped memory region of SCD
+    * and accessing through it has to be protected with scd_mutex.
+    */
    scd_lock();
    ret = sprintf(buf, "%lu\n", *value);
    scd_unlock();
+
    return ret;
 }
 
@@ -840,57 +845,61 @@ static ssize_t store_attr(struct device *dev, const char *name,
    return count;
 }
 
-#define SCD_DEVICE_ATTR(_name)                                              \
-static ssize_t show_##_name(struct device *dev, struct device_attribute *attr,      \
-char *buf)                                              \
-{                                                                                   \
-   struct scd_dev_priv *priv = dev_get_drvdata(dev);                                \
-   return show_attr(priv, &priv->_name, buf);                                       \
-}                                                                                   \
-static ssize_t store_##_name(struct device *dev, struct device_attribute *attr,     \
-const char *buf, size_t count)                         \
-{                                                                                   \
-   struct scd_dev_priv *priv = dev_get_drvdata(dev);                                \
-   return store_attr(dev, #_name, &priv->_name, buf, count);                        \
-}                                                                                   \
+#define SCD_DEVICE_ATTR(_name)                                          \
+static ssize_t show_##_name(struct device *dev,                         \
+                            struct device_attribute *attr,              \
+                            char *buf)                                  \
+{                                                                       \
+   struct scd_dev_priv *priv = dev_get_drvdata(dev);                    \
+   return show_attr(priv, &priv->_name, buf);                           \
+}                                                                       \
+static ssize_t store_##_name(struct device *dev,                        \
+                             struct device_attribute *attr,             \
+                             const char *buf, size_t count)             \
+{                                                                       \
+   struct scd_dev_priv *priv = dev_get_drvdata(dev);                    \
+   return store_attr(dev, #_name, &priv->_name, buf, count);            \
+}                                                                       \
 static DEVICE_ATTR(_name, S_IRUGO|S_IWUSR|S_IWGRP, show_##_name, store_##_name);
 
 
-#define SCD_IRQ_DEVICE_ATTR(_name, _num)                                         \
-static ssize_t show_##_name##_num(struct device *dev, struct device_attribute *attr,\
-                            char *buf)                                              \
-{                                                                                   \
-   struct scd_dev_priv *priv = dev_get_drvdata(dev);                                \
-   return show_attr(priv, &priv->irq_info[_num]._name, buf);                        \
-}                                                                                   \
-static ssize_t store_##_name##_num(struct device *dev,                              \
-                                   struct device_attribute *attr,                   \
-                                   const char *buf, size_t count)                   \
-{                                                                                   \
-   struct scd_dev_priv *priv = dev_get_drvdata(dev);                                \
-   return store_attr(dev, #_name #_num, &priv->irq_info[_num]._name, buf, count);   \
-}                                                                                   \
-static DEVICE_ATTR(_name##_num, S_IRUGO|S_IWUSR|S_IWGRP, show_##_name##_num,        \
-                   store_##_name##_num);
+#define SCD_IRQ_DEVICE_ATTR(_name, _num)                                \
+static ssize_t show_##_name##_num(struct device *dev,                   \
+                                  struct device_attribute *attr,        \
+                                  char *buf)                            \
+{                                                                       \
+   struct scd_dev_priv *priv = dev_get_drvdata(dev);                    \
+   return show_attr(priv, &priv->irq_info[_num]._name, buf);            \
+}                                                                       \
+static ssize_t store_##_name##_num(struct device *dev,                  \
+                                   struct device_attribute *attr,       \
+                                   const char *buf, size_t count)       \
+{                                                                       \
+   struct scd_dev_priv *priv = dev_get_drvdata(dev);                    \
+   return store_attr(dev, #_name #_num,                                 \
+                     &priv->irq_info[_num]._name, buf, count);          \
+}                                                                       \
+static DEVICE_ATTR(_name##_num, S_IRUGO|S_IWUSR|S_IWGRP,                \
+                   show_##_name##_num, store_##_name##_num);
 
-#define SCD_IRQ_ATTRS(num) \
-SCD_IRQ_DEVICE_ATTR(interrupt_status_offset, num); \
-SCD_IRQ_DEVICE_ATTR(interrupt_mask_read_offset, num); \
-SCD_IRQ_DEVICE_ATTR(interrupt_mask_set_offset, num); \
-SCD_IRQ_DEVICE_ATTR(interrupt_mask_clear_offset, num); \
-SCD_IRQ_DEVICE_ATTR(interrupt_mask, num); \
-SCD_IRQ_DEVICE_ATTR(interrupt_mask_powerloss, num); \
-SCD_IRQ_DEVICE_ATTR(interrupt_mask_watchdog, num); \
+#define SCD_IRQ_ATTRS(num)                              \
+SCD_IRQ_DEVICE_ATTR(interrupt_status_offset, num);      \
+SCD_IRQ_DEVICE_ATTR(interrupt_mask_read_offset, num);   \
+SCD_IRQ_DEVICE_ATTR(interrupt_mask_set_offset, num);    \
+SCD_IRQ_DEVICE_ATTR(interrupt_mask_clear_offset, num);  \
+SCD_IRQ_DEVICE_ATTR(interrupt_mask, num);               \
+SCD_IRQ_DEVICE_ATTR(interrupt_mask_powerloss, num);     \
+SCD_IRQ_DEVICE_ATTR(interrupt_mask_watchdog, num);      \
 SCD_IRQ_DEVICE_ATTR(interrupt_mask_ardma, num);
 
-#define SCD_IRQ_ATTRS_POINTERS(num) \
-&dev_attr_interrupt_status_offset##num.attr, \
-&dev_attr_interrupt_mask_read_offset##num.attr, \
-&dev_attr_interrupt_mask_set_offset##num.attr, \
-&dev_attr_interrupt_mask_clear_offset##num.attr, \
-&dev_attr_interrupt_mask##num.attr, \
-&dev_attr_interrupt_mask_powerloss##num.attr, \
-&dev_attr_interrupt_mask_watchdog##num.attr, \
+#define SCD_IRQ_ATTRS_POINTERS(num)                     \
+&dev_attr_interrupt_status_offset##num.attr,            \
+&dev_attr_interrupt_mask_read_offset##num.attr,         \
+&dev_attr_interrupt_mask_set_offset##num.attr,          \
+&dev_attr_interrupt_mask_clear_offset##num.attr,        \
+&dev_attr_interrupt_mask##num.attr,                     \
+&dev_attr_interrupt_mask_powerloss##num.attr,           \
+&dev_attr_interrupt_mask_watchdog##num.attr,            \
 &dev_attr_interrupt_mask_ardma##num.attr
 
 u32
@@ -938,6 +947,7 @@ scd_resource_len(struct pci_dev *pdev)
    ASSERT( priv );
    if (priv)
       return priv->mem_len;
+
    return 0;
 }
 EXPORT_SYMBOL(scd_resource_len);
@@ -971,7 +981,7 @@ scd_ptp_timestamp(void)
    if (ts == 0)
       printk(KERN_INFO "%s %s returned zero\n", SCD_MODULE_NAME, __FUNCTION__);
 
-   return (ts);
+   return ts;
 }
 
 static ssize_t show_init_trigger(struct device *dev, struct device_attribute *attr,
@@ -1066,11 +1076,11 @@ static ssize_t scd_set_nmi_control_reg_addr(struct device *dev,
 
 static DEVICE_ATTR(init_trigger, S_IRUGO|S_IWUSR|S_IWGRP,
                    show_init_trigger, store_init_trigger);
-static DEVICE_ATTR(debug, S_IWUSR|S_IWGRP, NULL, scd_set_debug );
+static DEVICE_ATTR(debug, S_IWUSR|S_IWGRP, NULL, scd_set_debug);
 static DEVICE_ATTR(ptp_offset_valid, S_IWUSR|S_IWGRP,
-                   NULL, scd_set_ptp_offset_valid );
+                   NULL, scd_set_ptp_offset_valid);
 static DEVICE_ATTR(nmi_control_reg_addr, S_IWUSR|S_IWGRP,
-                   NULL, scd_set_nmi_control_reg_addr );
+                   NULL, scd_set_nmi_control_reg_addr);
 
 SCD_DEVICE_ATTR(crc_error_irq);
 SCD_DEVICE_ATTR(ptp_high_offset);
@@ -1619,7 +1629,7 @@ static int scd_dump(struct seq_file *m, void *p) {
 }
 
 static int scd_dump_open( struct inode *inode, struct file *file ) {
-   return (single_open(file, scd_dump, NULL));
+   return single_open(file, scd_dump, NULL);
 }
 
 static ssize_t scd_disable_nmi_write(struct class *cls, struct class_attribute *attr,
@@ -1684,7 +1694,7 @@ static struct pci_error_handlers scd_error_handlers = {
 };
 
 static struct pci_driver scd_driver = {
-   .name        = "scd",
+   .name        = SCD_MODULE_NAME,
    .id_table    = scd_pci_table,
    .probe       = scd_probe,
    .remove      = scd_remove,
@@ -1736,7 +1746,6 @@ scd_lpc_enable(struct pci_dev *pdev)
    struct scd_dev_priv *priv = pci_get_drvdata(pdev);
    struct bin_attribute *res_attr = NULL;
    int rc = 0;
-   char *res_attr_name = NULL;
 
    if (pdev->res_attr[0]) {
       dev_err(&pdev->dev, "Resources already attached at %d\n", 0);
@@ -1769,16 +1778,8 @@ scd_lpc_enable(struct pci_dev *pdev)
       goto cleanup;
    }
 
-   #define RESOURCE_NAME "resource0"
-   res_attr_name = kzalloc(sizeof(RESOURCE_NAME) + 1, GFP_ATOMIC);
-   if (!res_attr_name) {
-      rc = -ENOMEM;
-      goto cleanup;
-   }
-   sprintf(res_attr_name, RESOURCE_NAME);
-
    sysfs_bin_attr_init(res_attr);
-   res_attr->attr.name = res_attr_name;
+   res_attr->attr.name = "resource0";
    res_attr->attr.mode = S_IRUSR | S_IWUSR;
    res_attr->size = lpc_res_size;
    res_attr->mmap = scd_lpc_mmap_resource;
@@ -1796,9 +1797,6 @@ cleanup:
    if (res_attr) {
       kfree(res_attr);
    }
-   if (res_attr_name) {
-      kfree(res_attr_name);
-   }
 
    if (priv->mem) {
       iounmap(priv->mem);
@@ -1815,7 +1813,6 @@ scd_lpc_disable(struct pci_dev *pdev)
 
    if (pdev->res_attr[0]) {
       sysfs_remove_bin_file(&pdev->dev.kobj, pdev->res_attr[0]);
-      kfree(pdev->res_attr[0]->attr.name);
       kfree(pdev->res_attr[0]);
       pdev->res_attr[0] = NULL;
    }
@@ -1872,6 +1869,7 @@ static void __exit scd_exit(void)
    pci_unregister_driver(&scd_driver);
    scd_procfs_remove();
    class_unregister(&scd_class);
+   mutex_destroy(&scd_mutex);
    printk(KERN_INFO "scd module removed\n");
 }
 
