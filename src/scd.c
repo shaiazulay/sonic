@@ -666,12 +666,15 @@ static int scd_finish_init(struct device *dev)
       interrupt_mask |= priv->irq_info[irq_reg].interrupt_mask_powerloss;
       interrupt_mask |= priv->irq_info[irq_reg].interrupt_mask_watchdog;
 
+      /* Assign all elements to NULL to safely deallocate in case of failure. */
       for (i = 0; i < NUM_BITS_IN_WORD; i++) {
          priv->irq_info[irq_reg].uio_info[i] = NULL;
+      }
+
+      for (i = 0; i < NUM_BITS_IN_WORD; i++) {
          if (interrupt_mask & (1 << i)) {
-            priv->irq_info[irq_reg].uio_info[i] =
-                                       kzalloc(sizeof(struct uio_info), GFP_KERNEL);
-            if (!priv->irq_info[irq_reg].uio_info[i]) {
+            struct uio_info *info = kzalloc(sizeof(struct uio_info), GFP_KERNEL);
+            if (!info) {
                dev_err(dev, "failed to allocate UIO device\n");
                err = -ENOMEM;
                goto err_out;
@@ -679,18 +682,18 @@ static int scd_finish_init(struct device *dev)
             snprintf(priv->irq_info[irq_reg].uio_names[i],
                      sizeof(priv->irq_info[irq_reg].uio_names[i]),
                      "uio-%s-%d-%d", pci_name(to_pci_dev(dev)), irq_reg, i);
-            priv->irq_info[irq_reg].uio_info[i]->name =
-                                                priv->irq_info[irq_reg].uio_names[i];
-            priv->irq_info[irq_reg].uio_info[i]->version = "0.0.1";
-            priv->irq_info[irq_reg].uio_info[i]->irq = UIO_IRQ_CUSTOM;
+            info->name = priv->irq_info[irq_reg].uio_names[i];
+            info->version = "0.0.1";
+            info->irq = UIO_IRQ_CUSTOM;
 
-            err = uio_register_device(dev, priv->irq_info[irq_reg].uio_info[i]);
+            err = uio_register_device(dev, info);
             if (err) {
                dev_err(dev, "failed to register UIO device (%d)\n", err);
-               kfree(priv->irq_info[irq_reg].uio_info[i]);
-               priv->irq_info[irq_reg].uio_info[i] = NULL;
+               kfree(info);
                goto err_out;
             }
+
+            priv->irq_info[irq_reg].uio_info[i] = info;
          }
       }
    }
