@@ -7,7 +7,7 @@ import time
 from collections import OrderedDict, namedtuple
 from contextlib import contextmanager
 
-from ..core.inventory import Xcvr, Psu, Watchdog
+from ..core.inventory import Xcvr, PowerCycle, Psu, Watchdog
 from ..core.utils import simulateWith, MmapResource
 
 from .common import PciComponent, KernelDriver, PciKernelDriver
@@ -305,6 +305,38 @@ class ScdWatchdog(Watchdog):
          logging.error("watchdog status error: {}".format(e))
          return None
 
+class ScdPowerCycle(PowerCycle):
+   def __init__(self, driver=None, path=None, reg=0x7000, wr=0xDEAD, scr=0x0130):
+      self.driver = driver
+      self.path = path
+      self.scr = scr
+      self.reg = reg
+      self.wr = wr
+
+   @contextmanager
+   def getMmap(self):
+      self.driver.setup()
+      mmap = MmapResource(self.path)
+      if not mmap.map():
+         raise RuntimeError("cannot mmap %s" % self.path)
+      try:
+         if not scdScrRegTest(mmap, self.scr):
+            raise RuntimeError("scr reg tests failed")
+         yield mmap
+      finally:
+         mmap.close()
+
+   def powerCycle(self):
+      logging.info("Initiating powercycle through SCD")
+      try:
+         with self.getMmap() as mmap:
+            mmap.write32(self.reg, self.wr)
+            logging.info("Powercycle triggered by SCD")
+            return True
+      except RuntimeError as e:
+         logging.error("powercycle error: %s", e)
+         return False
+
 class Scd(PciComponent):
    BusTweak = namedtuple('BusTweak', 'bus, addr, t, datr, datw, ed')
    def __init__(self, addr, **kwargs):
@@ -315,11 +347,22 @@ class Scd(PciComponent):
       self.masters = OrderedDict()
       self.resets = []
       self.gpios = []
+      self.powerCycles = []
       self.qsfps = []
       self.sfps = []
       self.leds = []
       self.tweaks = []
       self.xcvrs = []
+
+   def createPowerCycle(self, reg=0x7000, wr=0xDEAD):
+      powerCycle = ScdPowerCycle(driver=KernelDriver(self, "scd"),
+                                 path=os.path.join(self.getSysfsPath(), "resource0"),
+                                 reg=reg, wr=wr)
+      self.powerCycles.append(powerCycle)
+      return powerCycle
+
+   def getPowerCycles(self):
+      return self.powerCycles
 
    def createWatchdog(self, reg=0x0120, scr=0x0130):
       return ScdWatchdog(KernelDriver(self, "scd"),

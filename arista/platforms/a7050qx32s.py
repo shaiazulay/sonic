@@ -31,6 +31,8 @@ class Clearlake(Platform):
 
       self.inventory.addWatchdog(scd.createWatchdog())
 
+      self.inventory.addPowerCycle(scd.createPowerCycle())
+
       scd.addComponents([
          I2cKernelComponent(I2cAddr(2, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
          I2cKernelComponent(I2cAddr(3, 0x4c), 'max6658', '/sys/class/hwmon/hwmon3'),
