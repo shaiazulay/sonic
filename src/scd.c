@@ -1734,9 +1734,9 @@ static int
 scd_lpc_enable(struct pci_dev *pdev)
 {
    struct scd_dev_priv *priv = pci_get_drvdata(pdev);
-   struct bin_attribute *res_attr;
+   struct bin_attribute *res_attr = NULL;
    int rc = 0;
-   char *res_attr_name;
+   char *res_attr_name = NULL;
 
    if (pdev->res_attr[0]) {
       dev_err(&pdev->dev, "Resources already attached at %d\n", 0);
@@ -1744,15 +1744,19 @@ scd_lpc_enable(struct pci_dev *pdev)
    }
 
    // map address specified into kernel
-   priv->mem = (void __iomem*) ioremap_nocache((unsigned int) lpc_res_addr,
+   priv->mem = (void __iomem *)ioremap_nocache((unsigned int)lpc_res_addr,
                                                lpc_res_size);
+   if (!priv->mem) {
+      rc = -ENXIO;
+      goto cleanup;
+   }
+
    priv->mem_len = lpc_res_size;
+
    // save the irq for later use, application can still override later
    // by writing into /sys/devices/.../interrupt_irq
    priv->interrupt_irq = lpc_irq;
 
-   res_attr = NULL;
-   res_attr_name = NULL;
    priv->lpc_vendor = pdev->vendor;
    priv->lpc_device = pdev->device;
    pdev->vendor = SCD_PCI_VENDOR_ID;
@@ -1796,6 +1800,11 @@ cleanup:
       kfree(res_attr_name);
    }
 
+   if (priv->mem) {
+      iounmap(priv->mem);
+      priv->mem = NULL;
+   }
+
    return rc;
 }
 
@@ -1804,20 +1813,21 @@ scd_lpc_disable(struct pci_dev *pdev)
 {
    struct scd_dev_priv *priv = pci_get_drvdata(pdev);
 
+   if (pdev->res_attr[0]) {
+      sysfs_remove_bin_file(&pdev->dev.kobj, pdev->res_attr[0]);
+      kfree(pdev->res_attr[0]->attr.name);
+      kfree(pdev->res_attr[0]);
+      pdev->res_attr[0] = NULL;
+   }
+
    if (priv->mem) {
       iounmap(priv->mem);
       priv->mem = NULL;
    }
 
-   if (pdev->res_attr[0]) {
-      sysfs_remove_bin_file(&pdev->dev.kobj, pdev->res_attr[0]);
-      kfree(pdev->res_attr[0]->attr.name);
-      kfree(pdev->res_attr[0]);
-      pdev->res_attr[0] = 0;
-   }
-
    pdev->vendor = priv->lpc_vendor;
    pdev->device = priv->lpc_device;
+
    return;
 }
 
