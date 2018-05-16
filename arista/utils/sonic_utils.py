@@ -50,11 +50,11 @@ def parsePortConfig():
 
 def getSonicConfigVar(name):
    return subprocess.check_output(['sonic-cfggen', '-d', '-v',
-                                   name.replace('"', "'"), "-m",
-                                   "/etc/sonic/minigraph.xml"]).strip()
+                                   name.replace('"', "'")]).strip()
 
 def getSonicPlatformName():
-   return getSonicConfigVar('platform')
+   platformKey = "DEVICE_METADATA['localhost']['platform']"
+   return getSonicConfigVar(platformKey)
 
 def getSonicHwSkuName():
    hwSkuKey = "DEVICE_METADATA['localhost']['hwsku']"
