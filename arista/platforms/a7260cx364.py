@@ -107,3 +107,5 @@ class Gardena(Platform):
          I2cKernelComponent(I2cAddr(88, 0x20), 'rook_leds'),
          I2cKernelComponent(I2cAddr(88, 0x48), 'lm73'),
       ])
+
+      self.inventory.addPowerCycle(cpld.createPowerCycle())
