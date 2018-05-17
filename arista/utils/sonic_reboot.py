@@ -14,6 +14,9 @@ def reboot(platform=None):
    print("Running powercycle script")
    if not platform:
       platform = getPlatform()
-   print("Powercycle for platform %s" % platform)
-   for powerCycle in platform.getInventory().getPowerCycles():
+   powerCycles = platform.getInventory().getPowerCycles()
+   if not powerCycles:
+      print("No objects to perform powercycle with on this platform")
+      return
+   for powerCycle in powerCycles:
       powerCycle.powerCycle()
