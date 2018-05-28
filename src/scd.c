@@ -30,9 +30,9 @@
  *   interrupt_mask_clear_offset
  *   interrupt_mask
  *   interrupt_mask_powerloss
+ *   interrupt_mask_watchdog
  *   interrupt_mask_ardma
  *   crc_error_irq
- *   crc_error_panic
  *   ptp_high_offset
  *   ptp_low_offset
  *   msi_rearm_offset
@@ -58,8 +58,11 @@
  * are expected always to be zero).  To handle
  * the CRC error interrupt (completely separate from the normal interrupt line),
  * write the IRQ number to crc_error_irq.  Similarly, if the device interrupt is not
- * the PCI interrupt, then write the interrupt_irq file. To raise a kernel panic
- * upon a crc interrupt, set crc_error_panic to 1.
+ * the PCI interrupt, then write the interrupt_irq file.
+ * The power_loss is set to 1 when the switch rebooted due to a Power Loss (not all
+ * switches support this feature). Userland will clear this back to 0 once it has read
+ * it as boot time. it can also set it back to 1 for testing purpses. This driver
+ * will set to 1 when an interrupt in the interrupt_mask_powerloss is detected.
  *
  * The values written to each of these files should be in ASCII decimal.  Reading
  * from any of these files will return the value last written, also in ASCII decimal.
@@ -86,6 +89,9 @@
  * devices to change nmi_priv after this point is an error. There is no protection
  * against multiple entities concurrently initializing scd attributes.
  *
+ * Writing anything to /sys/class/scd/disable_nmi turns the nmi handler into a no-op.
+ * Once disabled it cannot be re-enabled. This is intended for use during shutdown
+ * to prevent an erroneous panic as the NMI line floats.
  */
 
 #include <linux/uio_driver.h>
@@ -97,10 +103,9 @@
 #include <linux/seq_file.h>
 #include <linux/module.h>
 #include <linux/kdebug.h>
+#include <linux/version.h>
 #include <asm/nmi.h>
 #include <linux/sched.h>
-#include <linux/device.h>
-#include <linux/version.h>
 
 #define SCD_MODULE_NAME "scd"
 
@@ -144,6 +149,7 @@ typedef struct scd_irq_info_s {
    unsigned long interrupt_mask_clear_offset;
    unsigned long interrupt_mask;
    unsigned long interrupt_mask_powerloss;
+   unsigned long interrupt_mask_watchdog;
    unsigned long interrupt_mask_ardma;
    struct uio_info *uio_info[NUM_BITS_IN_WORD];
    unsigned long uio_count[NUM_BITS_IN_WORD];
@@ -158,7 +164,6 @@ struct scd_dev_priv {
    spinlock_t ptp_time_spinlock;
    scd_irq_info_t irq_info[SCD_NUM_IRQ_REGISTERS];
    unsigned long crc_error_irq;
-   unsigned long crc_error_panic;
    unsigned long ptp_high_offset;
    unsigned long ptp_low_offset;
    unsigned long ptp_offset_valid;
@@ -204,6 +209,10 @@ struct scd_dev_priv {
 
 // non zero if debug logging is enabled.
 static int debug = 0;
+// true when nmi is disabled
+static bool nmi_disabled = false;
+// 1 if panic, 0 if not panic on crc error
+static unsigned int crc_error_panic = 1;
 // linked list of scd_dev_privs
 static struct list_head scd_list;
 // mutex and not spinlock because of kmallocs and ardma callbacks
@@ -247,9 +256,6 @@ struct scd_driver_cb {
 
 // registered ardma handlers
 static struct scd_ardma_ops *scd_ardma_ops = NULL;
-
-// registered scd-em callbacks
-static struct scd_em_ops *scd_em_ops = NULL;
 
 // registered extention callbacks
 static struct scd_ext_ops *scd_ext_ops = NULL;
@@ -297,44 +303,6 @@ void scd_unregister_ardma_ops() {
 
 EXPORT_SYMBOL(scd_register_ardma_ops);
 EXPORT_SYMBOL(scd_unregister_ardma_ops);
-
-int scd_register_em_ops(struct scd_em_ops *ops) {
-   struct scd_dev_priv *priv;
-
-   ASSERT(scd_em_ops == NULL);
-   scd_em_ops = ops;
-
-   // call probe() for any existing scd
-   scd_lock();
-   list_for_each_entry(priv, &scd_list, list) {
-      if (priv->initialized && scd_em_ops->probe) {
-         scd_em_ops->probe(priv->pdev);
-      }
-   }
-   scd_unlock();
-   return (0);
-}
-
-void scd_unregister_em_ops() {
-   struct scd_dev_priv *priv;
-
-   if (!scd_em_ops) {
-      return;
-   }
-
-   // call remove() for any existing scd
-   scd_lock();
-   list_for_each_entry(priv, &scd_list, list) {
-      if (priv->initialized && scd_em_ops->remove) {
-         scd_em_ops->remove(priv->pdev);
-      }
-   }
-   scd_unlock();
-   scd_em_ops = NULL;
-}
-
-EXPORT_SYMBOL(scd_register_em_ops);
-EXPORT_SYMBOL(scd_unregister_em_ops);
 
 int scd_register_ext_ops(struct scd_ext_ops *ops) {
    struct scd_dev_priv *priv;
@@ -491,6 +459,17 @@ static irqreturn_t scd_interrupt(int irq, void *dev_id)
       iowrite32(unmasked_interrupt_status, priv->mem +
                 priv->irq_info[irq_reg].interrupt_mask_set_offset);
 
+      /* see if this was a watchdog interrupt, if so we do a kernel panic
+         to ensure that we get a kdump */
+      if(unmasked_interrupt_status &
+                                priv->irq_info[irq_reg].interrupt_mask_watchdog) {
+         // the panic will generate backtrace and cause the kdump kernel to kick in
+         // which should provide us more data than if we did nothing before the
+         // watchdog rebooted the system, we have 10 seconds before reboot
+         timestamped_watchdog_panic( "SCD watchdog detected, "
+                                     "system will reboot.\n" );
+      }
+
       // ardma interrupt
       if ((unmasked_interrupt_status & priv->irq_info[irq_reg].interrupt_mask_ardma)
           && scd_ardma_ops) {
@@ -537,7 +516,7 @@ static irqreturn_t scd_crc_error_interrupt(int irq, void *dev_id)
    struct scd_dev_priv *priv = dev_get_drvdata(dev);
    dev_emerg(dev, "scd: CRC error interrupt occurred!\n");
 
-   if (priv->initialized && priv->crc_error_panic == 1) {
+   if (priv->initialized && crc_error_panic == 1) {
       /* The scd crc error irq is currently NOT shared on any platform.
        * The irq source is not cleared to ensure that the capture kernel
        * is not interrupted by a corrupt scd.
@@ -546,6 +525,121 @@ static irqreturn_t scd_crc_error_interrupt(int irq, void *dev_id)
    }
 
    return IRQ_HANDLED;
+}
+
+static int scd_watchdog_maybe_panic(void)
+{
+   unsigned int val;
+
+   if (nmi_disabled) {
+      printk(KERN_ALERT "SCD watchdog NMI detected, but handler is disabled\n");
+      return NMI_HANDLED;
+   }
+   if (nmi_priv->nmi_port_io_p) {
+      val = inw(nmi_priv->nmi_control_reg_addr) & ~nmi_priv->nmi_control_mask;
+      outw(val, nmi_priv->nmi_control_reg_addr);
+      outw(nmi_priv->nmi_status_mask, nmi_priv->nmi_status_reg_addr);
+   } else {
+      val = (ioread32(nmi_priv->nmi_control_reg) & ~nmi_priv->nmi_control_mask);
+      iowrite32(val, nmi_priv->nmi_control_reg);
+      iowrite32(nmi_priv->nmi_status_mask, nmi_priv->nmi_status_reg);
+   }
+   panic("SCD watchdog NMI detected, system will reboot.\n");
+   return NMI_HANDLED;
+}
+
+
+static int scd_watchdog_nmi_notify(unsigned int cmd, struct pt_regs *regs)
+{
+   int ret = NMI_DONE;
+
+   if (nmi_priv == NULL) {
+      // This should never happen, panic even if the nmi is disabled
+      panic("SCD NMI detected, nmi_priv==NULL, system will reboot.\n");
+      return ret;
+   }
+
+   // Check if the watchdog caused the NMI
+   if (nmi_priv->nmi_port_io_p) {
+      if (inw(nmi_priv->nmi_status_reg_addr) & nmi_priv->nmi_status_mask) {
+         ret = scd_watchdog_maybe_panic();
+      }
+   } else if ((ioread32(nmi_priv->nmi_status_reg) & nmi_priv->nmi_status_mask) &&
+              (!nmi_priv->nmi_gpio_status_reg ||
+               ((ioread8(nmi_priv->nmi_gpio_status_reg) &
+                 nmi_priv->nmi_gpio_status_mask) == 0))) {
+      ret = scd_watchdog_maybe_panic();
+   }
+   return ret;
+}
+
+/*
+ * Register a notifier to catch the NMI and call panic to generate a kernel
+ * dump before power cycle.
+ */
+static int scd_register_nmi_handler(void)
+{
+   int err;
+   ASSERT(!nmi_priv->nmi_registered);
+   ASSERT(nmi_priv->nmi_port_io_p != SCD_UNINITIALIZED);
+   ASSERT(nmi_priv->nmi_control_reg_addr != SCD_UNINITIALIZED);
+   ASSERT(nmi_priv->nmi_status_reg_addr != SCD_UNINITIALIZED);
+   ASSERT(nmi_priv->nmi_gpio_status_reg_addr != SCD_UNINITIALIZED);
+   ASSERT(nmi_priv->nmi_gpio_status_mask != SCD_UNINITIALIZED);
+   ASSERT(nmi_priv->nmi_status_mask != SCD_UNINITIALIZED);
+   ASSERT(nmi_priv->nmi_control_mask != SCD_UNINITIALIZED);
+
+   if (!nmi_priv->nmi_port_io_p) {
+      nmi_priv->nmi_control_reg = ioremap(nmi_priv->nmi_control_reg_addr, IOSIZE);
+      if (!nmi_priv->nmi_control_reg) {
+         printk(KERN_ERR "failed to map SCD NMI control registers\n");
+         err = -ENXIO;
+         goto out;
+      }
+      nmi_priv->nmi_status_reg = ioremap(nmi_priv->nmi_status_reg_addr, IOSIZE);
+      if (!nmi_priv->nmi_status_reg) {
+         printk(KERN_ERR "failed to map SCD NMI status registers\n");
+         err = -ENXIO;
+         goto out_nmi_status_fail;
+      }
+   }
+
+   if (nmi_priv->nmi_gpio_status_reg_addr) {
+      nmi_priv->nmi_gpio_status_reg = ioremap(nmi_priv->nmi_gpio_status_reg_addr,
+                                              IOSIZE);
+      if (!nmi_priv->nmi_gpio_status_reg) {
+         printk(KERN_ERR "failed to map SCD NMI GPIO status registers\n");
+         err = -ENXIO;
+         goto out_nmi_gpio_fail;
+      }
+   }
+
+   err = register_nmi_handler(NMI_LOCAL,
+                              scd_watchdog_nmi_notify,
+                              0, "WATCHDOG_NMI");
+   if (err) {
+      printk(KERN_ERR "failed to register SCD NMI notifier (error %d)\n", err);
+      goto out_register_fail;
+   }
+   nmi_priv->nmi_registered = true;
+   return 0;
+
+out_register_fail:
+   if (nmi_priv->nmi_gpio_status_reg_addr) {
+      iounmap(nmi_priv->nmi_gpio_status_reg);
+      nmi_priv->nmi_gpio_status_reg = NULL;
+   }
+
+out_nmi_gpio_fail:
+   if (!nmi_priv->nmi_port_io_p) {
+      iounmap(nmi_priv->nmi_status_reg);
+      nmi_priv->nmi_status_reg = NULL;
+out_nmi_status_fail:
+      iounmap(nmi_priv->nmi_control_reg);
+      nmi_priv->nmi_control_reg = NULL;
+   }
+out:
+   return err;
 }
 
 static int scd_finish_init(struct device *dev)
@@ -561,10 +655,12 @@ static int scd_finish_init(struct device *dev)
 
    // store a copy of the dev->name() for debugging hotswap
    for(irq_reg = 0; irq_reg < SCD_NUM_IRQ_REGISTERS; irq_reg++) {
-      // combine the power loss, and regular interrupt masks
+      // combine the power loss, watchdog and regular interrupt masks
       unsigned long interrupt_mask = priv->irq_info[irq_reg].interrupt_mask;
 
       interrupt_mask |= priv->irq_info[irq_reg].interrupt_mask_powerloss;
+      interrupt_mask |= priv->irq_info[irq_reg].interrupt_mask_watchdog;
+
       for (i = 0; i < NUM_BITS_IN_WORD; i++) {
          priv->irq_info[irq_reg].uio_info[i] = NULL;
          if (interrupt_mask & (1 << i)) {
@@ -632,6 +728,15 @@ static int scd_finish_init(struct device *dev)
       }
    }
 
+   // enable watchdog interrupts
+   for(irq_reg = 0; irq_reg < SCD_NUM_IRQ_REGISTERS; irq_reg++) {
+      if(priv->irq_info[irq_reg].interrupt_mask_watchdog &&
+         priv->irq_info[irq_reg].interrupt_mask_clear_offset) {
+         iowrite32(priv->irq_info[irq_reg].interrupt_mask_watchdog, priv->mem +
+                   priv->irq_info[irq_reg].interrupt_mask_clear_offset);
+      }
+   }
+
    // ardma probe
    if (priv->ardma_offset && scd_ardma_ops) {
       scd_ardma_ops->probe(priv->pdev, (void*)priv->mem,
@@ -641,11 +746,6 @@ static int scd_finish_init(struct device *dev)
          priv->irq_info[0].interrupt_mask_read_offset,
          priv->irq_info[0].interrupt_mask_set_offset,
          priv->irq_info[0].interrupt_mask_clear_offset);
-   }
-
-   // scd_em probe
-   if (scd_em_ops && scd_em_ops->probe) {
-      scd_em_ops->probe(priv->pdev);
    }
 
    // scd_ext init_trigger
@@ -672,6 +772,15 @@ static int scd_finish_init(struct device *dev)
       dev_err(dev, "scd is not programmed\n");
       err = -ENODEV;
       goto err_out_free_irq;
+   }
+
+   // Register scd nmi handler
+   if (priv == nmi_priv && !priv->nmi_registered) {
+      err = scd_register_nmi_handler();
+      if (err) {
+         dev_err(dev, "scd_register_nmi_handler() failed (%d)\n", err);
+         goto err_out_free_irq;
+      }
    }
 
    dev_info(dev, "scd device initialization complete\n");
@@ -763,6 +872,7 @@ SCD_IRQ_DEVICE_ATTR(interrupt_mask_set_offset, num); \
 SCD_IRQ_DEVICE_ATTR(interrupt_mask_clear_offset, num); \
 SCD_IRQ_DEVICE_ATTR(interrupt_mask, num); \
 SCD_IRQ_DEVICE_ATTR(interrupt_mask_powerloss, num); \
+SCD_IRQ_DEVICE_ATTR(interrupt_mask_watchdog, num); \
 SCD_IRQ_DEVICE_ATTR(interrupt_mask_ardma, num);
 
 #define SCD_IRQ_ATTRS_POINTERS(num) \
@@ -772,24 +882,8 @@ SCD_IRQ_DEVICE_ATTR(interrupt_mask_ardma, num);
 &dev_attr_interrupt_mask_clear_offset##num.attr, \
 &dev_attr_interrupt_mask##num.attr, \
 &dev_attr_interrupt_mask_powerloss##num.attr, \
+&dev_attr_interrupt_mask_watchdog##num.attr, \
 &dev_attr_interrupt_mask_ardma##num.attr
-
-struct pci_dev *
-scd_get_pdev(const char *name)
-{
-   struct scd_dev_priv *priv = NULL;
-
-   scd_lock();
-   list_for_each_entry(priv, &scd_list, list) {
-      if (!strcmp(dev_name(&priv->pdev->dev), name)) {
-         scd_unlock();
-         return (priv->pdev);
-      }
-   }
-   scd_unlock();
-   return (NULL);
-}
-EXPORT_SYMBOL(scd_get_pdev);
 
 u32
 scd_read_register(struct pci_dev *pdev, u32 offset)
@@ -971,7 +1065,6 @@ static DEVICE_ATTR(nmi_control_reg_addr, S_IWUSR|S_IWGRP,
                    NULL, scd_set_nmi_control_reg_addr );
 
 SCD_DEVICE_ATTR(crc_error_irq);
-SCD_DEVICE_ATTR(crc_error_panic);
 SCD_DEVICE_ATTR(ptp_high_offset);
 SCD_DEVICE_ATTR(ptp_low_offset);
 SCD_DEVICE_ATTR(msi_rearm_offset);
@@ -1006,7 +1099,6 @@ static struct attribute *scd_attrs[] = {
    SCD_IRQ_ATTRS_POINTERS(6),
    SCD_IRQ_ATTRS_POINTERS(7),
    &dev_attr_crc_error_irq.attr,
-   &dev_attr_crc_error_panic.attr,
    &dev_attr_ptp_high_offset.attr,
    &dev_attr_ptp_low_offset.attr,
    &dev_attr_msi_rearm_offset.attr,
@@ -1187,7 +1279,6 @@ static int scd_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
    INIT_LIST_HEAD(&priv->list);
    priv->pdev = pdev;
    priv->crc_error_irq = SCD_UNINITIALIZED;
-   priv->crc_error_panic = SCD_UNINITIALIZED;
    priv->interrupt_irq = SCD_UNINITIALIZED;
    priv->interrupt_poll = SCD_UNINITIALIZED;
    priv->ptp_high_offset = SCD_UNINITIALIZED;
@@ -1291,11 +1382,6 @@ static void scd_remove(struct pci_dev *pdev)
    // call ardma remove() if scd has ardma
    if (priv->initialized && priv->ardma_offset && scd_ardma_ops) {
       scd_ardma_ops->remove(pdev);
-   }
-
-   // call scd_em's remove callback
-   if (scd_em_ops && scd_em_ops->remove) {
-      scd_em_ops->remove(pdev);
    }
 
    // call scd_sonic remove callback
@@ -1440,11 +1526,13 @@ static int scd_dump(struct seq_file *m, void *p) {
          seq_printf(m, "nmi_port_io_p 0x%lx nmi_control_reg_addr 0x%lx "
                     "nmi_control_mask 0x%lx\nnmi_status_reg_addr 0x%lx "
                     "nmi_status_mask 0x%lx nmi_gpio_status_reg_addr 0x%lx\n"
-                    "nmi_gpio_status_mask 0x%lx nmi_registered %d\n",
+                    "nmi_gpio_status_mask 0x%lx nmi_registered %d "
+                    "nmi_disabled %d\n",
                     priv->nmi_port_io_p, priv->nmi_control_reg_addr,
                     priv->nmi_control_mask, priv->nmi_status_reg_addr,
                     priv->nmi_status_mask, priv->nmi_gpio_status_reg_addr,
-                    priv->nmi_gpio_status_mask, priv->nmi_registered);
+                    priv->nmi_gpio_status_mask, priv->nmi_registered,
+                    nmi_disabled);
 
          for(irq_reg = 0; irq_reg < SCD_NUM_IRQ_REGISTERS; irq_reg++) {
             if(!priv->irq_info[irq_reg].interrupt_status_offset ||
@@ -1459,6 +1547,7 @@ static int scd_dump(struct seq_file *m, void *p) {
                           "interrupt_mask_clear_offset 0x%lx "
                           "interrupt_mask 0x%lx "
                           "interrupt_mask_power_loss 0x%lx\n"
+                          "interrupt_mask_watchdog 0x%lx "
                           "ardma_interrupt_mask 0x%lx\n",
                        priv->irq_info[irq_reg].interrupt_status_offset,
                        priv->irq_info[irq_reg].interrupt_mask_read_offset,
@@ -1466,6 +1555,7 @@ static int scd_dump(struct seq_file *m, void *p) {
                        priv->irq_info[irq_reg].interrupt_mask_clear_offset,
                        priv->irq_info[irq_reg].interrupt_mask,
                        priv->irq_info[irq_reg].interrupt_mask_powerloss,
+                       priv->irq_info[irq_reg].interrupt_mask_watchdog,
                        priv->irq_info[irq_reg].interrupt_mask_ardma);
 
          }
@@ -1507,6 +1597,45 @@ static int scd_dump(struct seq_file *m, void *p) {
 static int scd_dump_open( struct inode *inode, struct file *file ) {
    return (single_open(file, scd_dump, NULL));
 }
+
+static ssize_t scd_disable_nmi_write(struct class *cls, struct class_attribute *attr,
+                                     const char *buf, size_t count)
+{
+   nmi_disabled = true;
+   printk(KERN_INFO "Disabled SCD NMI handler\n");
+   return count;
+}
+
+static ssize_t crc_error_panic_write(struct class *cls,
+                                     struct class_attribute *attr,
+                                     const char *buf,
+                                     size_t count)
+{
+   int ret;
+
+   ret = kstrtoint(buf, 10, &crc_error_panic);
+   if (ret < 0) {
+      return ret;
+   }
+   // value of the crc_error_panic is always 0 or 1
+   if (crc_error_panic != 0) {
+      crc_error_panic = 1;
+   }
+   return count;
+}
+
+static struct class_attribute scd_class_attrs[] = {
+   __ATTR(disable_nmi, S_IWUSR , NULL, scd_disable_nmi_write),
+   __ATTR(crc_error_panic, S_IWUSR, NULL, crc_error_panic_write),
+   __ATTR_NULL
+};
+
+static struct class scd_class =
+{
+   .owner = THIS_MODULE,
+   .name = SCD_MODULE_NAME,
+   .class_attrs = scd_class_attrs
+};
 
 static const struct file_operations scd_dump_file_ops = {
    .owner = THIS_MODULE,
@@ -1678,8 +1807,10 @@ static int __init scd_init(void)
 
    printk(KERN_INFO "scd module installed\n");
    err = pci_register_driver(&scd_driver);
-   if(!err)
+   if(!err) {
       scd_procfs_create();
+      class_register(&scd_class);
+   }
 
    return err;
 }
@@ -1688,6 +1819,7 @@ static void __exit scd_exit(void)
 {
    pci_unregister_driver(&scd_driver);
    scd_procfs_remove();
+   class_unregister(&scd_class);
    printk(KERN_INFO "scd module removed\n");
 }
 

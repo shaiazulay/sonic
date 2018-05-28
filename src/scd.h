@@ -34,7 +34,8 @@ struct scd_ardma_ops {
 
 // Allow scd-em callbacks to be registered
 struct scd_em_ops {
-   void (*probe)(struct pci_dev *pdev);
+   bool (*probe)(struct pci_dev *pdev);
+   void (*finish_init)(struct pci_dev *pdev);
    void (*remove)(struct pci_dev *pdev);
 };
 
