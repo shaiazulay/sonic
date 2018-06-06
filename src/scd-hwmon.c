@@ -859,8 +859,11 @@ static int scd_gpio_register(struct scd_context *ctx, struct scd_gpio *gpio)
    int res;
 
    res = sysfs_create_file(&ctx->pdev->dev.kobj, &gpio->attr.dev_attr.attr);
-   if (res < 0)
+   if (res) {
+      pr_err("could not create %s attribute for gpio: %d",
+             gpio->attr.dev_attr.attr.name, res);
       return res;
+   }
 
    list_add_tail(&gpio->list, &ctx->gpio_list);
    return 0;
@@ -927,8 +930,11 @@ static int scd_reset_register(struct scd_context *ctx, struct scd_reset *reset)
    int res;
 
    res = sysfs_create_file(&ctx->pdev->dev.kobj, &reset->attr.dev_attr.attr);
-   if (res < 0)
+   if (res) {
+      pr_err("could not create %s attribute for reset: %d",
+             reset->attr.dev_attr.attr.name, res);
       return res;
+   }
 
    list_add_tail(&reset->list, &ctx->reset_list);
    return 0;
@@ -1531,11 +1537,15 @@ static int scd_ext_hwmon_probe(struct pci_dev *pdev)
 
    err = sysfs_create_file(&pdev->dev.kobj, &dev_attr_new_object.attr);
    if (err) {
+      pr_err("could not create %s attribute: %d",
+             dev_attr_new_object.attr.name, err);
       goto fail_sysfs;
    }
 
    err = sysfs_create_file(&pdev->dev.kobj, &dev_attr_smbus_tweaks.attr);
    if (err) {
+      pr_err("could not create %s attribute for smbus tweak: %d",
+             dev_attr_smbus_tweaks.attr.name, err);
       sysfs_remove_file(&pdev->dev.kobj, &dev_attr_new_object.attr);
       goto fail_sysfs;
    }
