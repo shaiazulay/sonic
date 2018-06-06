@@ -1004,8 +1004,11 @@ fail:
 
    while (i--) {
       gpio = list_last_entry(&ctx->gpio_list, struct scd_gpio, list);
-      if (gpio)
+      if (gpio) {
+         scd_gpio_unregister(ctx, gpio);
          list_del(&gpio->list);
+         kfree(gpio);
+      }
    }
 
    return err;
