@@ -367,9 +367,9 @@ static const struct bus_params *get_bus_params(struct scd_bus *bus, u16 addr) {
    return params;
 }
 
-static s32 scd_smbus_do(struct scd_bus *bus, u16 addr, unsigned short flags,
-                        char read_write, u8 command, int size,
-                        union i2c_smbus_data *data)
+static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags,
+                             char read_write, u8 command, int size,
+                             union i2c_smbus_data *data)
 {
    struct scd_master *master = bus->master;
    const struct bus_params *params;
@@ -379,8 +379,6 @@ static s32 scd_smbus_do(struct scd_bus *bus, u16 addr, unsigned short flags,
    int ret = 0;
    u32 ss = 0;
    u32 data_offset = 0;
-
-   master_lock(master);
 
    params = get_bus_params(bus, addr);
 
@@ -421,10 +419,8 @@ static s32 scd_smbus_do(struct scd_bus *bus, u16 addr, unsigned short flags,
       if (read_write == I2C_SMBUS_WRITE) {
          ss = 3 + data->block[0];
       } else {
-         master_unlock(master);
-         ret = scd_smbus_do(bus, addr, flags, I2C_SMBUS_READ, command,
-                            I2C_SMBUS_BYTE_DATA, data);
-         master_lock(master);
+         ret = scd_smbus_do_impl(bus, addr, flags, I2C_SMBUS_READ, command,
+                                 I2C_SMBUS_BYTE_DATA, data);
          if (ret) {
             goto fail;
          }
@@ -503,14 +499,26 @@ static s32 scd_smbus_do(struct scd_bus *bus, u16 addr, unsigned short flags,
       }
    }
 
-   master_unlock(master);
    return 0;
 
 fail:
    scd_dbg("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x adapter=\"%s\"\n",
            (read_write) ? "read" : "write", addr, command, size, bus->adap.name);
    smbus_master_reset(master);
+   return ret;
+}
+
+static s32 scd_smbus_do(struct scd_bus *bus, u16 addr, unsigned short flags,
+                        char read_write, u8 command, int size,
+                        union i2c_smbus_data *data)
+{
+   struct scd_master *master = bus->master;
+   s32 ret;
+
+   master_lock(master);
+   ret = scd_smbus_do_impl(bus, addr, flags, read_write, command, size, data);
    master_unlock(master);
+
    return ret;
 }
 
