@@ -632,9 +632,16 @@ static void scd_smbus_master_remove(struct scd_master *master)
    struct bus_params *params;
    struct bus_params *tmp_params;
 
-   list_for_each_entry_safe(bus, tmp_bus, &master->bus_list, list) {
+   /* Remove all i2c_adapter first to make sure the scd_bus and scd_master are
+    * unused when removing them.
+    */
+   list_for_each_entry(bus, &master->bus_list, list) {
       i2c_del_adapter(&bus->adap);
+   }
 
+   smbus_master_reset(master);
+
+   list_for_each_entry_safe(bus, tmp_bus, &master->bus_list, list) {
       list_for_each_entry_safe(params, tmp_params, &bus->params, list) {
          list_del(&params->list);
          kfree(params);
@@ -643,10 +650,9 @@ static void scd_smbus_master_remove(struct scd_master *master)
       list_del(&bus->list);
       kfree(bus);
    }
-
-   smbus_master_reset(master);
-
    list_del(&master->list);
+
+   mutex_destroy(&master->mutex);
    kfree(master);
 }
 
