@@ -614,6 +614,9 @@ static int scd_smbus_bus_add(struct scd_master *master, int id)
    return 0;
 }
 
+/*
+ * Must be called with the scd lock held.
+ */
 static void scd_smbus_master_remove(struct scd_master *master)
 {
    struct scd_bus *bus;
@@ -639,6 +642,9 @@ static void scd_smbus_master_remove(struct scd_master *master)
    kfree(master);
 }
 
+/*
+ * Must be called with the scd lock held.
+ */
 static void scd_smbus_remove_all(struct scd_context *ctx)
 {
    struct scd_master *master;
@@ -729,6 +735,9 @@ static void led_brightness_set(struct led_classdev *led_cdev,
    scd_write_register(led->ctx->pdev, led->addr, reg);
 }
 
+/*
+ * Must be called with the scd lock held.
+ */
 static void scd_led_remove_all(struct scd_context *ctx)
 {
    struct scd_led *led;
@@ -843,6 +852,9 @@ static int scd_gpio_register(struct scd_context *ctx, struct scd_gpio *gpio)
    return 0;
 }
 
+/*
+ * Must be called with the scd lock held.
+ */
 static void scd_gpio_remove_all(struct scd_context *ctx)
 {
    struct scd_gpio *tmp_gpio;
@@ -908,6 +920,9 @@ static int scd_reset_register(struct scd_context *ctx, struct scd_reset *reset)
    return 0;
 }
 
+/*
+ * Must be called with the scd lock held.
+ */
 static void scd_reset_remove_all(struct scd_context *ctx)
 {
    struct scd_reset *tmp_reset;
