@@ -1,6 +1,6 @@
 ccflags-y := -Werror
 
-obj-m += scd.o
+obj-$(ARISTA_SCD_DRIVER_CONFIG) += scd.o
 obj-m += scd-hwmon.o
 obj-m += crow-fan-driver.o
 obj-m += raven-fan-driver.o

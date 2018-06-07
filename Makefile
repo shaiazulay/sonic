@@ -9,6 +9,7 @@ EXTRA_TARGETS = $(ARISTA_PLATFORM_MODULE_DRIVERS) \
 
 $(addprefix $(DEST)/, $(MAIN_TARGET)): $(DEST)/% :
 	# Build the package
+	export ARISTA_SCD_DRIVER_CONFIG=m
 	export PYBUILD_INSTALL_ARGS_python2=--install-scripts=/dev/null
 	dpkg-buildpackage -rfakeroot -b -us -uc -j$(SONIC_CONFIG_MAKE_JOBS)
 
