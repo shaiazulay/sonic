@@ -65,7 +65,7 @@ class LedControlSysfs(LedControlCommon):
 
    def _setStatusColor(self, invStatusLed, color):
       with open(self.LED_SYSFS_PATH.format(invStatusLed), 'w') as fp:
-         fp.write('%d' % self.LED_COLOR_GREEN)
+         fp.write('%d' % color)
 
    def _setIntfColor(self, port, idx, color):
       path = self.portSysfsMapping[port.portNum][port.offset + idx]
