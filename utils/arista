@@ -171,6 +171,7 @@ def doSysEeprom(args):
       print('%s: %s' % (key, value))
 
 def doReboot(args, platform):
+   checkRootPermissions()
    import arista.utils.sonic_reboot
    arista.utils.sonic_reboot.reboot(platform)
 
