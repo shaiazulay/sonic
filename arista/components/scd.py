@@ -5,10 +5,9 @@ import os
 import time
 
 from collections import OrderedDict, namedtuple
-from contextlib import contextmanager
 
 from ..core.inventory import Xcvr, PowerCycle, Psu, Watchdog
-from ..core.utils import simulateWith, MmapResource
+from ..core.utils import getMmap, simulateWith, writeConfig
 
 from .common import PciComponent, KernelDriver, PciKernelDriver
 
@@ -101,21 +100,6 @@ class ScdKernelDriver(PciKernelDriver):
    def __init__(self, scd):
       super(ScdKernelDriver, self).__init__(scd, 'scd-hwmon')
 
-   def writeConfigSim(self, path, data):
-      for filename, value in data.items():
-         logging.info('writting data under %s : %r',
-                      os.path.join(path, filename), value)
-
-   @simulateWith(writeConfigSim)
-   def writeConfig(self, path, data):
-      for filename, value in data.items():
-         try:
-            path = os.path.join(path, filename)
-            with open(path, 'w') as f:
-               f.write(value)
-         except IOError as e:
-            logging.error('%s %s', path, e.strerror)
-
    def writeComponents(self, components, filename):
       PAGE_SIZE = 4096
       data = []
@@ -124,14 +108,14 @@ class ScdKernelDriver(PciKernelDriver):
       for entry in components:
          entry_size = len(entry) + 1
          if entry_size + data_size > PAGE_SIZE:
-            self.writeConfig(self.getSysfsPath(), {filename: '\n'.join(data)})
+            writeConfig(self.getSysfsPath(), {filename: '\n'.join(data)})
             data_size = 0
             data = []
          data.append(entry)
          data_size += entry_size
 
       if data:
-         self.writeConfig(self.getSysfsPath(), {filename: '\n'.join(data)})
+         writeConfig(self.getSysfsPath(), {filename: '\n'.join(data)})
 
    def waitReadySim(self):
       logging.info('Waiting SCD %s.', os.path.join(self.getSysfsPath(),
@@ -194,7 +178,7 @@ class ScdKernelDriver(PciKernelDriver):
    def finish(self):
       logging.debug('applying scd configuration')
       path = self.getSysfsPath()
-      self.writeConfig(path, {'init_trigger': '1'})
+      writeConfig(path, {'init_trigger': '1'})
       super(ScdKernelDriver, self).finish()
 
    def resetSim(self, value):
@@ -214,44 +198,11 @@ class ScdKernelDriver(PciKernelDriver):
    def resetOut(self):
       self.reset(False)
 
-def scdRegTest(mmap, offset, val1, count):
-   mmap.write32(offset, val1)
-   val2 = mmap.read32(offset)
-   if val1 != val2:
-      logging.error("FAIL: scd write 0x%08x but read back 0x%08x in iter %d",
-                    val1, val2, count)
-      return False
-   return True
-
-def scdScrRegTest(mmap, scrOffset):
-   for i in range(0, 3):
-      if not scdRegTest(mmap, scrOffset, 0xdeadbeef, i):
-         return False
-      if not scdRegTest(mmap, scrOffset, 0xa5a5a5a5, i):
-         return False
-      if not scdRegTest(mmap, scrOffset, 0x00000000, i):
-         return False
-   return True
-
 class ScdWatchdog(Watchdog):
-   def __init__(self, driver, path, reg=0x0120, scr=0x0130):
+   def __init__(self, driver, path, reg=0x0120):
       self.driver = driver
       self.path = path
-      self.scr = scr
       self.reg = reg
-
-   @contextmanager
-   def getMmap(self):
-      self.driver.setup()
-      mmap = MmapResource(self.path)
-      if not mmap.map():
-         raise RuntimeError("cannot mmap %s" % self.path)
-      try:
-         if not scdScrRegTest(mmap, self.scr):
-            raise RuntimeError("scr reg tests failed")
-         yield mmap
-      finally:
-         mmap.close()
 
    @staticmethod
    def armReg(timeout):
@@ -274,7 +225,7 @@ class ScdWatchdog(Watchdog):
    def arm(self, timeout):
       regValue = self.armReg(timeout)
       try:
-         with self.getMmap() as mmap:
+         with getMmap(self.driver, self.path) as mmap:
             logging.info('arm reg = {0:32b}'.format(regValue))
             mmap.write32(self.reg, regValue)
       except RuntimeError as e:
@@ -297,7 +248,7 @@ class ScdWatchdog(Watchdog):
    @simulateWith(statusSim)
    def status(self):
       try:
-         with self.getMmap() as mmap:
+         with getMmap(self.driver, self.path) as mmap:
             regValue = mmap.read32(self.reg)
             enabled = bool(regValue >> 31)
             timeout = regValue & ((1<<16)-1)
@@ -307,30 +258,16 @@ class ScdWatchdog(Watchdog):
          return None
 
 class ScdPowerCycle(PowerCycle):
-   def __init__(self, driver=None, path=None, reg=0x7000, wr=0xDEAD, scr=0x0130):
+   def __init__(self, driver=None, path=None, reg=0x7000, wr=0xDEAD):
       self.driver = driver
       self.path = path
-      self.scr = scr
       self.reg = reg
       self.wr = wr
-
-   @contextmanager
-   def getMmap(self):
-      self.driver.setup()
-      mmap = MmapResource(self.path)
-      if not mmap.map():
-         raise RuntimeError("cannot mmap %s" % self.path)
-      try:
-         if not scdScrRegTest(mmap, self.scr):
-            raise RuntimeError("scr reg tests failed")
-         yield mmap
-      finally:
-         mmap.close()
 
    def powerCycle(self):
       logging.info("Initiating powercycle through SCD")
       try:
-         with self.getMmap() as mmap:
+         with getMmap(self.driver, self.path) as mmap:
             mmap.write32(self.reg, self.wr)
             logging.info("Powercycle triggered by SCD")
             return True
@@ -365,10 +302,10 @@ class Scd(PciComponent):
    def getPowerCycles(self):
       return self.powerCycles
 
-   def createWatchdog(self, reg=0x0120, scr=0x0130):
+   def createWatchdog(self, reg=0x0120):
       return ScdWatchdog(KernelDriver(self, "scd"),
                          os.path.join(self.getSysfsPath(), "resource0"),
-                         reg=reg, scr=scr)
+                         reg=reg)
 
    def addBusTweak(self, bus, addr, t=1, datr=1, datw=3, ed=0):
       self.tweaks.append(Scd.BusTweak(bus, addr, t, datr, datw, ed))

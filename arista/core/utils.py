@@ -1,12 +1,12 @@
+import fcntl
 import logging
 import mmap
-import fcntl
 import os
 import time
-from struct import pack, unpack
-
+from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
+from struct import pack, unpack
 
 class MmapResource(object):
    """Resource implementation for a directly-mapped memory region."""
@@ -198,6 +198,32 @@ def simulateWith(simulatedFunc):
          return func(*args, **kwargs)
       return funcWrapper
    return simulateThisFunc
+
+def writeConfigSim(path, data):
+   for filename, value in data.items():
+      logging.info('writting data under %s : %r',
+                   os.path.join(path, filename), value)
+
+@simulateWith(writeConfigSim)
+def writeConfig(path, data):
+   for filename, value in data.items():
+      try:
+         path = os.path.join(path, filename)
+         with open(path, 'w') as f:
+            f.write(value)
+      except IOError as e:
+         logging.error('%s %s', path, e.strerror)
+
+@contextmanager
+def getMmap(driver, path):
+   driver.setup()
+   gmmap = MmapResource(path)
+   if not gmmap.map():
+      raise RuntimeError("cannot mmap %s" % path)
+   try:
+      yield gmmap
+   finally:
+      gmmap.close()
 
 def libraryInit():
    global simulation, debug, SMBus
