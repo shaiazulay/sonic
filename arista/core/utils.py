@@ -3,7 +3,7 @@ import logging
 import mmap
 import os
 import time
-from contextlib import contextmanager
+
 from datetime import datetime
 from functools import wraps
 from struct import pack, unpack
@@ -11,42 +11,54 @@ from struct import pack, unpack
 class MmapResource(object):
    """Resource implementation for a directly-mapped memory region."""
    def __init__(self, path):
-      self.path = path
+      self.path_ = path
       self.mmap_ = None
 
+   def __enter__(self):
+      if not self.map():
+         # raise the last exception from self.map()
+         raise RuntimeError('failed to mmap %s' % self.path_ )
+      return self
+
+   def __exit__(self, *args):
+      self.close()
+
    def map(self):
+      assert not self.mmap_, "Resource already mapped"
+
       try:
-         fd = os.open(self.path, os.O_RDWR)
+         fd = os.open(self.path_, os.O_RDWR)
       except EnvironmentError:
-         logging.error("FAIL can not open scd memory-map resource file")
-         logging.error("FAIL are you running on the proper platform?")
+         logging.error("failed to open file %s for mmap", self.path_)
          return False
 
       try:
          size = os.fstat(fd).st_size
       except EnvironmentError:
-         logging.error("FAIL can not fstat scd memory-map resource file")
-         logging.error("FAIL are you running on the proper platform?")
+         logging.error("failed to stat file %s for mmap", self.path_)
+         try:
+            os.close(fd)
+         except EnvironmentError:
+            pass
          return False
 
       try:
          self.mmap_ = mmap.mmap(fd, size, mmap.MAP_SHARED,
                                 mmap.PROT_READ | mmap.PROT_WRITE)
       except EnvironmentError:
-         logging.error("FAIL can not map scd memory-map file")
-         logging.error("FAIL are you running on the proper platform?")
+         logging.error("failed to mmap file %s", self.path_)
          return False
       finally:
          try:
             # Note that closing the file descriptor has no effect on the memory map
             os.close(fd)
          except EnvironmentError:
-            logging.error("FAIL failed to close scd memory-map file")
-            return False
+            pass
       return True
 
    def close( self ):
       self.mmap_.close()
+      self.mmap_ = None
 
    def read32( self, addr ):
       return unpack( '<L', self.mmap_[ addr : addr + 4 ] )[ 0 ]
@@ -73,7 +85,7 @@ def klog(msg, level=2, *args):
    try:
       with open('/dev/kmsg', 'w') as f:
          f.write('<%d>arista: %s\n' % (level, msg % tuple(*args)))
-   except:
+   except: # pylint: disable-msg=W0702
       pass
 
 class Retrying:
@@ -137,7 +149,7 @@ class NoopObj(object):
       logging.debug(self.classStr)
 
    def _fmtArgs(self, *args, **kwargs):
-      kw = ['%s=%s' % (k,v) for k, v in kwargs.items()]
+      kw = ['%s=%s' % (k, v) for k, v in kwargs.items()]
       return ', '.join(list(map(str, args)) + kw)
 
    def noop(self, attr):
@@ -208,22 +220,11 @@ def writeConfigSim(path, data):
 def writeConfig(path, data):
    for filename, value in data.items():
       try:
-         path = os.path.join(path, filename)
-         with open(path, 'w') as f:
+         filePath = os.path.join(path, filename)
+         with open(filePath, 'w') as f:
             f.write(value)
       except IOError as e:
          logging.error('%s %s', path, e.strerror)
-
-@contextmanager
-def getMmap(driver, path):
-   driver.setup()
-   gmmap = MmapResource(path)
-   if not gmmap.map():
-      raise RuntimeError("cannot mmap %s" % path)
-   try:
-      yield gmmap
-   finally:
-      gmmap.close()
 
 def libraryInit():
    global simulation, debug, SMBus

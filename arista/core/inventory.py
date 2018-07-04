@@ -23,6 +23,9 @@ class Xcvr(object):
    def setLowPowerMode(self, value):
       raise NotImplementedError()
 
+   def getInterruptLine(self):
+      raise NotImplementedError()
+
    def reset(self, value):
       raise NotImplementedError()
 
@@ -62,6 +65,16 @@ class PowerCycle(object):
    def powerCycle(self):
       raise NotImplementedError()
 
+class Interrupt(object):
+   def set(self):
+      raise NotImplementedError()
+
+   def clear(self):
+      raise NotImplementedError()
+
+   def getFd(self):
+      raise NotImplementedError()
+
 class Inventory(object):
    def __init__(self):
       self.sfpRange = []
@@ -81,6 +94,8 @@ class Inventory(object):
       self.watchdog = Watchdog()
 
       self.powerCycles = []
+
+      self.interrupts = {}
 
    def freeze(self):
       # XXX: compute the range and some basic information from the various
@@ -144,3 +159,12 @@ class Inventory(object):
 
    def getPowerCycles(self):
       return self.powerCycles
+
+   def addInterrupt(self, name, interrupt):
+      self.interrupts[name] = interrupt
+
+   def addInterrupts(self, interrupts):
+      self.interrupts.update(interrupts)
+
+   def getInterrupts(self):
+      return self.interrupts
