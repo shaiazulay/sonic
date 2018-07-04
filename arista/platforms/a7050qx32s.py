@@ -5,6 +5,7 @@ from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.dpm import Ucd90120A
 from ..components.psu import PmbusPsuComponent, ScdPmbusPsu
 from ..components.scd import Scd
 from ..components.ds125br import Ds125Br
@@ -37,16 +38,12 @@ class Clearlake(Platform):
          I2cKernelComponent(I2cAddr(2, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
          I2cKernelComponent(I2cAddr(3, 0x4c), 'max6658', '/sys/class/hwmon/hwmon3'),
          I2cKernelComponent(I2cAddr(3, 0x60), 'crow_cpld', '/sys/class/hwmon/hwmon4'),
-         # Handling of the DPM is disabled because this functionality is unstable.
-         #I2cKernelComponent(I2cAddr(3, 0x4e), 'pmbus',
-         #                   priority=Priority.BACKGROUND), # ucd90120A
+         Ucd90120A(I2cAddr(3, 0x4e), priority=Priority.BACKGROUND),
          I2cKernelComponent(I2cAddr(5, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
          I2cKernelComponent(I2cAddr(6, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
-         # Handling of the DPM is disabled because this functionality is unstable.
-         #I2cKernelComponent(I2cAddr(7, 0x4e), 'pmbus',
-         #                   priority=Priority.BACKGROUND), # ucd90120A
+         Ucd90120A(I2cAddr(7, 0x4e), priority=Priority.BACKGROUND),
          Ds125Br(I2cAddr(8, 0xff)),
       ])
 

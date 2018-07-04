@@ -6,6 +6,7 @@ from ..core.component import Priority
 from ..core.inventory import Psu
 
 from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.dpm import Ucd90120A
 from ..components.cpld import CrowCpld
 from ..components.scd import Scd
 
@@ -45,16 +46,12 @@ class Upperlake(Platform):
          I2cKernelComponent(I2cAddr(2, 0x1a), 'max6697', '/sys/class/hwmon/hwmon1'),
          I2cKernelComponent(I2cAddr(3, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
          I2cKernelComponent(I2cAddr(3, 0x60), 'crow_cpld', '/sys/class/hwmon/hwmon3'),
-         # Handling of the DPM is disabled because this functionality is unstable.
-         #I2cKernelComponent(I2cAddr(3, 0x4e), 'pmbus',
-         #                   priority=Priority.BACKGROUND), # ucd90120A
+         Ucd90120A(I2cAddr(3, 0x4e), priority=Priority.BACKGROUND),
          I2cKernelComponent(I2cAddr(5, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
          I2cKernelComponent(I2cAddr(6, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
-         # Handling of the DPM is disabled because this functionality is unstable.
-         #I2cKernelComponent(I2cAddr(7, 0x4e), 'pmbus',
-         #                   priority=Priority.BACKGROUND), # ucd90120A
+         Ucd90120A(I2cAddr(7, 0x4e), priority=Priority.BACKGROUND),
       ])
 
       scd.addSmbusMasterRange(0x8000, 5, 0x80)
