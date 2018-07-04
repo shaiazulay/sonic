@@ -5,6 +5,7 @@ from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.dpm import Ucd90120A, Ucd90160
 from ..components.scd import Scd
 
 @registerPlatform('DCS-7260CX3-64')
@@ -100,9 +101,8 @@ class Gardena(Platform):
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.addComponents([
          I2cKernelComponent(I2cAddr(73, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
-         # Handling of the DPM is disabled because this functionality is unstable.
-         #I2cKernelComponent(I2cAddr(74, 0x4e), 'pmbus',
-         #                   priority=Priority.BACKGROUND),
+         Ucd90160(I2cAddr(74, 0x4e), priority=Priority.BACKGROUND),
+         Ucd90120A(I2cAddr(83, 0x34), priority=Priority.BACKGROUND),
          I2cKernelComponent(I2cAddr(85, 0x60), 'rook_cpld', '/sys/class/hwmon/hwmon3'),
          I2cKernelComponent(I2cAddr(88, 0x20), 'rook_leds'),
          I2cKernelComponent(I2cAddr(88, 0x48), 'lm73'),

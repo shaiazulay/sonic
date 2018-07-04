@@ -5,6 +5,7 @@ from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.dpm import Ucd90120A, Ucd90160
 from ..components.psu import ScdPmbusPsu
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
@@ -39,8 +40,9 @@ class Cloverdale(Platform):
          # Due to a risk of an unrecoverable firmware corruption when a pmbus
          # transaction is done at the same moment of the poweroff, the handling of
          # the DPM is disabled. If you want rail information use it at your own risk
-         #I2cKernelComponent(I2cAddr(5, 0x4e), 'pmbus'), # ucd90120A
-         #I2cKernelComponent(I2cAddr(10, 0x4e), 'pmbus'), # ucd90120A
+         # The current implementation will just read the firmware information once.
+         Ucd90120A(I2cAddr(5, 0x4e), priority=Priority.BACKGROUND),
+         Ucd90160(I2cAddr(10, 0x4e), priority=Priority.BACKGROUND),
       ])
 
       psu1 = Ds460(I2cAddr(8, 0x58), '/sys/class/hwmon/hwmon4',
