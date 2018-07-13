@@ -43,7 +43,7 @@ struct scd_em_ops {
 struct scd_ext_ops {
    int (*probe)(struct pci_dev *pdev);
    void (*remove)(struct pci_dev *pdev);
-   int (*init_trigger)(struct pci_dev *pdev);
+   int (*finish_init)(struct pci_dev *pdev);
 };
 
 int scd_register_ardma_ops(struct scd_ardma_ops *ops);

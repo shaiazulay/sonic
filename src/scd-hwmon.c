@@ -1597,7 +1597,7 @@ static void scd_ext_hwmon_remove(struct pci_dev *pdev)
    put_device(&pdev->dev);
 }
 
-static int scd_ext_hwmon_init_trigger(struct pci_dev *pdev)
+static int scd_ext_hwmon_finish_init(struct pci_dev *pdev)
 {
    struct scd_context *ctx = get_context_for_pdev(pdev);
 
@@ -1614,7 +1614,7 @@ static int scd_ext_hwmon_init_trigger(struct pci_dev *pdev)
 static struct scd_ext_ops scd_hwmon_ops = {
    .probe  = scd_ext_hwmon_probe,
    .remove = scd_ext_hwmon_remove,
-   .init_trigger = scd_ext_hwmon_init_trigger,
+   .finish_init = scd_ext_hwmon_finish_init,
 };
 
 static int __init scd_hwmon_init(void)
