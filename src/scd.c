@@ -342,28 +342,8 @@ void scd_unregister_ext_ops() {
    scd_unlock();
 }
 
-void scd_ext_init_trigger(void){
-   struct scd_dev_priv *priv;
-
-   scd_lock();
-   if (!scd_ext_ops) {
-      scd_unlock();
-      return;
-   }
-
-   // call init_trigger() for any existing scd
-   list_for_each_entry(priv, &scd_list, list) {
-      if (scd_ext_ops->init_trigger) {
-         scd_ext_ops->init_trigger(priv->pdev);
-      }
-   }
-   scd_unlock();
-   return;
-}
-
 EXPORT_SYMBOL(scd_register_ext_ops);
 EXPORT_SYMBOL(scd_unregister_ext_ops);
-EXPORT_SYMBOL(scd_ext_init_trigger);
 
 static irqreturn_t scd_interrupt(int irq, void *dev_id)
 {
@@ -756,9 +736,9 @@ static int scd_finish_init(struct device *dev)
          priv->irq_info[0].interrupt_mask_clear_offset);
    }
 
-   // scd_ext init_trigger
-   if (scd_ext_ops && scd_ext_ops->init_trigger) {
-      scd_ext_ops->init_trigger(priv->pdev);
+   // scd_ext finish_init
+   if (scd_ext_ops && scd_ext_ops->finish_init) {
+      scd_ext_ops->finish_init(priv->pdev);
    }
 
    // interrupt polling
