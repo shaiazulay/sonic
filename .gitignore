@@ -13,9 +13,11 @@ modules.order
 DEBIAN
 .tmp_versions
 .finished.build
+*.substvars
 
 # python
 *.pyc
 /build
 /*.egg-info
 /venv
+/.pybuild
