@@ -106,22 +106,46 @@ struct scd_gpio_attribute {
    u32 active_low;
 };
 
-#define GPIO_NAME_MAX_SZ 50
+#define GPIO_NAME_MAX_SZ 32
+struct scd_xcvr_attribute {
+   struct device_attribute dev_attr;
+   struct scd_xcvr *xcvr;
+
+   char name[GPIO_NAME_MAX_SZ];
+   u32 bit;
+   u32 active_low;
+   u32 clear_on_read;
+   u32 clear_on_read_value;
+};
+
 struct scd_gpio {
    char name[GPIO_NAME_MAX_SZ];
    struct scd_gpio_attribute attr;
    struct list_head list;
 };
 
+#define XCVR_ATTR_MAX_COUNT 9
+struct scd_xcvr {
+   struct scd_context *ctx;
+   struct scd_xcvr_attribute attr[XCVR_ATTR_MAX_COUNT];
+   struct list_head list;
+
+   char name[GPIO_NAME_MAX_SZ];
+   u32 addr;
+};
+
 #define __ATTR_NAME_PTR(_name, _mode, _show, _store) {  \
    .attr = { .name = _name,                             \
              .mode = VERIFY_OCTAL_PERMISSIONS(_mode) }, \
    .show = _show,                                       \
-   .store = _store,                                     \
+   .store = _store                                      \
 }
 
 #define to_scd_gpio_attr(_dev_attr) \
    container_of(_dev_attr, struct scd_gpio_attribute, dev_attr)
+
+#define to_scd_xcvr_attr(_dev_attr) \
+   container_of(_dev_attr, struct scd_xcvr_attribute, dev_attr)
 
 #define SCD_GPIO_ATTR(_name, _mode, _show, _store, _ctx, _addr, _bit, _active_low) \
    { .dev_attr = __ATTR_NAME_PTR(_name, _mode, _show, _store),                     \
@@ -138,6 +162,30 @@ struct scd_gpio {
 #define SCD_RO_GPIO_ATTR(_name, _ctx, _addr, _bit, _active_low) \
    SCD_GPIO_ATTR(_name, S_IRUGO, attribute_gpio_get, NULL,      \
                  _ctx, _addr, _bit, _active_low)
+
+#define SCD_XCVR_ATTR(_xcvr_attr, _name, _name_size, _mode, _show, _store, _xcvr, \
+                      _bit, _active_low, _clear_on_read)                          \
+   do {                                                                           \
+      snprintf(_xcvr_attr.name, _name_size, _name);                               \
+      _xcvr_attr.dev_attr =                                                       \
+         (struct device_attribute)__ATTR_NAME_PTR(_xcvr_attr.name, _mode, _show,  \
+                                                  _store);                        \
+      _xcvr_attr.xcvr = _xcvr;                                                    \
+      _xcvr_attr.bit = _bit;                                                      \
+      _xcvr_attr.active_low = _active_low;                                        \
+      _xcvr_attr.clear_on_read = _clear_on_read;                                  \
+   } while(0);
+
+#define SCD_RW_XCVR_ATTR(_xcvr_attr, _name, _name_size, _xcvr, _bit,  \
+                         _active_low, _clear_on_read)                 \
+   SCD_XCVR_ATTR(_xcvr_attr, _name, _name_size, S_IRUGO | S_IWUSR,    \
+                 attribute_xcvr_get, attribute_xcvr_set, _xcvr, _bit, \
+                 _active_low, _clear_on_read)
+
+#define SCD_RO_XCVR_ATTR(_xcvr_attr, _name, _name_size, _xcvr, _bit,         \
+                         _active_low, _clear_on_read)                        \
+   SCD_XCVR_ATTR(_xcvr_attr, _name, _name_size, S_IRUGO, attribute_xcvr_get, \
+                 NULL, _xcvr, _bit, _active_low, _clear_on_read)
 
 struct scd_reset_attribute {
    struct device_attribute dev_attr;
@@ -178,6 +226,7 @@ struct scd_context {
    struct list_head reset_list;
    struct list_head led_list;
    struct list_head master_list;
+   struct list_head xcvr_list;
 };
 
 union request_reg {
@@ -849,9 +898,86 @@ static ssize_t attribute_gpio_set(struct device *dev,
    return count;
 }
 
+static u32 scd_xcvr_read_register(const struct scd_xcvr_attribute *gpio)
+{
+   struct scd_xcvr *xcvr = gpio->xcvr;
+   int i;
+   u32 reg;
+
+   reg = scd_read_register(gpio->xcvr->ctx->pdev, gpio->xcvr->addr);
+   for (i = 0; i < XCVR_ATTR_MAX_COUNT; i++) {
+      if (xcvr->attr[i].clear_on_read) {
+         xcvr->attr[i].clear_on_read_value =
+            xcvr->attr[i].clear_on_read_value | !!(reg & (1 << i));
+      }
+   }
+   return reg;
+}
+
+static ssize_t attribute_xcvr_get(struct device *dev,
+                                  struct device_attribute *devattr, char *buf)
+{
+   struct scd_xcvr_attribute *gpio = to_scd_xcvr_attr(devattr);
+   u32 res;
+   u32 reg;
+
+   reg = scd_xcvr_read_register(gpio);
+   res = !!(reg & (1 << gpio->bit));
+   res = (gpio->active_low) ? !res : res;
+   if (gpio->clear_on_read) {
+      res = gpio->clear_on_read_value | res;
+      gpio->clear_on_read_value = 0;
+   }
+   return sprintf(buf, "%u\n", res);
+}
+
+static ssize_t attribute_xcvr_set(struct device *dev,
+                                  struct device_attribute *devattr,
+                                  const char *buf, size_t count)
+{
+   const struct scd_xcvr_attribute *gpio = to_scd_xcvr_attr(devattr);
+   long value;
+   int res;
+   u32 reg;
+
+   res = kstrtol(buf, 10, &value);
+   if (res < 0)
+      return res;
+
+   if (value != 0 && value != 1)
+      return -EINVAL;
+
+   reg = scd_xcvr_read_register(gpio);
+   if (gpio->active_low) {
+      if (value)
+         reg &= ~(1 << gpio->bit);
+      else
+         reg |= ~(1 << gpio->bit);
+   } else {
+      if (value)
+         reg |= 1 << gpio->bit;
+      else
+         reg &= ~(1 << gpio->bit);
+   }
+   scd_write_register(gpio->xcvr->ctx->pdev, gpio->xcvr->addr, reg);
+
+   return count;
+}
+
 static void scd_gpio_unregister(struct scd_context *ctx, struct scd_gpio *gpio)
 {
    sysfs_remove_file(&ctx->pdev->dev.kobj, &gpio->attr.dev_attr.attr);
+}
+
+static void scd_xcvr_unregister(struct scd_context *ctx, struct scd_xcvr *xcvr)
+{
+   int i;
+
+   for (i = 0; i < XCVR_ATTR_MAX_COUNT; i++) {
+      if (xcvr->attr[i].xcvr) {
+         sysfs_remove_file(&ctx->pdev->dev.kobj, &xcvr->attr[i].dev_attr.attr);
+      }
+   }
 }
 
 static int scd_gpio_register(struct scd_context *ctx, struct scd_gpio *gpio)
@@ -869,6 +995,47 @@ static int scd_gpio_register(struct scd_context *ctx, struct scd_gpio *gpio)
    return 0;
 }
 
+struct gpio_cfg {
+   u32 bitpos;
+   bool read_only;
+   bool active_low;
+   bool clear_on_read;
+   const char *name;
+};
+
+static int scd_xcvr_register(struct scd_xcvr *xcvr, const struct gpio_cfg *cfgs,
+                             size_t gpio_count)
+{
+   struct gpio_cfg gpio;
+   int res;
+   size_t i;
+   size_t name_size;
+   char name[GPIO_NAME_MAX_SZ];
+
+   for (i = 0; i < gpio_count; i++) {
+      gpio = cfgs[i];
+      name_size = strlen(xcvr->name) + strlen(gpio.name) + 2;
+      BUG_ON(name_size > GPIO_NAME_MAX_SZ);
+      snprintf(name, name_size, "%s_%s", xcvr->name, gpio.name);
+      if (gpio.read_only) {
+         SCD_RO_XCVR_ATTR(xcvr->attr[gpio.bitpos], name, name_size, xcvr,
+                          gpio.bitpos, gpio.active_low, gpio.clear_on_read);
+      } else {
+         SCD_RW_XCVR_ATTR(xcvr->attr[gpio.bitpos], name, name_size, xcvr,
+                          gpio.bitpos, gpio.active_low, gpio.clear_on_read);
+      }
+      res = sysfs_create_file(&xcvr->ctx->pdev->dev.kobj,
+                              &xcvr->attr[gpio.bitpos].dev_attr.attr);
+      if (res) {
+         pr_err("could not create %s attribute for xcvr: %d",
+                xcvr->attr[gpio.bitpos].dev_attr.attr.name, res);
+         return res;
+      }
+   }
+
+   return 0;
+}
+
 /*
  * Must be called with the scd lock held.
  */
@@ -881,6 +1048,18 @@ static void scd_gpio_remove_all(struct scd_context *ctx)
       scd_gpio_unregister(ctx, gpio);
       list_del(&gpio->list);
       kfree(gpio);
+   }
+}
+
+static void scd_xcvr_remove_all(struct scd_context *ctx)
+{
+   struct scd_xcvr *tmp_xcvr;
+   struct scd_xcvr *xcvr;
+
+   list_for_each_entry_safe(xcvr, tmp_xcvr, &ctx->xcvr_list, list) {
+      scd_xcvr_unregister(ctx, xcvr);
+      list_del(&xcvr->list);
+      kfree(xcvr);
    }
 }
 
@@ -955,61 +1134,39 @@ static void scd_reset_remove_all(struct scd_context *ctx)
    }
 }
 
-struct gpio_cfg {
-   u32 bitpos;
-   bool readonly;
-   bool active_low;
-   const char *name;
-};
-
 static int scd_xcvr_add(struct scd_context *ctx, const char *prefix,
                         const struct gpio_cfg *cfgs, size_t gpio_count,
                         u32 addr, u32 id)
 {
-   int i;
+   struct scd_xcvr *xcvr;
    int err;
-   const struct gpio_cfg *cfg;
-   struct scd_gpio *gpio;
 
-   for (i = 0; i < gpio_count; ++i) {
-      cfg = &cfgs[i];
-
-      gpio = kzalloc(sizeof(*gpio), GFP_KERNEL);
-      if (!gpio) {
-         err = -ENOMEM;
-         goto fail;
-      }
-
-      snprintf(gpio->name, FIELD_SIZEOF(typeof(*gpio), name),
-               "%s%u_%s", prefix, id, cfg->name);
-
-      if (cfg->readonly)
-         gpio->attr = (struct scd_gpio_attribute)SCD_RO_GPIO_ATTR(
-                              gpio->name, ctx, addr, cfg->bitpos, cfg->active_low);
-      else
-         gpio->attr = (struct scd_gpio_attribute)SCD_RW_GPIO_ATTR(
-                              gpio->name, ctx, addr, cfg->bitpos, cfg->active_low);
-
-      err = scd_gpio_register(ctx, gpio);
-      if (err) {
-         goto fail;
-      }
+   xcvr = kzalloc(sizeof(*xcvr), GFP_KERNEL);
+   if (!xcvr) {
+      err = -ENOMEM;
+      goto fail;
    }
 
+   err = snprintf(xcvr->name, FIELD_SIZEOF(typeof(*xcvr), name),
+                  "%s%u", prefix, id);
+   if (err < 0) {
+      goto fail;
+   }
+
+   xcvr->addr = addr;
+   xcvr->ctx = ctx;
+
+   err = scd_xcvr_register(xcvr, cfgs, gpio_count);
+   if (err) {
+      goto fail;
+   }
+
+   list_add_tail(&xcvr->list, &ctx->xcvr_list);
    return 0;
 
 fail:
-   if (gpio)
-      kfree(gpio);
-
-   while (i--) {
-      gpio = list_last_entry(&ctx->gpio_list, struct scd_gpio, list);
-      if (gpio) {
-         scd_gpio_unregister(ctx, gpio);
-         list_del(&gpio->list);
-         kfree(gpio);
-      }
-   }
+   if (xcvr)
+      kfree(xcvr);
 
    return err;
 }
@@ -1017,15 +1174,15 @@ fail:
 static int scd_xcvr_sfp_add(struct scd_context *ctx, u32 addr, u32 id)
 {
    static const struct gpio_cfg sfp_gpios[] = {
-      {0, true,  false, "rxlos"},
-      {1, true,  false, "txfault"},
-      {2, true,  true,  "present"},
-      {3, true,  false, "rxlos_changed"},
-      {4, true,  false, "txfault_changed"},
-      {5, true,  false, "present_changed"},
-      {6, false, false, "txdisable"},
-      {7, false, false, "rate_select0"},
-      {8, false, false, "rate_select1"},
+      {0, true,  false, false, "rxlos"},
+      {1, true,  false, false, "txfault"},
+      {2, true,  true,  false, "present"},
+      {3, true,  false, true,  "rxlos_changed"},
+      {4, true,  false, true,  "txfault_changed"},
+      {5, true,  false, true,  "present_changed"},
+      {6, false, false, false, "txdisable"},
+      {7, false, false, false, "rate_select0"},
+      {8, false, false, false, "rate_select1"},
    };
 
    scd_dbg("sfp %u @ 0x%04x\n", id, addr);
@@ -1035,13 +1192,13 @@ static int scd_xcvr_sfp_add(struct scd_context *ctx, u32 addr, u32 id)
 static int scd_xcvr_qsfp_add(struct scd_context *ctx, u32 addr, u32 id)
 {
    static const struct gpio_cfg qsfp_gpios[] = {
-      {0, true,  true,  "interrupt"},
-      {2, true,  true,  "present"},
-      {3, true,  false, "interrupt_changed"},
-      {5, true,  false, "present_changed"},
-      {6, false, false, "lp_mode"},
-      {7, false, false, "reset"},
-      {8, false, true,  "modsel"},
+      {0, true,  true,  false, "interrupt"},
+      {2, true,  true,  false, "present"},
+      {3, true,  false, true,  "interrupt_changed"},
+      {5, true,  false, true,  "present_changed"},
+      {6, false, false, false, "lp_mode"},
+      {7, false, false, false, "reset"},
+      {8, false, true,  false, "modsel"},
    };
 
    scd_dbg("qsfp %u @ 0x%04x\n", id, addr);
@@ -1531,6 +1688,7 @@ static int scd_ext_hwmon_probe(struct pci_dev *pdev, size_t mem_len)
    INIT_LIST_HEAD(&ctx->master_list);
    INIT_LIST_HEAD(&ctx->gpio_list);
    INIT_LIST_HEAD(&ctx->reset_list);
+   INIT_LIST_HEAD(&ctx->xcvr_list);
 
    kobject_get(&pdev->dev.kobj);
 
@@ -1582,6 +1740,7 @@ static void scd_ext_hwmon_remove(struct pci_dev *pdev)
    scd_led_remove_all(ctx);
    scd_gpio_remove_all(ctx);
    scd_reset_remove_all(ctx);
+   scd_xcvr_remove_all(ctx);
    scd_unlock(ctx);
 
    module_lock();
