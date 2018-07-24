@@ -1503,7 +1503,7 @@ static ssize_t smbus_tweaks(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR(smbus_tweaks, S_IRUGO|S_IWUSR|S_IWGRP, 0, smbus_tweaks);
 
-static int scd_ext_hwmon_probe(struct pci_dev *pdev)
+static int scd_ext_hwmon_probe(struct pci_dev *pdev, size_t mem_len)
 {
    struct scd_context *ctx = get_context_for_pdev(pdev);
    int err;
@@ -1525,7 +1525,7 @@ static int scd_ext_hwmon_probe(struct pci_dev *pdev)
    ctx->initialized = false;
    mutex_init(&ctx->mutex);
 
-   ctx->res_size = scd_resource_len(pdev);
+   ctx->res_size = mem_len;
 
    INIT_LIST_HEAD(&ctx->led_list);
    INIT_LIST_HEAD(&ctx->master_list);

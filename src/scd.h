@@ -41,7 +41,7 @@ struct scd_em_ops {
 
 // Allow scd-ext callbacks to be registered
 struct scd_ext_ops {
-   int (*probe)(struct pci_dev *pdev);
+   int (*probe)(struct pci_dev *pdev, size_t mem_len);
    void (*remove)(struct pci_dev *pdev);
    int (*finish_init)(struct pci_dev *pdev);
 };
@@ -55,7 +55,6 @@ void scd_unregister_ext_ops(void);
 struct pci_dev *scd_get_pdev(const char *name);
 u32 scd_read_register(struct pci_dev *pdev, u32 offset);
 void scd_write_register(struct pci_dev *pdev, u32 offset, u32 val);
-size_t scd_resource_len(struct pci_dev *pdev);
 u64 scd_ptp_timestamp(void);
 
 // Copyright (c) 2010-2016 Arista Networks, Inc.  All rights reserved.
