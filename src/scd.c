@@ -316,7 +316,7 @@ int scd_register_ext_ops(struct scd_ext_ops *ops) {
    // call probe() for any existing scd
    list_for_each_entry(priv, &scd_list, list) {
       if (scd_ext_ops->probe) {
-         scd_ext_ops->probe(priv->pdev);
+         scd_ext_ops->probe(priv->pdev, priv->mem_len);
       }
    }
    scd_unlock();
@@ -918,20 +918,6 @@ scd_write_register(struct pci_dev *pdev, u32 offset, u32 val)
 }
 EXPORT_SYMBOL(scd_write_register);
 
-size_t
-scd_resource_len(struct pci_dev *pdev)
-{
-   struct scd_dev_priv *priv;
-
-   priv = pci_get_drvdata(pdev);
-   ASSERT( priv );
-   if (priv)
-      return priv->mem_len;
-
-   return 0;
-}
-EXPORT_SYMBOL(scd_resource_len);
-
 // scd_list_lock mutex is not held in this function.
 // scd_lock mutex is not held in this function.
 u64
@@ -1335,7 +1321,7 @@ static int scd_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
    scd_lock();
    list_add_tail(&priv->list, &scd_list);
    if (scd_ext_ops && scd_ext_ops->probe) {
-      scd_ext_ops->probe(priv->pdev);
+      scd_ext_ops->probe(priv->pdev, priv->mem_len);
    }
    scd_unlock();
 
