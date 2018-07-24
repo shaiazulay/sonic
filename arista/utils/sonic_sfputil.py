@@ -1,3 +1,4 @@
+import select
 import time
 
 from ..core import platform as core_platform
@@ -91,5 +92,35 @@ def getSfpUtil():
                return False
 
             return True
+
+        def get_transceiver_change_event(self, timeout=0):
+            xcvrs = inventory.getXcvrs()
+            epoll = select.epoll()
+            openFiles = []
+            ret = {}
+            try:
+               # Clear the interrupt masks
+               for xcvr in xcvrs.values():
+                  intr = xcvr.getInterruptLine()
+                  if not intr:
+                     continue
+                  xcvr.getPresence()
+                  intr.clear()
+                  openFile = open(intr.getFile())
+                  openFiles.append((xcvr, openFile))
+                  epoll.register(openFile.fileno(), select.EPOLLIN)
+               pollRet = epoll.poll(timeout=timeout if timeout != 0 else -1)
+               if pollRet:
+                  pollRet = dict(pollRet)
+                  for xcvr, openFile in openFiles:
+                     if openFile.fileno() in pollRet:
+                        ret[str(xcvr.portNum)] = '1' if xcvr.getPresence() else '0'
+                  return True, ret
+            finally:
+               for _, openFile in openFiles:
+                  openFile.close()
+               epoll.close()
+
+            return False, {}
 
     return SfpUtil
