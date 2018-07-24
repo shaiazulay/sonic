@@ -72,7 +72,7 @@ class Interrupt(object):
    def clear(self):
       raise NotImplementedError()
 
-   def getFd(self):
+   def getFile(self):
       raise NotImplementedError()
 
 class Inventory(object):
