@@ -294,7 +294,7 @@ class ScdInterrupt(Interrupt):
    def clear(self):
       self.reg.clearMask(self.bit)
 
-   def getFd(self):
+   def getFile(self):
       return '/dev/uio-%s-%d-%d' % (self.reg.scd.addr, self.reg.num, self.bit)
 
 class ScdInterruptRegister(object):

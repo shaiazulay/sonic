@@ -1,4 +1,5 @@
 import json
+import select
 import time
 
 from .sonic_ceos_utils import runCliCmd, ceosManagesXcvrs
@@ -95,6 +96,36 @@ def getSfpUtil():
 
             return True
 
+        def get_transceiver_change_event(self, timeout=0):
+            xcvrs = inventory.getXcvrs()
+            epoll = select.epoll()
+            openFiles = []
+            ret = {}
+            try:
+               # Clear the interrupt masks
+               for xcvr in xcvrs.values():
+                  intr = xcvr.getInterruptLine()
+                  if not intr:
+                     continue
+                  xcvr.getPresence()
+                  intr.clear()
+                  openFile = open(intr.getFile())
+                  openFiles.append((xcvr, openFile))
+                  epoll.register(openFile.fileno(), select.EPOLLIN)
+               pollRet = epoll.poll(timeout=timeout if timeout != 0 else -1)
+               if pollRet:
+                  pollRet = dict(pollRet)
+                  for xcvr, openFile in openFiles:
+                     if openFile.fileno() in pollRet:
+                        ret[str(xcvr.portNum)] = '1' if xcvr.getPresence() else '0'
+                  return True, ret
+            finally:
+               for _, openFile in openFiles:
+                  openFile.close()
+               epoll.close()
+
+            return False, {}
+
     class SfpUtilCeos(SfpUtilCommon):
         def __init__(self):
            self.portMapping = parsePortConfig()
@@ -152,6 +183,9 @@ def getSfpUtil():
 
         def reset(self, port_num):
            return False
+
+        def get_transceiver_change_event(self, timeout=0):
+           return False, {}
 
     if ceosManagesXcvrs():
        return SfpUtilCeos
