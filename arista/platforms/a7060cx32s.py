@@ -110,10 +110,17 @@ class Upperlake(Platform):
          addr += 0x10
          bus += 1
 
+      intrRegs = [
+         scd.createInterrupt(addr=0x3000, num=0),
+         scd.createInterrupt(addr=0x3030, num=1),
+      ]
+
       addr = 0x5050
       bus = 18
       for xcvrId in self.qsfp100gRange:
-         xcvr = scd.addQsfp(addr, xcvrId, bus)
+         intr = intrRegs[1].getInterruptBit(xcvrId - 1)
+         self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
+         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
          self.inventory.addXcvr(xcvr)
          scd.addComponent(I2cKernelComponent(
             I2cAddr(bus, xcvr.eepromAddr), 'sff8436'))
