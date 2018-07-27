@@ -69,10 +69,18 @@ class Alhambra(Platform):
          self.inventory.addXcvrLed(xcvrId, name)
          addr += 0x10
 
+      intrRegs = [
+         scd.createInterrupt(addr=0x3000, num=0),
+         scd.createInterrupt(addr=0x3030, num=1),
+         scd.createInterrupt(addr=0x3060, num=2),
+      ]
+
       addr = 0xA010
       bus = 9
       for xcvrId in sorted(self.qsfpRange):
-         xcvr = scd.addQsfp(addr, xcvrId, bus)
+         intr = intrRegs[xcvrId // 33 + 1].getInterruptBit((xcvrId - 1) % 32)
+         self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
+         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
          self.inventory.addXcvr(xcvr)
          scd.addComponent(I2cKernelComponent(
             I2cAddr(bus, xcvr.eepromAddr), 'sff8436'))
