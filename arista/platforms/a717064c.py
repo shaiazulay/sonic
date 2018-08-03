@@ -8,7 +8,8 @@ from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, Ucd90160
 from ..components.scd import Scd
 
-@registerPlatform(['DCS-7170-64', 'DCS-7170-64C', 'DCS-7170-64C-SSD'])
+@registerPlatform(['DCS-7170-64', 'DCS-7170-64C', 'DCS-7170-64C-SSD',
+                   'DCS-7170-64C-M'])
 class Alhambra(Platform):
    def __init__(self):
       super(Alhambra, self).__init__()
