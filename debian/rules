@@ -13,6 +13,7 @@ SERVICE_FILES  := sonic-platform-arista.service watchdog-stop.service
 
 KVERSION       ?= $(shell uname -r)
 KERNEL_SRC     ?= /lib/modules/$(KVERSION)/build
+EXTRA_SYMBOLS  := /lib/modules/$(KVERSION)/extra/scd-Module.symvers
 KERNEL_DST     := /lib/modules/$(KVERSION)
 BASE_DIR       := $(shell pwd)
 MODULE_SRC     := $(BASE_DIR)/src
@@ -26,7 +27,7 @@ SERVICE_SRC    := $(addprefix $(BASE_DIR)/confs/,$(SERVICE_FILES))
 	dh $@ --with python2,python3,systemd --buildsystem=pybuild
 
 override_dh_auto_build:
-	$(MAKE) -C $(KERNEL_SRC) M=$(MODULE_SRC)
+	EXTRA_SYMBOLS=$(EXTRA_SYMBOLS) $(MAKE) -C $(KERNEL_SRC) M=$(MODULE_SRC)
 	python2 setup.py build
 
 override_dh_auto_install:
