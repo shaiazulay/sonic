@@ -4,7 +4,7 @@ import yaml
 
 from .utils import getCmdlineDict
 
-CONFIG_PATH = "/etc/sonic/arista.yml"
+CONFIG_PATH = "/etc/sonic/arista.config"
 
 class Config(object):
    instance_ = None
