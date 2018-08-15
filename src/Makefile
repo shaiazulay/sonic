@@ -1,6 +1,6 @@
 ccflags-y := -Werror
 
-ifeq (ARISTA_SCD_DRIVER_CONFIG,m)
+ifeq ($(ARISTA_SCD_DRIVER_CONFIG),m)
 obj-$(ARISTA_SCD_DRIVER_CONFIG) += scd.o
 else
 KBUILD_EXTRA_SYMBOLS += $(EXTRA_SYMBOLS)
