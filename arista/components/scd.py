@@ -12,6 +12,7 @@ from ..core.utils import MmapResource, inSimulation, simulateWith, writeConfig
 from .common import PciComponent, KernelDriver, PciKernelDriver
 
 SCD_WAIT_TIMEOUT = 5.
+SYS_UIO_PATH = '/sys/class/uio'
 
 class ScdSysfsGroup(object):
    def __init__(self, objNum, typeStr, driver):
@@ -295,7 +296,7 @@ class ScdInterrupt(Interrupt):
       self.reg.clearMask(self.bit)
 
    def getFile(self):
-      return '/dev/uio-%s-%d-%d' % (self.reg.scd.addr, self.reg.num, self.bit)
+      return self.reg.scd.getUio(self.reg.num, self.bit)
 
 class ScdInterruptRegister(object):
    def __init__(self, scd, addr, num):
@@ -366,6 +367,7 @@ class Scd(PciComponent):
       self.resets = []
       self.tweaks = []
       self.xcvrs = []
+      self.uioMap = {}
 
    def createPowerCycle(self, reg=0x7000, wr=0xDEAD):
       powerCycle = ScdPowerCycle(self, reg=reg, wr=wr)
@@ -485,3 +487,13 @@ class Scd(PciComponent):
       for xcvr in self.xcvrs:
          xcvr.setModuleSelect(True)
 
+   def uioMapInit(self):
+      for uio in os.listdir(SYS_UIO_PATH):
+         with open(os.path.join(SYS_UIO_PATH, uio, 'name')) as uioName:
+            self.uioMap[uioName.read().strip()] = uio
+
+   def getUio(self, reg, bit):
+      if not self.uioMap:
+         self.uioMapInit()
+      return '/dev/%s' % self.uioMap[
+            'uio-%s-%d-%d' % (getattr(self, 'addr'), reg, bit)]
