@@ -12,14 +12,12 @@ class Config(object):
    def __new__(cls):
       if cls.instance_ is None:
          cls.instance_ = object.__new__(cls)
+         cls.instance_.plugin_xcvr = 'native'
+         cls.instance_.plugin_led = 'native'
+         cls.instance_.plugin_psu = 'native'
+         cls.instance_._parseCmdline()
+         cls.instance_._parseConfig()
       return cls.instance_
-
-   def __init__(self):
-      self.plugin_xcvr = 'native'
-      self.plugin_led = 'native'
-      self.plugin_psu = 'native'
-      self._parseCmdline()
-      self._parseConfig()
 
    def _getKeys(self):
       return self.__dict__.keys()
