@@ -15,12 +15,34 @@ class Config(object):
          cls.instance_.plugin_xcvr = 'native'
          cls.instance_.plugin_led = 'native'
          cls.instance_.plugin_psu = 'native'
-         cls.instance_._parseCmdline()
+         cls.instance_.lock_scd_conf = True
+         cls.instance_.init_irq = True
          cls.instance_._parseConfig()
+         cls.instance_._parseCmdline()
       return cls.instance_
 
    def _getKeys(self):
       return self.__dict__.keys()
+
+   @staticmethod
+   def _parseVal(val):
+      if not isinstance(val, str):
+         return val
+      yes = ['yes', 'y', 'true']
+      no = ['no', 'n', 'false']
+      vl = val.lower()
+      if vl in yes:
+         return True
+      if vl in no:
+         return False
+      return val
+
+   def setAttr(self, key, val):
+      v = getattr(self, key, None)
+      if type(v) != type(val):
+         logging.warning('%s attr type changed: old %s, new %s',
+                         key, type(v), type(val))
+      setattr(self, key, self._parseVal(val))
 
    def _parseCmdline(self):
       cmdline = getCmdlineDict()
@@ -28,7 +50,7 @@ class Config(object):
       for key in self._getKeys():
          k = 'arista.%s' % key
          if k in cmdline:
-            setattr(self, key, cmdline[k])
+            self.setAttr(key, cmdline[k])
 
    def _parseConfig(self):
       if not os.path.exists(CONFIG_PATH):
@@ -46,7 +68,7 @@ class Config(object):
 
       for key in self._getKeys():
          if key in data:
-            setattr(self, key, data[key])
+            self.setAttr(key, data[key])
 
    def get(self, confName):
       return getattr(self, confName, None)

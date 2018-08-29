@@ -6,6 +6,7 @@ import time
 
 from collections import OrderedDict, namedtuple
 
+from ..core.config import Config
 from ..core.inventory import Interrupt, PowerCycle, Psu, Watchdog, Xcvr
 from ..core.utils import MmapResource, inSimulation, simulateWith, writeConfig
 
@@ -187,7 +188,8 @@ class ScdKernelDriver(PciKernelDriver):
    def finish(self):
       logging.debug('applying scd configuration')
       path = self.getSysfsPath()
-      writeConfig(path, {'init_trigger': '1'})
+      if Config().lock_scd_conf:
+         writeConfig(path, {'init_trigger': '1'})
       super(ScdKernelDriver, self).finish()
 
    def resetSim(self, value):
@@ -338,6 +340,8 @@ class ScdInterruptRegister(object):
          self.setReg(self.clearAddr, (mask | ~int(res, 16)) & 0xffffffff)
 
    def setup(self):
+      if not Config().init_irq:
+         return
       writeConfig(self.scd.getSysfsPath(), OrderedDict([
          ('interrupt_mask_read_offset%s' % self.num, str(self.readAddr)),
          ('interrupt_mask_set_offset%s' % self.num, str(self.setAddr)),
@@ -347,7 +351,7 @@ class ScdInterruptRegister(object):
       ]))
 
    def getInterruptBit(self, bit):
-      return ScdInterrupt(self, bit)
+      return ScdInterrupt(self, bit) if Config().init_irq else None
 
 class Scd(PciComponent):
    BusTweak = namedtuple('BusTweak', 'bus, addr, t, datr, datw, ed')
