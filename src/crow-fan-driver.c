@@ -438,14 +438,24 @@ static int leds_init(struct crow_led *leds, struct i2c_client *client)
     // fan leds initialized to green because no fan fault reg on crow
     for (i = 0 ; i < NUM_FANS; i++) {
         err = led_classdev_register(&client->dev, &leds[i].cdev);
-        err |= write_led_color(&client->dev, FAN_LED_GREEN, i);
         if (err) {
-            leds_unregister(data, i);
-            return err;
+            dev_err(&client->dev, "failed to register led fan%d", i);
+            goto fail;
+        }
+        err = write_led_color(&client->dev, FAN_LED_GREEN, i);
+        if (err) {
+            dev_err(&client->dev, "failed to set led fan%d", i);
+            // this is not considered as a critical error, fans are more important
         }
     }
 
     return 0;
+
+fail:
+    for (; i >= 0; i--) {
+        leds_unregister(data, i);
+    }
+    return err;
 }
 
 static int crow_cpld_remove(struct i2c_client *client)
