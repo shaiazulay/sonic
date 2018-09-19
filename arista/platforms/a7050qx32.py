@@ -67,13 +67,13 @@ class Cloverdale(Platform):
       self.inventory.addStatusLeds(['status', 'fan_status', 'psu1',
          'psu2'])
 
-      scd.addResets([
+      self.inventory.addResets(scd.addResets([
          ResetGpio(0x4000, 0, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 2, False, 'phy1_reset'),
          ResetGpio(0x4000, 3, False, 'phy2_reset'),
          ResetGpio(0x4000, 4, False, 'phy3_reset'),
          ResetGpio(0x4000, 5, False, 'phy4_reset'),
-      ])
+      ]))
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),

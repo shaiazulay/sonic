@@ -125,14 +125,35 @@ def doClean(args, platform):
       platform.clean()
 
 def doReset(args, platform):
+   resets = platform.getInventory().getResets()
+   if args.reset_list:
+      print('Reset Supported Devices:')
+      print("{: <20} {: <20}".format('Name', 'Value'))
+      for reset in resets:
+        print("{: <20} {: <20}".format(reset, resets[reset].read()))
+      sys.exit(0)
+
+   devices = args.device
+   if len(devices) == 0:
+      devices = resets.keys()
+   else:
+      for device in devices:
+         if device not in resets:
+            logging.error('device %s does not exist', device)
+            sys.exit(1)
+
    if args.reset_out:
-      platform.resetOut()
+      for device in devices:
+         resets[device].resetOut()
    elif args.reset_in:
-      platform.resetIn()
+      for device in devices:
+         resets[device].resetIn()
    elif args.reset_toggle:
-      platform.resetIn()
+      for device in devices:
+         resets[device].resetIn()
       time.sleep(args.reset_delay)
-      platform.resetOut()
+      for device in devices:
+         resets[device].resetOut()
    else:
       logging.info('nothing to do')
 
@@ -210,17 +231,19 @@ def parseArgs():
    sub = subparsers.add_parser('clean', help='unload drivers for this platform')
    sub.add_argument('-r', '--reset', action='store_true',
                     help='put devices in reset before cleanup')
-   sub = subparsers.add_parser('reset', help='put component in or out reset')
-   sub.add_argument('device', nargs='*', # TODO: use this
+   sub = subparsers.add_parser('reset', help='put devices in or out reset')
+   sub.add_argument('device', nargs='*',
                     help='device(s) to put in or out of reset')
    sub.add_argument('-t', '--toggle', action='store_true', dest='reset_toggle',
-                    help='put components in and out of reset')
+                    help='put devices in and out of reset')
    sub.add_argument('-i', '--in', action='store_true', dest='reset_in',
-                    help='put components in reset')
+                    help='put devices in reset')
    sub.add_argument('-o', '--out', action='store_true', dest='reset_out',
-                    help='put components out of reset')
+                    help='put devices out of reset')
    sub.add_argument('-d', '--delay', type=int, default=1, dest='reset_delay',
                     help='time to wait between in and out in seconds')
+   sub.add_argument('-l', '--list', action='store_true', dest='reset_list',
+                    help='list devices that support reset')
    sub = subparsers.add_parser('watchdog', help='configure the hardware watchdog')
    sub = sub.add_mutually_exclusive_group(required=True)
    sub.add_argument('--status', action='store_true', dest='watchdog_status',

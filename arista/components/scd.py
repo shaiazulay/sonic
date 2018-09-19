@@ -7,7 +7,7 @@ import time
 from collections import OrderedDict, namedtuple
 
 from ..core.config import Config
-from ..core.inventory import Interrupt, PowerCycle, Psu, Watchdog, Xcvr
+from ..core.inventory import Interrupt, PowerCycle, Psu, Watchdog, Xcvr, Reset
 from ..core.utils import MmapResource, inSimulation, simulateWith, writeConfig
 
 from .common import PciComponent, KernelDriver, PciKernelDriver
@@ -209,6 +209,33 @@ class ScdKernelDriver(PciKernelDriver):
    def resetOut(self):
       self.reset(False)
 
+class ScdReset(Reset):
+   def __init__(self, path, reset):
+      self.reset = reset
+      self.name = reset.name
+      self.path = os.path.join(path, self.name)
+
+   def read(self):
+      with open(self.path, 'r') as f:
+         return f.read().rstrip()
+
+   def resetSim(self, value):
+      logging.debug('reseting device %s', self.name)
+
+   @simulateWith(resetSim)
+   def doReset(self, value):
+      with open(self.path, 'w') as f:
+        f.write('1' if value else '0')
+
+   def resetIn(self):
+      self.doReset(True)
+
+   def resetOut(self):
+      self.doReset(False)
+
+   def getName(self):
+      return self.name
+
 class ScdWatchdog(Watchdog):
    def __init__(self, scd, reg=0x0120):
       self.scd = scd
@@ -372,6 +399,8 @@ class Scd(PciComponent):
       self.tweaks = []
       self.xcvrs = []
       self.uioMap = {}
+      self.scdresets = []
+      self.path = self.getSysfsPath()
 
    def createPowerCycle(self, reg=0x7000, wr=0xDEAD):
       powerCycle = ScdPowerCycle(self, reg=reg, wr=wr)
@@ -397,7 +426,7 @@ class Scd(PciComponent):
             # This codepath is unlikely to be used
             drv.setup()
          self.mmapReady = True
-      return MmapResource(os.path.join(self.getSysfsPath(), "resource0"))
+      return MmapResource(os.path.join(self.path, "resource0"))
 
    def getInterrupts(self):
       return self.interrupts
@@ -424,9 +453,15 @@ class Scd(PciComponent):
 
    def addReset(self, gpio):
       self.resets += [gpio]
+      newScdReset = ScdReset(self.path, gpio)
+      self.scdresets += [newScdReset]
+      return newScdReset
 
    def addResets(self, gpios):
       self.resets += gpios
+      newScdResets = [ScdReset(self.path, gpio) for gpio in gpios]
+      self.scdresets += newScdResets
+      return {reset.getName(): reset for reset in newScdResets}
 
    def addGpio(self, gpio):
       self.gpios += [gpio]

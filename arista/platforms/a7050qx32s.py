@@ -59,7 +59,7 @@ class Clearlake(Platform):
       self.inventory.addStatusLeds(['status', 'fan_status', 'psu1',
          'psu2'])
 
-      scd.addReset(ResetGpio(0x4000, 0, False, 'switch_chip_reset'))
+      self.inventory.addReset(scd.addReset(ResetGpio(0x4000, 0, False, 'switch_chip_reset')))
 
       psu1 = PmbusPsuComponent(I2cAddr(5, 0x58), '/sys/class/hwmon/hwmon5',
                                priority=Priority.BACKGROUND)

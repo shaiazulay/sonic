@@ -75,6 +75,19 @@ class Interrupt(object):
    def getFile(self):
       raise NotImplementedError()
 
+class Reset(object):
+   def read(self):
+      raise NotImplementedError()
+
+   def resetIn(self):
+      raise NotImplementedError()
+
+   def resetOut(self):
+      raise NotImplementedError()
+
+   def getName(self):
+      raise NotImplementedError()
+
 class Inventory(object):
    def __init__(self):
       self.sfpRange = []
@@ -96,6 +109,8 @@ class Inventory(object):
       self.powerCycles = []
 
       self.interrupts = {}
+
+      self.resets = {}
 
    def freeze(self):
       # XXX: compute the range and some basic information from the various
@@ -168,3 +183,12 @@ class Inventory(object):
 
    def getInterrupts(self):
       return self.interrupts
+
+   def addReset(self, reset):
+      self.resets[reset.getName()] = reset
+
+   def addResets(self, resets):
+      self.resets.update(resets)
+
+   def getResets(self):
+      return self.resets

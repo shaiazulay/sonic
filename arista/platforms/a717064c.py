@@ -39,11 +39,11 @@ class Alhambra(Platform):
 
       scd.addSmbusMasterRange(0x8000, 9, 0x80)
 
-      scd.addResets([
+      self.inventory.addResets(scd.addResets([
          ResetGpio(0x4000, 8, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 1, False, 'security_chip_reset'),
          ResetGpio(0x4000, 0, False, 'repeater_sfp_reset'),
-      ])
+      ]))
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),

@@ -39,11 +39,11 @@ class Gardena(Platform):
 
       scd.addSmbusMasterRange(0x8000, 8, 0x80)
 
-      scd.addResets([
+      self.inventory.addResets(scd.addResets([
          ResetGpio(0x4000, 0, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 1, False, 'switch_chip_pcie_reset'),
          ResetGpio(0x4000, 2, False, 'security_asic_reset'),
-      ])
+      ]))
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),

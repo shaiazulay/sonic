@@ -65,10 +65,10 @@ class Upperlake(Platform):
       ])
       self.inventory.addStatusLeds(['status', 'fan_status', 'psu1', 'psu2'])
 
-      scd.addResets([
+      self.inventory.addResets(scd.addResets([
          ResetGpio(0x4000, 1, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 2, False, 'switch_chip_pcie_reset'),
-      ])
+      ]))
 
       cpld = CrowCpld(I2cAddr(1, 0x23))
       self.inventory.addPowerCycle(cpld.createPowerCycle())
