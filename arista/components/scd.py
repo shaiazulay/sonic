@@ -244,8 +244,9 @@ class ScdKernelDriver(PciKernelDriver):
 
 class ScdReset(Reset):
    def __init__(self, path, reset):
-      self.reset = reset
+      self.addr = reset.addr
       self.name = reset.name
+      self.bit = reset.bit
       self.path = os.path.join(path, self.name)
 
    def read(self):
@@ -428,11 +429,10 @@ class Scd(PciComponent):
       self.powerCycles = []
       self.qsfps = []
       self.sfps = []
-      self.resets = []
       self.tweaks = []
       self.xcvrs = []
       self.uioMap = {}
-      self.scdresets = []
+      self.resets = []
       self.path = self.getSysfsPath()
       self.i2cOffset = 0
 
@@ -490,16 +490,14 @@ class Scd(PciComponent):
       self.leds += leds
 
    def addReset(self, gpio):
-      self.resets += [gpio]
-      newScdReset = ScdReset(self.path, gpio)
-      self.scdresets += [newScdReset]
-      return newScdReset
+      scdReset = ScdReset(self.path, gpio)
+      self.resets += [scdReset]
+      return scdReset
 
    def addResets(self, gpios):
-      self.resets += gpios
-      newScdResets = [ScdReset(self.path, gpio) for gpio in gpios]
-      self.scdresets += newScdResets
-      return {reset.getName(): reset for reset in newScdResets}
+      scdResets = [ScdReset(self.path, gpio) for gpio in gpios]
+      self.resets += scdResets
+      return {reset.getName(): reset for reset in scdResets}
 
    def addGpio(self, gpio):
       self.gpios += [gpio]
