@@ -129,7 +129,7 @@ def doReset(args, platform):
    if args.reset_list:
       print('Reset Supported Devices:')
       print("{: <20} {: <20}".format('Name', 'Value'))
-      for reset in resets:
+      for reset in sorted(resets):
         print("{: <20} {: <20}".format(reset, resets[reset].read()))
       sys.exit(0)
 

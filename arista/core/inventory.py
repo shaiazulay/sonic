@@ -27,7 +27,7 @@ class Xcvr(object):
    def getInterruptLine(self):
       raise NotImplementedError()
 
-   def reset(self, value):
+   def getReset(self):
       raise NotImplementedError()
 
 class Psu(object):
@@ -131,6 +131,9 @@ class Inventory(object):
 
    def addXcvr(self, xcvr):
       self.xcvrs[xcvr.portNum] = xcvr
+      xcvrReset = xcvr.getReset()
+      if xcvrReset is not None:
+         self.resets[xcvrReset.getName()] = xcvrReset
 
    def getXcvrs(self):
       return self.xcvrs

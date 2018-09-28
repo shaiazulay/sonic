@@ -65,6 +65,7 @@ class ScdKernelXcvr(Xcvr):
       typeStr = 'qsfp' if xcvrType == Xcvr.QSFP else 'sfp'
       self.rw = sysfsRWClass(portNum, typeStr, driver)
       self.interruptLine = interruptLine
+      self.reset = ScdXcvrReset(self) if xcvrType == Xcvr.QSFP else None
 
    def getPresence(self):
       return self.rw.readValue('present') == '1'
@@ -104,10 +105,33 @@ class ScdKernelXcvr(Xcvr):
    def getInterruptLine(self):
       return self.interruptLine
 
+   def getReset(self):
+      return self.reset
+
+class ScdXcvrReset(Reset):
+   def __init__(self, xcvr):
+      self.xcvr = xcvr
+      self.name = 'qsfp%d_reset' % self.xcvr.portNum
+
+   def read(self):
+      return self.xcvr.rw.readValue('reset')
+
+   def resetSim(self, value):
+      logging.debug('resetting device %s', self.name)
+
+   @simulateWith(resetSim)
    def reset(self, value):
-      if self.xcvrType == Xcvr.SFP:
-         return False
-      return self.rw.writeValue('reset', '1' if value else '0')
+      self.xcvr.rw.writeValue('reset', '1' if value else '0')
+
+   def resetIn(self):
+      self.reset(True)
+
+   def resetOut(self):
+      self.reset(False)
+      self.xcvr.setModuleSelect(True)
+
+   def getName(self):
+      return self.name
 
 class ScdKernelPsu(Psu):
    def __init__(self, psuId, rw, presenceGpios, statusGpios):
@@ -227,7 +251,7 @@ class ScdKernelDriver(PciKernelDriver):
 
    def resetSim(self, value):
       resets = self.component.getSysfsResetNameList()
-      logging.debug('reseting devices %s', resets)
+      logging.debug('resetting devices %s', resets)
 
    @simulateWith(resetSim)
    def reset(self, value):
@@ -254,7 +278,7 @@ class ScdReset(Reset):
          return f.read().rstrip()
 
    def resetSim(self, value):
-      logging.debug('reseting device %s', self.name)
+      logging.debug('resetting device %s', self.name)
 
    @simulateWith(resetSim)
    def doReset(self, value):

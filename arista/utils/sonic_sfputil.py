@@ -73,10 +73,12 @@ def getSfpUtil():
             if not self._is_valid_port(port_num):
                 return False
 
-            xcvr = inventory.getXcvr(port_num)
+            xcvr = inventory.getXcvr(port_num).getReset()
+            if xcvr is None:
+               return False
+
             try:
-               if not xcvr.reset(True):
-                  return False
+               xcvr.resetIn()
             except:
                #print('failed to put xcvr %d in reset' % port_num)
                return False
@@ -85,8 +87,7 @@ def getSfpUtil():
             time.sleep(1)
 
             try:
-               if not xcvr.reset(False):
-                  return False
+               xcvr.resetOut()
             except:
                #print('failed to take xcvr %d out of reset' % port_num)
                return False
