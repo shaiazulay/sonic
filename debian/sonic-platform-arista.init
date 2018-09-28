@@ -17,7 +17,7 @@ drivers_start() {
     if grep -q sid=Gardena /proc/cmdline; then
         timeout=600
         echo "Enabling watchdog for $timeout seconds"
-        /usr/bin/arista-gardena-watchdog -o $timeout
+        /usr/bin/arista-watchdog -l -o $timeout
     fi
     /usr/bin/arista --syslog -l /var/log/arista.log setup --reset --background
     echo "done."

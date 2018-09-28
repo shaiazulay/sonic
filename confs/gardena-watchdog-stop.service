@@ -10,7 +10,7 @@ Type=oneshot
 RemainAfterExit=true
 
 ExecStart=
-ExecStart=/usr/bin/arista-gardena-watchdog --stop
+ExecStart=/usr/bin/arista-watchdog -l --stop
 
 ExecStop=
 

@@ -100,6 +100,29 @@ def status( scd ):
       "timeout": timeout,
    }
 
+def getCmdline():
+   data = {}
+   with open( '/proc/cmdline' ) as f:
+      for entry in f.read().split():
+         idx = entry.find( '=' )
+         if idx == -1:
+            data[ entry ] = None
+         else:
+            data[ entry[ :idx ] ] = entry[ idx + 1: ]
+   return data
+
+def getResource():
+   cmdline = getCmdline()
+   platform = cmdline.get( 'platform' )
+   if platform == 'rook':
+      return '/sys/bus/pci/devices/0000:06:00.0/resource0'
+   if platform == 'crow':
+      return '/sys/bus/pci/devices/0000:02:00.0/resource0'
+   if platform == 'raven':
+      return '/sys/bus/pci/devices/0000:04:00.0/resource0'
+   assert False, "Failed to detect platform"
+   return None
+
 def main():
    parser = argparse.ArgumentParser()
    parser.add_argument( '-o', '--arm', type=int,
@@ -108,15 +131,18 @@ def main():
                         help='Disable the watchdog' )
    parser.add_argument( '--status', action='store_true',
                         help='Show watchdog status' )
+   parser.add_argument( '-l', '--klog', action='store_true',
+                        help='Print the events in the dmesg' )
    args = parser.parse_args()
 
    if not args.arm and not args.stop and not args.status:
       print( 'No option specified' )
       sys.exit( 1 )
 
-   busName = "/sys/bus/pci/devices/0000:06:00.0/resource0"
-   subprocess.call( [ 'modprobe', 'scd' ] )
-   scd = MmapResource( busName )
+   if not os.path.isdir( '/sys/module/scd' ):
+      subprocess.call( [ 'modprobe', 'scd' ] )
+
+   scd = MmapResource( getResource() )
 
    scdScrRegTest( scd )
 
@@ -126,17 +152,18 @@ def main():
       print( 'watchdog: %s' % kv )
       sys.exit( 0 )
 
-
    time = 0
    if args.arm:
-      klog( 'watchdog: arm for %ds' % args.arm )
+      if args.klog:
+         klog( 'watchdog: arm for %ds' % args.arm )
       # Tens of milliseconds
       time = args.arm * 100
       if time >= 65536:
          print( 'Error Time value is too big' )
          sys.exit( 1 )
    else:
-      klog( 'watchdog: disable' )
+      if args.klog:
+         klog( 'watchdog: disable' )
 
    arm( scd, time )
 

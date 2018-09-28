@@ -7,7 +7,7 @@ include /usr/share/dpkg/pkg-info.mk
 export INSTALL_MOD_DIR:=extra
 
 SCRIPT_FILES   := reset
-BIN_FILES      := arista boot-eos arista-gardena-watchdog
+BIN_FILES      := arista boot-eos arista-watchdog
 SERVICE_FILES  := gardena-watchdog-stop.service
 
 KVERSION       ?= $(shell uname -r)
