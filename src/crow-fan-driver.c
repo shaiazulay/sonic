@@ -468,6 +468,19 @@ fail:
     return err;
 }
 
+void crow_print_version(struct i2c_client *client)
+{
+    char version;
+    int err;
+
+    err = read_cpld(&client->dev, CROWCPLDREVREG, &version);
+    if (err) {
+       dev_warn(&client->dev, "failed to obtain CPLD version");
+    } else {
+       dev_info(&client->dev, "CPLD version 0x%02x", version);
+    }
+}
+
 static int crow_cpld_remove(struct i2c_client *client)
 {
     struct crow_cpld_data *data = i2c_get_clientdata(client);
@@ -494,6 +507,7 @@ static int crow_cpld_probe(struct i2c_client *client,
     struct device *dev = &client->dev;
     struct device *hwmon_dev;
     struct crow_cpld_data *data;
+
     data = devm_kzalloc(dev, sizeof(struct crow_cpld_data), GFP_KERNEL);
     if (!data)
         return -ENOMEM;
