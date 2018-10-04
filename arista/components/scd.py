@@ -89,6 +89,17 @@ class ScdKernelXcvr(Xcvr):
       logging.debug('setting modsel for qsfp %s to %s', self.portNum, value)
       return self.rw.writeValue('modsel', '1' if value else '0')
 
+   def getTxDisable(self):
+      if self.xcvrType == Xcvr.QSFP:
+         return False
+      return self.rw.readValue('txdisable')
+
+   def setTxDisable(self, value):
+      if self.xcvrType == Xcvr.QSFP:
+         return False
+      logging.debug('setting txdisable for sfp %s to %s', self.portNum, value)
+      return self.rw.writeValue('txdisable', '1' if value else '0')
+
    def getInterruptLine(self):
       return self.interruptLine
 
@@ -517,6 +528,7 @@ class Scd(PciComponent):
       super(Scd, self).resetOut()
       for xcvr in self.xcvrs:
          xcvr.setModuleSelect(True)
+         xcvr.setTxDisable(False)
 
    def uioMapInit(self):
       for uio in os.listdir(SYS_UIO_PATH):
