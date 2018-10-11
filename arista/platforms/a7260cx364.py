@@ -5,7 +5,7 @@ from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
-from ..components.dpm import Ucd90120A, Ucd90160
+from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi
 from ..components.scd import Scd
 
 @registerPlatform('DCS-7260CX3-64')
@@ -106,7 +106,12 @@ class Gardena(Platform):
          I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
                             '/sys/class/hwmon/hwmon3'),
          Ucd90160(cpld.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
-         Ucd90120A(cpld.i2cAddr(10, 0x34), priority=Priority.BACKGROUND),
+         Ucd90120A(cpld.i2cAddr(10, 0x34), priority=Priority.BACKGROUND, causes={
+            'powerloss': UcdGpi(1),
+            'reboot': UcdGpi(2),
+            'watchdog': UcdGpi(3),
+            'overtemp': UcdGpi(4),
+         }),
          I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'rook_cpld',
                             '/sys/class/hwmon/hwmon4'),
          I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),

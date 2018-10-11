@@ -5,7 +5,7 @@ from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
-from ..components.dpm import Ucd90120A
+from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.psu import PmbusPsuComponent, ScdPmbusPsu
 from ..components.scd import Scd
 from ..components.ds125br import Ds125Br
@@ -46,7 +46,11 @@ class Clearlake(Platform):
                             priority=Priority.BACKGROUND),
          I2cKernelComponent(scd.i2cAddr(4, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
-         Ucd90120A(scd.i2cAddr(5, 0x4e), priority=Priority.BACKGROUND),
+         Ucd90120A(scd.i2cAddr(5, 0x4e), priority=Priority.BACKGROUND, causes={
+            'reboot': UcdGpi(2),
+            'watchdog': UcdGpi(3),
+            'powerloss': UcdGpi(7),
+         }),
          Ds125Br(scd.i2cAddr(6, 0xff)),
       ])
 

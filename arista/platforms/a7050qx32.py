@@ -5,7 +5,7 @@ from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
-from ..components.dpm import Ucd90120A, Ucd90160
+from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi, UcdMon
 from ..components.psu import ScdPmbusPsu
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
@@ -42,7 +42,11 @@ class Cloverdale(Platform):
          # the DPM is disabled. If you want rail information use it at your own risk
          # The current implementation will just read the firmware information once.
          Ucd90120A(scd.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
-         Ucd90160(scd.i2cAddr(5, 0x4e), priority=Priority.BACKGROUND),
+         Ucd90160(scd.i2cAddr(5, 0x4e), priority=Priority.BACKGROUND, causes={
+            'reboot': UcdGpi(2),
+            'watchdog': UcdGpi(3),
+            'powerloss': UcdMon(13),
+         }),
       ])
 
       psu1Addr = scd.i2cAddr(3, 0x58)

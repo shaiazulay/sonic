@@ -6,7 +6,7 @@ from ..core.component import Priority
 from ..core.inventory import Psu
 
 from ..components.common import SwitchChip, I2cKernelComponent
-from ..components.dpm import Ucd90120A
+from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.cpld import CrowCpld
 from ..components.scd import Scd
 
@@ -54,7 +54,12 @@ class Upperlake(Platform):
                             priority=Priority.BACKGROUND),
          I2cKernelComponent(scd.i2cAddr(4, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
-         Ucd90120A(scd.i2cAddr(5, 0x4e), priority=Priority.BACKGROUND),
+         Ucd90120A(scd.i2cAddr(5, 0x4e), priority=Priority.BACKGROUND, causes={
+            'reboot': UcdGpi(1),
+            'watchdog': UcdGpi(2),
+            'overtemp': UcdGpi(4),
+            'powerloss': UcdGpi(5),
+         }),
       ])
 
       scd.addSmbusMasterRange(0x8000, 5, 0x80)

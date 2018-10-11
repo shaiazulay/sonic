@@ -66,6 +66,13 @@ class PowerCycle(object):
    def powerCycle(self):
       raise NotImplementedError()
 
+class ReloadCause(object):
+   def reason(self):
+      raise NotImplementedError()
+
+   def __str__(self):
+      return self.reason()
+
 class Interrupt(object):
    def set(self):
       raise NotImplementedError()
