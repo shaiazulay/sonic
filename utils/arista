@@ -196,6 +196,15 @@ def doReboot(args, platform):
    import arista.utils.sonic_reboot
    arista.utils.sonic_reboot.reboot(platform)
 
+def doRebootCause(args, platform):
+   checkRootPermissions()
+   causes = platform.getReloadCauses(clear=args.clear)
+   if not causes:
+      print('No reboot cause detected')
+      return
+   for cause in causes:
+      print(' -', cause)
+
 def todo(*args, **kwargs):
    raise NotImplementedError
 
@@ -254,6 +263,9 @@ def parseArgs():
                     help='arm the hardware watchdog for X seconds ' \
                          'before the watchdog triggers')
    sub = subparsers.add_parser('reboot', help='perform a cold reboot for platform')
+   sub = subparsers.add_parser('reboot-cause', help='reload cause information')
+   sub.add_argument('-c', '--clear', action='store_true',
+                    help='clear the reload cause information')
 
    args = parser.parse_args()
    if args.action == 'help':
@@ -284,6 +296,7 @@ def main():
       'reset': doReset,
       'watchdog': doWatchdog,
       'reboot': doReboot,
+      'reboot-cause': doRebootCause,
    }
 
    if args.action in generic_commands:

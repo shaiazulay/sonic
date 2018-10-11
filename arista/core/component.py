@@ -82,6 +82,14 @@ class Component(object):
       for component in flatten(self.components.values()):
          component.resetOut()
 
+   def getReloadCauses(self, clear=False):
+      causes = []
+      for driver in self.drivers:
+         causes.extend(driver.getReloadCauses(clear=clear))
+      for component in flatten(self.components.values()):
+         causes.extend(component.getReloadCauses(clear=clear))
+      return causes
+
    def waitForIt(self, timeout=DEFAULT_WAIT_TIMEOUT):
       for component in flatten(self.components.values()):
          component.waitForIt(timeout)

@@ -81,6 +81,9 @@ class Driver(object):
    def resetOut(self):
       pass
 
+   def getReloadCauses(self, clear=False):
+      return []
+
    def dump(self, depth=0, prefix=' - '):
       spacer = ' ' * (depth * 3)
       print('%s%s%s' % (spacer, prefix, self))
