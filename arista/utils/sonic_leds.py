@@ -41,7 +41,7 @@ class LedControl(led_control_base.LedControlBase):
       if not p:
          return
       for idx in range(p.lanes):
-         path = self.portSysfsMapping[p.portNum][p.offset + idx]
+         path = self.portSysfsMapping[p.portNum][idx]
          with open(path, 'w') as fp:
             if state == 'up':
                if idx == 0:
