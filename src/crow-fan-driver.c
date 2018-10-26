@@ -15,6 +15,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/i2c.h>
 #include <linux/device.h>
 #include <linux/hwmon.h>
@@ -35,6 +36,9 @@
 #define TACH4LOWREG 6
 #define TACH4HIGHREG 7
 
+#define FAN_PWM_BASE 0x10
+#define FAN_PWM_REG(Num) (FAN_PWM_BASE + (Num))
+
 #define FAN1PWMREG 0x10
 #define FAN1IDREG 0x18
 #define FAN2PWMREG 0x11
@@ -54,6 +58,12 @@
 #define FAN_LED_GREEN 1
 #define FAN_LED_RED 2
 #define FAN_LED_YELLOW 3
+
+#define FAN_MAX_PWM 255
+
+static bool safe_mode = true;
+module_param(safe_mode, bool, S_IRUSR | S_IWUSR);
+MODULE_PARM_DESC(safe_mode, "force fan speed to 100% during probe");
 
 struct crow_led {
     char name[LED_NAME_MAX_SZ];
@@ -467,6 +477,16 @@ static int crow_cpld_remove(struct i2c_client *client)
     return 0;
 }
 
+static void crow_force_fan_speed(struct i2c_client *client, u8 pwm)
+{
+   int i;
+
+   dev_info(&client->dev, "forcing fan speed to %hhu (safe_mode)", pwm);
+   for (i = 0; i < NUM_FANS; i++) {
+      write_cpld(&client->dev, FAN_PWM_REG(i), pwm);
+   }
+}
+
 static int crow_cpld_probe(struct i2c_client *client,
                            const struct i2c_device_id *id)
 {
@@ -484,6 +504,11 @@ static int crow_cpld_probe(struct i2c_client *client,
                                                        data, fan_groups);
     if (IS_ERR(hwmon_dev))
         return PTR_ERR(hwmon_dev);
+
+    crow_print_version(client);
+
+    if (safe_mode)
+       crow_force_fan_speed(client, FAN_MAX_PWM);
 
     err = leds_init(data->leds, client);
     if (err)
