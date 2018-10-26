@@ -5,7 +5,7 @@ from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
-from ..components.dpm import Ucd90120A, Ucd90160
+from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi
 from ..components.scd import Scd
 
 @registerPlatform(['DCS-7170-64', 'DCS-7170-64C', 'DCS-7170-64C-SSD',
@@ -104,7 +104,12 @@ class Alhambra(Platform):
          I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
                             'sys/class/hwmon/hwmon3'),
          Ucd90160(cpld.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
-         Ucd90120A(cpld.i2cAddr(10, 0x4e), priority=Priority.BACKGROUND),
+         Ucd90120A(cpld.i2cAddr(10, 0x4e), priority=Priority.BACKGROUND, causes={
+            'powerloss': UcdGpi(1),
+            'overtemp': UcdGpi(2),
+            'reboot': UcdGpi(4),
+            'watchdog': UcdGpi(5),
+         }),
          I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'rook_cpld',
                             'sys/class/hwmon/hwmon4'),
          I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
