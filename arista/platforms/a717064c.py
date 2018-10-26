@@ -31,7 +31,8 @@ class Alhambra(Platform):
       self.inventory.addWatchdog(scd.createWatchdog())
 
       scd.addComponents([
-         I2cKernelComponent(scd.i2cAddr(7, 0x4c), 'max6658'),
+         I2cKernelComponent(scd.i2cAddr(7, 0x4c), 'max6658',
+                            '/sys/class/hwmon/hwmon2'),
          I2cKernelComponent(scd.i2cAddr(6, 0x58), 'dps1900',
                             priority=Priority.BACKGROUND),
          I2cKernelComponent(scd.i2cAddr(5, 0x58), 'dps1900',
@@ -100,10 +101,13 @@ class Alhambra(Platform):
 
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.addComponents([
-         I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658'),
+         I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
+                            'sys/class/hwmon/hwmon3'),
          Ucd90160(cpld.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
          Ucd90120A(cpld.i2cAddr(10, 0x4e), priority=Priority.BACKGROUND),
-         I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'rook_cpld'),
+         I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'rook_cpld',
+                            'sys/class/hwmon/hwmon4'),
          I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
-         I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73'),
+         I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73',
+                            'sys/class/hwmon/hwmon5')
       ])
