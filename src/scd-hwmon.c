@@ -229,7 +229,7 @@ struct scd_context {
    struct list_head xcvr_list;
 };
 
-union request_reg {
+union smbus_request_reg {
    u32 reg;
    struct {
       u32 d:8;
@@ -247,7 +247,7 @@ union request_reg {
    } __packed;
 };
 
-union ctrl_status_reg {
+union smbus_ctrl_status_reg {
    u32 reg;
    struct {
       u32 reserved1:13;
@@ -257,7 +257,7 @@ union ctrl_status_reg {
    } __packed;
 };
 
-union response_reg {
+union smbus_response_reg {
    u32 reg;
    struct {
       u32 d:8;
@@ -307,28 +307,28 @@ static void scd_unlock(struct scd_context *ctx)
 
 /* SMBus functions */
 static void smbus_master_write_req(struct scd_master *master,
-                                   union request_reg req)
+                                   union smbus_request_reg req)
 {
    u32 addr = (u32)master->req;
    scd_write_register(master->ctx->pdev, addr, req.reg);
 }
 
 static void smbus_master_write_cs(struct scd_master *master,
-                                  union ctrl_status_reg cs)
+                                  union smbus_ctrl_status_reg cs)
 {
    scd_write_register(master->ctx->pdev, master->cs, cs.reg);
 }
 
-static union ctrl_status_reg smbus_master_read_cs(struct scd_master *master)
+static union smbus_ctrl_status_reg smbus_master_read_cs(struct scd_master *master)
 {
-   union ctrl_status_reg cs;
+   union smbus_ctrl_status_reg cs;
    cs.reg = scd_read_register(master->ctx->pdev, master->cs);
    return cs;
 }
 
-static union response_reg smbus_master_read_resp(struct scd_master *master)
+static union smbus_response_reg smbus_master_read_resp(struct scd_master *master)
 {
-   union response_reg resp;
+   union smbus_response_reg resp;
    u32 retries = 10;
 
    resp.reg = scd_read_register(master->ctx->pdev, master->resp);
@@ -346,7 +346,7 @@ static union response_reg smbus_master_read_resp(struct scd_master *master)
    return resp;
 }
 
-static s32 smbus_check_resp(union response_reg resp, u32 tid)
+static s32 smbus_check_resp(union smbus_response_reg resp, u32 tid)
 {
    const char *error;
    int error_ret = -EIO;
@@ -392,7 +392,7 @@ static u32 scd_smbus_func(struct i2c_adapter *adapter)
 
 static void smbus_master_reset(struct scd_master *master)
 {
-   union ctrl_status_reg cs;
+   union smbus_ctrl_status_reg cs;
    cs = smbus_master_read_cs(master);
    cs.reset = 1;
    cs.foe = 1;
@@ -423,8 +423,8 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
    struct scd_master *master = bus->master;
    const struct bus_params *params;
    int i;
-   union request_reg req;
-   union response_reg resp;
+   union smbus_request_reg req;
+   union smbus_response_reg resp;
    int ret = 0;
    u32 ss = 0;
    u32 data_offset = 0;
