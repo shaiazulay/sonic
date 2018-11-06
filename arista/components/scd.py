@@ -62,10 +62,10 @@ class ScdKernelXcvr(Xcvr):
    def __init__(self, portNum, xcvrType, addr, driver, sysfsRWClass,
                 interruptLine=None):
       Xcvr.__init__(self, portNum, xcvrType, addr)
-      typeStr = 'qsfp' if xcvrType == Xcvr.QSFP else 'sfp'
+      typeStr = Xcvr.typeStr(xcvrType)
       self.rw = sysfsRWClass(portNum, typeStr, driver)
       self.interruptLine = interruptLine
-      self.reset = ScdXcvrReset(self) if xcvrType == Xcvr.QSFP else None
+      self.reset = None if xcvrType == Xcvr.SFP else ScdXcvrReset(self)
 
    def getPresence(self):
       return self.rw.readValue('present') == '1'
@@ -92,15 +92,15 @@ class ScdKernelXcvr(Xcvr):
       return self.rw.writeValue('modsel', '1' if value else '0')
 
    def getTxDisable(self):
-      if self.xcvrType == Xcvr.QSFP:
-         return False
-      return self.rw.readValue('txdisable')
+      if self.xcvrType == Xcvr.SFP:
+         return self.rw.readValue('txdisable')
+      return False
 
    def setTxDisable(self, value):
-      if self.xcvrType == Xcvr.QSFP:
-         return False
-      logging.debug('setting txdisable for sfp %s to %s', self.portNum, value)
-      return self.rw.writeValue('txdisable', '1' if value else '0')
+      if self.xcvrType == Xcvr.SFP:
+         logging.debug('setting txdisable for sfp %s to %s', self.portNum, value)
+         return self.rw.writeValue('txdisable', '1' if value else '0')
+      return False
 
    def getInterruptLine(self):
       return self.interruptLine
@@ -451,6 +451,7 @@ class Scd(PciComponent):
       self.leds = []
       self.gpios = []
       self.powerCycles = []
+      self.osfps = []
       self.qsfps = []
       self.sfps = []
       self.tweaks = []
@@ -538,6 +539,10 @@ class Scd(PciComponent):
       self.addBusTweak(devAddr)
       self.xcvrs.append(xcvr)
       return xcvr
+
+   def addOsfp(self, addr, xcvrId, bus, interruptLine=None):
+      self.osfps += [(addr, xcvrId)]
+      return self._addXcvr(xcvrId, Xcvr.OSFP, bus, interruptLine)
 
    def addQsfp(self, addr, xcvrId, bus, interruptLine=None):
       self.qsfps += [(addr, xcvrId)]

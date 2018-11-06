@@ -7,8 +7,13 @@ class Xcvr(object):
 
    SFP = 0
    QSFP = 1
+   OSFP = 2
 
    ADDR = 0x50
+
+   @classmethod
+   def typeStr(cls, typeIndex):
+      return ['sfp', 'qsfp', 'osfp'][typeIndex]
 
    def __init__(self, portNum, xcvrType, addr):
       self.portNum = portNum
@@ -107,6 +112,7 @@ class Inventory(object):
    def __init__(self):
       self.sfpRange = []
       self.qsfpRange = []
+      self.osfpRange = []
       self.allXcvrsRange = []
 
       self.portStart = None
@@ -135,13 +141,16 @@ class Inventory(object):
       # XXX: try to avoid that actually
       pass
 
-   def addPorts(self, sfps=None, qsfps=None):
+   def addPorts(self, sfps=None, qsfps=None, osfps=None):
       if sfps:
          self.sfpRange = sfps
       if qsfps:
          self.qsfpRange = qsfps
+      if osfps:
+         self.osfpRange = osfps
 
-      self.allXcvrsRange = sorted(self.sfpRange + self.qsfpRange)
+      self.allXcvrsRange = sorted(self.sfpRange + self.qsfpRange +
+                                  self.osfpRange)
       self.portStart = self.allXcvrsRange[0]
       self.portEnd = self.allXcvrsRange[-1]
 

@@ -1205,6 +1205,22 @@ static int scd_xcvr_qsfp_add(struct scd_context *ctx, u32 addr, u32 id)
    return scd_xcvr_add(ctx, "qsfp", qsfp_gpios, ARRAY_SIZE(qsfp_gpios), addr, id);
 }
 
+static int scd_xcvr_osfp_add(struct scd_context *ctx, u32 addr, u32 id)
+{
+   static const struct gpio_cfg osfp_gpios[] = {
+      {0, true,  true,  false, "interrupt"},
+      {2, true,  true,  false, "present"},
+      {3, true,  false, true,  "interrupt_changed"},
+      {5, true,  false, true,  "present_changed"},
+      {6, false, false, false, "lp_mode"},
+      {7, false, false, false, "reset"},
+      {8, false, true,  false, "modsel"},
+   };
+
+   scd_dbg("osfp %u @ 0x%04x\n", id, addr);
+   return scd_xcvr_add(ctx, "osfp", osfp_gpios, ARRAY_SIZE(osfp_gpios), addr, id);
+}
+
 static int scd_gpio_add(struct scd_context *ctx, const char *name,
                         u32 addr, u32 bitpos, bool read_only, bool active_low)
 {
@@ -1354,7 +1370,8 @@ static ssize_t parse_new_object_led(struct scd_context *ctx,
 
 enum xcvr_type {
    XCVR_TYPE_SFP,
-   XCVR_TYPE_QSFP
+   XCVR_TYPE_QSFP,
+   XCVR_TYPE_OSFP,
 };
 
 static ssize_t parse_new_object_xcvr(struct scd_context *ctx, enum xcvr_type type,
@@ -1377,6 +1394,8 @@ static ssize_t parse_new_object_xcvr(struct scd_context *ctx, enum xcvr_type typ
       res = scd_xcvr_sfp_add(ctx, addr, id);
    else if (type == XCVR_TYPE_QSFP)
       res = scd_xcvr_qsfp_add(ctx, addr, id);
+   else if (type == XCVR_TYPE_OSFP)
+      res = scd_xcvr_osfp_add(ctx, addr, id);
    else
       res = -EINVAL;
 
@@ -1384,6 +1403,13 @@ static ssize_t parse_new_object_xcvr(struct scd_context *ctx, enum xcvr_type typ
       return res;
 
    return count;
+}
+
+// new_osfp <addr> <id>
+static ssize_t parse_new_object_osfp(struct scd_context *ctx,
+                                     char *buf, size_t count)
+{
+   return parse_new_object_xcvr(ctx, XCVR_TYPE_OSFP, buf, count);
 }
 
 // new_qsfp <addr> <id>
@@ -1463,6 +1489,7 @@ static struct {
 } funcs[] = {
    { "master", parse_new_object_master },
    { "led",    parse_new_object_led },
+   { "osfp",   parse_new_object_osfp },
    { "qsfp",   parse_new_object_qsfp },
    { "sfp",    parse_new_object_sfp },
    { "reset",  parse_new_object_reset },
