@@ -65,7 +65,7 @@ class ScdKernelXcvr(Xcvr):
       typeStr = Xcvr.typeStr(xcvrType)
       self.rw = sysfsRWClass(portNum, typeStr, driver)
       self.interruptLine = interruptLine
-      self.reset = None if xcvrType == Xcvr.SFP else ScdXcvrReset(self)
+      self.reset = None if xcvrType == Xcvr.SFP else ScdXcvrReset(self, typeStr)
 
    def getPresence(self):
       return self.rw.readValue('present') == '1'
@@ -88,7 +88,7 @@ class ScdKernelXcvr(Xcvr):
    def setModuleSelect(self, value):
       if self.xcvrType == Xcvr.SFP:
          return True
-      logging.debug('setting modsel for qsfp %s to %s', self.portNum, value)
+      logging.debug('setting modsel for qsfp/osfp %s to %s', self.portNum, value)
       return self.rw.writeValue('modsel', '1' if value else '0')
 
    def getTxDisable(self):
@@ -109,9 +109,9 @@ class ScdKernelXcvr(Xcvr):
       return self.reset
 
 class ScdXcvrReset(Reset):
-   def __init__(self, xcvr):
+   def __init__(self, xcvr, typeStr):
       self.xcvr = xcvr
-      self.name = 'qsfp%d_reset' % self.xcvr.portNum
+      self.name = '%s%d_reset' % (typeStr, self.xcvr.portNum)
 
    def read(self):
       return self.xcvr.rw.readValue('reset')
@@ -208,6 +208,9 @@ class ScdKernelDriver(PciKernelDriver):
 
       for addr, name in scd.leds:
          data += ["led %#x %s" % (addr, name)]
+
+      for addr, xcvrId in scd.osfps:
+         data += ["osfp %#x %u" % (addr, xcvrId)]
 
       for addr, xcvrId in scd.qsfps:
          data += ["qsfp %#x %u" % (addr, xcvrId)]
@@ -576,9 +579,15 @@ class Scd(PciComponent):
          "lp_mode", "reset", "modsel",
       ]
 
+      osfp_names = [
+         "interrupt", "present", "interrupt_changed", "present_changed",
+         "lp_mode", "reset", "modsel",
+      ]
+
       gpios = []
       gpios += zipXcvr("sfp", sfp_names, self.sfps)
       gpios += zipXcvr("qsfp", qsfp_names, self.qsfps)
+      gpios += zipXcvr("osfp", osfp_names, self.osfps)
       gpios += [ (gpio.name, gpio.ro) for gpio in self.gpios ]
       gpios += [ (reset.name, False) for reset in self.resets ]
 
@@ -588,6 +597,7 @@ class Scd(PciComponent):
       entries = [reset.name for reset in self.resets]
       if xcvrs:
          entries += ['qsfp%d_reset' % xcvrId for _, xcvrId in self.qsfps]
+         entries += ['osfp%d_reset' % xcvrId for _, xcvrId in self.osfps]
       return entries
 
    def resetOut(self):
