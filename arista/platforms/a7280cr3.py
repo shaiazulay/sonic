@@ -1,12 +1,12 @@
 from ..core.platform import registerPlatform, Platform
-from ..core.driver import KernelDriver
 from ..core.utils import incrange
-from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
+from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90160, Ucd90320, UcdGpi
 from ..components.scd import Scd
+from ..components.phy import Babbage
 
 @registerPlatform(['DCS-7280CR3-32P4'])
 class Smartsville(Platform):
@@ -108,6 +108,16 @@ class Smartsville(Platform):
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1
+
+      scd.addMdioMasterRange(0x9000, 8)
+
+      for i in range( 0, 8 ):
+         phyId = i + 1
+         reset = scd.addReset( ResetGpio( 0x4000, 3 + i, False, 'phy%d_reset' %
+                               phyId ) )
+         self.inventory.addReset( reset )
+         phy = Babbage( phyId, reset=reset, mdio=scd.addMdio( i, 0 ) )
+         self.inventory.addPhy( phy )
 
       cpld = Scd(PciAddr(bus=0x00, device=0x09, func=0))
       self.addComponent(cpld)

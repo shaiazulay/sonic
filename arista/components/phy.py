@@ -19,3 +19,5 @@ class MdioPhy( PhyImpl ):
    def getMdio( self ):
       return self.mdio
 
+class Babbage( MdioPhy ):
+   pass
