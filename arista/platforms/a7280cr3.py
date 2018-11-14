@@ -60,12 +60,12 @@ class Smartsville(Platform):
          NamedGpio(0x5000, 10, True, False, "psu1_ac_status"),
          NamedGpio(0x5000, 11, True, False, "psu2_ac_status"),
 
-         NamedGpio(0x5000, 16, True, True, "psu1_present_changed"),
-         NamedGpio(0x5000, 17, True, True, "psu2_present_changed"),
-         NamedGpio(0x5000, 18, True, True, "psu1_status_changed"),
-         NamedGpio(0x5000, 19, True, True, "psu2_status_changed"),
-         NamedGpio(0x5000, 20, True, True, "psu1_ac_status_changed"),
-         NamedGpio(0x5000, 21, True, True, "psu2_ac_status_changed"),
+         NamedGpio(0x5000, 16, False, False, "psu1_present_changed"),
+         NamedGpio(0x5000, 17, False, False, "psu2_present_changed"),
+         NamedGpio(0x5000, 18, False, False, "psu1_status_changed"),
+         NamedGpio(0x5000, 19, False, False, "psu2_status_changed"),
+         NamedGpio(0x5000, 20, False, False, "psu1_ac_status_changed"),
+         NamedGpio(0x5000, 21, False, False, "psu2_ac_status_changed"),
       ])
       self.inventory.addPsus([
          scd.createPsu(1),
