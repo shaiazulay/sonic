@@ -30,6 +30,13 @@ class Xcvr(object):
    def getReset(self):
       raise NotImplementedError()
 
+class Fan(object):
+   def getSpeed(self):
+      raise NotImplementedError()
+
+   def setSpeed(self, speed):
+      raise NotImplementedError()
+
 class Psu(object):
    def getPresence(self):
       raise NotImplementedError()
@@ -112,6 +119,8 @@ class Inventory(object):
 
       self.psus = []
 
+      self.fans = []
+
       self.watchdog = Watchdog()
 
       self.powerCycles = []
@@ -173,6 +182,15 @@ class Inventory(object):
 
    def getNumPsus(self):
       return len(self.psus)
+
+   def addFans(self, fans):
+      self.fans = fans
+
+   def getFan(self, index):
+      return self.fans[index]
+
+   def getNumFans(self):
+      return len(self.fans)
 
    def addWatchdog(self, watchdog):
       self.watchdog = watchdog
