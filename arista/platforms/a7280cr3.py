@@ -133,4 +133,6 @@ class Smartsville(Platform):
             'overtemp': UcdGpi(4),
          }),
       ])
+      cpld.addFanGroup(0x9000, 3, 3)
+
       self.inventory.addPowerCycle(cpld.createPowerCycle())
