@@ -30,6 +30,7 @@
 
 #include "scd.h"
 #include "scd-hwmon.h"
+#include "scd-fan.h"
 
 #define SCD_MODULE_NAME "scd-hwmon"
 
@@ -45,7 +46,22 @@
 
 #define MAX_CONFIG_LINE_SIZE 100
 
-struct scd_context;
+struct scd_context {
+   struct pci_dev *pdev;
+   size_t res_size;
+
+   struct list_head list;
+
+   struct mutex mutex;
+   bool initialized;
+
+   struct list_head gpio_list;
+   struct list_head reset_list;
+   struct list_head led_list;
+   struct list_head master_list;
+   struct list_head xcvr_list;
+   struct list_head fan_group_list;
+};
 
 struct scd_master {
    struct scd_context *ctx;
@@ -187,6 +203,23 @@ struct scd_xcvr {
    SCD_XCVR_ATTR(_xcvr_attr, _name, _name_size, S_IRUGO, attribute_xcvr_get, \
                  NULL, _xcvr, _bit, _active_low, _clear_on_read)
 
+#define to_scd_fan_attr(_sensor_attr) \
+   container_of(_sensor_attr, struct scd_fan_attribute, sensor_attr)
+
+#define __SENSOR_ATTR_NAME_PTR(_name, _mode, _show, _store, _index)   \
+   { .dev_attr = __ATTR_NAME_PTR(_name, _mode, _show, _store),        \
+     .index = _index                                                  \
+   }
+
+#define SCD_FAN_ATTR(_attr, _fan, _name, _index, _suffix, _mode, _show, _store)  \
+   do {                                                                          \
+      snprintf(_attr.name, sizeof(_attr.name), "%s%zu%s", _name,                 \
+               _index + 1, _suffix);                                             \
+      _attr.sensor_attr = (struct sensor_device_attribute)                       \
+         __SENSOR_ATTR_NAME_PTR(_attr.name, _mode, _show, _store, _index);       \
+      _attr.fan = _fan;                                                          \
+   } while(0)
+
 struct scd_reset_attribute {
    struct device_attribute dev_attr;
    struct scd_context *ctx;
@@ -213,20 +246,51 @@ struct scd_reset {
      .bit = _bit,                                                               \
    }
 
-struct scd_context {
-   struct pci_dev *pdev;
-   size_t res_size;
+struct scd_fan;
+struct scd_fan_group;
 
+#define FAN_ATTR_NAME_MAX_SZ 16
+struct scd_fan_attribute {
+   struct sensor_device_attribute sensor_attr;
+   struct scd_fan *fan;
+
+   char name[FAN_ATTR_NAME_MAX_SZ];
+};
+
+/* Driver data for each fan slot */
+struct scd_fan {
+   struct scd_fan_group *fan_group;
    struct list_head list;
 
-   struct mutex mutex;
-   bool initialized;
+   u8 index;
+   const struct fan_info *info;
 
-   struct list_head gpio_list;
-   struct list_head reset_list;
-   struct list_head led_list;
-   struct list_head master_list;
-   struct list_head xcvr_list;
+   struct scd_fan_attribute *attrs;
+   size_t attr_count;
+
+   struct led_classdev led_cdev;
+   char led_name[LED_NAME_MAX_SZ];
+};
+
+#define FAN_GROUP_NAME_MAX_SZ 50
+/* Driver data for each fan group */
+struct scd_fan_group {
+   struct scd_context *ctx;
+   struct list_head list;
+
+   char name[FAN_GROUP_NAME_MAX_SZ];
+   const struct fan_platform *platform;
+   struct list_head slot_list;
+
+   struct device *hwmon_dev;
+   const struct attribute_group *groups[2];
+   struct attribute_group group;
+
+   size_t attr_count;
+   size_t attr_index_count;
+
+   u32 addr_base;
+   size_t fan_count;
 };
 
 union smbus_request_reg {
@@ -1037,6 +1101,198 @@ static int scd_xcvr_register(struct scd_xcvr *xcvr, const struct gpio_cfg *cfgs,
 }
 
 /*
+ * Sysfs handlers for fans
+ */
+
+static ssize_t scd_fan_pwm_show(struct device *dev, struct device_attribute *da,
+                                char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   u32 address = FAN_ADDR_3(group, speed, attr->index, pwm);
+   u32 reg = scd_read_register(group->ctx->pdev, address);
+
+   reg &= group->platform->mask_pwm;
+   return sprintf(buf, "%u\n", reg);
+}
+
+static ssize_t scd_fan_pwm_store(struct device *dev, struct device_attribute *da,
+                                 const char *buf, size_t count)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   u32 address = FAN_ADDR_3(group, speed, attr->index, pwm);
+   u8 val;
+
+   if (kstrtou8(buf, 0, &val))
+      return -EINVAL;
+
+   scd_write_register(group->ctx->pdev, address, val);
+   return count;
+}
+
+static ssize_t scd_fan_present_show(struct device *dev,
+                                    struct device_attribute *da,
+                                    char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 address = FAN_ADDR(group, present);
+   u32 reg = scd_read_register(group->ctx->pdev, address);
+
+   return sprintf(buf, "%u\n", !!(reg & (1 << fan->index)));
+}
+
+static u32 scd_fan_id_read(struct scd_fan_group *fan_group, u32 index)
+{
+   u32 address = FAN_ADDR_2(fan_group, id, index);
+   u32 reg = scd_read_register(fan_group->ctx->pdev, address);
+
+   reg &= fan_group->platform->mask_id;
+   return reg;
+}
+
+static ssize_t scd_fan_id_show(struct device *dev, struct device_attribute *da,
+                               char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 reg = scd_fan_id_read(group, fan->index);
+
+   return sprintf(buf, "%u\n", reg);
+}
+
+static ssize_t scd_fan_fault_show(struct device *dev, struct device_attribute *da,
+                                  char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 address = FAN_ADDR(group, ok);
+   u32 reg = scd_read_register(group->ctx->pdev, address);
+
+   return sprintf(buf, "%u\n", !(reg & (1 << fan->index)));
+}
+
+static ssize_t scd_fan_input_show(struct device *dev, struct device_attribute *da,
+                                  char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 address = FAN_ADDR_3(group, speed, attr->index, tach_outer);
+   u32 reg = scd_read_register(group->ctx->pdev, address);
+   u32 val = 0;
+
+   reg &= group->platform->mask_tach;
+   if (reg && fan->info->pulses)
+      val = fan->info->hz * 60 / reg / fan->info->pulses;
+   else
+      return -EDOM;
+
+   return sprintf(buf, "%u\n", val);
+}
+
+static u32 scd_fan_led_read(struct scd_fan *fan) {
+   struct scd_fan_group *group = fan->fan_group;
+   u32 addr_g = FAN_ADDR(group, green_led);
+   u32 addr_r = FAN_ADDR(group, red_led);
+   u32 reg_g = scd_read_register(group->ctx->pdev, addr_g);
+   u32 reg_r = scd_read_register(group->ctx->pdev, addr_r);
+   u32 val = 0;
+
+   if (reg_g & (1 << fan->index))
+      val += group->platform->mask_green_led;
+   if (reg_r & (1 << fan->index))
+      val += group->platform->mask_red_led;
+
+   return val;
+}
+
+void scd_fan_led_write(struct scd_fan *fan, u32 val)
+{
+   struct scd_fan_group *group = fan->fan_group;
+   u32 addr_g = FAN_ADDR(group, green_led);
+   u32 addr_r = FAN_ADDR(group, red_led);
+   u32 reg_g = scd_read_register(group->ctx->pdev, addr_g);
+   u32 reg_r = scd_read_register(group->ctx->pdev, addr_r);
+
+   if (val & group->platform->mask_green_led)
+      reg_g |= (1 << fan->index);
+   else
+      reg_g &= ~(1 << fan->index);
+
+   if (val & group->platform->mask_red_led)
+      reg_r |= (1 << fan->index);
+   else
+      reg_r &= ~(1 << fan->index);
+
+   scd_write_register(group->ctx->pdev, addr_g, reg_g);
+   scd_write_register(group->ctx->pdev, addr_r, reg_r);
+}
+
+static ssize_t scd_fan_led_show(struct device *dev, struct device_attribute *da,
+                                char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 val = scd_fan_led_read(fan);
+
+   return sprintf(buf, "%u\n", val);
+}
+
+static ssize_t scd_fan_led_store(struct device *dev, struct device_attribute *da,
+                                 const char *buf, size_t count)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 val;
+
+   if (kstrtou32(buf, 0, &val))
+      return -EINVAL;
+
+   scd_fan_led_write(fan, val);
+   return count;
+}
+
+static enum led_brightness fan_led_brightness_get(struct led_classdev *led_cdev)
+{
+   struct scd_fan *fan = container_of(led_cdev, struct scd_fan, led_cdev);
+
+   return scd_fan_led_read(fan);
+}
+
+static void fan_led_brightness_set(struct led_classdev *led_cdev,
+                                   enum led_brightness value)
+{
+   struct scd_fan *fan = container_of(led_cdev, struct scd_fan, led_cdev);
+
+   scd_fan_led_write(fan, value);
+}
+
+static ssize_t scd_fan_airflow_show(struct device *dev,
+                                    struct device_attribute *da,
+                                    char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+
+   return sprintf(buf, "%s\n", (fan->info->forward) ? "forward" : "reverse");
+}
+
+static ssize_t scd_fan_slot_show(struct device *dev,
+                                 struct device_attribute *da,
+                                 char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+
+   return sprintf(buf, "%u\n", fan->index + 1);
+}
+
+/*
  * Must be called with the scd lock held.
  */
 static void scd_gpio_remove_all(struct scd_context *ctx)
@@ -1049,6 +1305,88 @@ static void scd_gpio_remove_all(struct scd_context *ctx)
       list_del(&gpio->list);
       kfree(gpio);
    }
+}
+
+static void scd_fan_group_unregister(struct scd_context *ctx,
+                                     struct scd_fan_group *fan_group)
+{
+   struct scd_fan *tmp_fan;
+   struct scd_fan *fan;
+
+   if (fan_group->hwmon_dev) {
+      hwmon_device_unregister(fan_group->hwmon_dev);
+      fan_group->hwmon_dev = NULL;
+      kfree(fan_group->group.attrs);
+   }
+
+   list_for_each_entry_safe(fan, tmp_fan, &fan_group->slot_list, list) {
+      if (!IS_ERR_OR_NULL(fan->led_cdev.dev)) {
+         led_classdev_unregister(&fan->led_cdev);
+      }
+
+      if (fan->attrs) {
+         kfree(fan->attrs);
+         fan->attrs = NULL;
+      }
+
+      list_del(&fan->list);
+      kfree(fan);
+   }
+}
+
+static void scd_fan_group_remove_all(struct scd_context *ctx)
+{
+   struct scd_fan_group *tmp_group;
+   struct scd_fan_group *group;
+
+   list_for_each_entry_safe(group, tmp_group, &ctx->fan_group_list, list) {
+      scd_fan_group_unregister(ctx, group);
+      list_del(&group->list);
+      kfree(group);
+   }
+}
+
+static int scd_fan_group_register(struct scd_context *ctx,
+                                  struct scd_fan_group *fan_group)
+{
+   struct device *hwmon_dev;
+   struct scd_fan *fan;
+   size_t i;
+   size_t attr = 0;
+   int err;
+
+   fan_group->group.attrs = kcalloc(fan_group->attr_count + 1,
+                                    sizeof(*fan_group->group.attrs), GFP_KERNEL);
+   if (!fan_group->group.attrs)
+      return -ENOMEM;
+
+   list_for_each_entry(fan, &fan_group->slot_list, list) {
+      for (i = 0; i < fan->attr_count; ++i) {
+         fan_group->group.attrs[attr++] = &fan->attrs[i].sensor_attr.dev_attr.attr;
+      }
+   }
+   fan_group->groups[0] = &fan_group->group;
+
+   hwmon_dev = hwmon_device_register_with_groups(&ctx->pdev->dev, fan_group->name,
+                                                 fan_group, fan_group->groups);
+   if (IS_ERR(hwmon_dev)) {
+      kfree(fan_group->group.attrs);
+      return PTR_ERR(hwmon_dev);
+   }
+
+   fan_group->hwmon_dev = hwmon_dev;
+
+   list_for_each_entry(fan, &fan_group->slot_list, list) {
+      fan->led_cdev.name = fan->led_name;
+      fan->led_cdev.brightness_set = fan_led_brightness_set;
+      fan->led_cdev.brightness_get = fan_led_brightness_get;
+      err = led_classdev_register(&ctx->pdev->dev, &fan->led_cdev);
+      if (err) {
+         scd_warn("failed to create sysfs entry of led class for %s", fan->led_name);
+      }
+   }
+
+   return 0;
 }
 
 static void scd_xcvr_remove_all(struct scd_context *ctx)
@@ -1269,8 +1607,137 @@ static int scd_reset_add(struct scd_context *ctx, const char *name,
       kfree(reset);
       return err;
    }
+   return 0;
+}
+
+#define SCD_FAN_ATTR_COUNT 8
+static void scd_fan_add_attrs(struct scd_fan *fan, size_t index) {
+   struct scd_fan_attribute *attrs = fan->attrs;
+
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "pwm", index, "" ,
+                S_IRUGO|S_IWGRP|S_IWUSR, scd_fan_pwm_show, scd_fan_pwm_store);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_id",
+                S_IRUGO, scd_fan_id_show, NULL);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_input",
+                S_IRUGO, scd_fan_input_show, NULL);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_fault",
+                S_IRUGO, scd_fan_fault_show, NULL);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_present",
+                S_IRUGO, scd_fan_present_show, NULL);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_led" ,
+                S_IRUGO|S_IWGRP|S_IWUSR, scd_fan_led_show, scd_fan_led_store);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_airflow",
+                S_IRUGO, scd_fan_airflow_show, NULL);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_slot",
+                S_IRUGO, scd_fan_slot_show, NULL);
+   fan->attr_count++;
+}
+
+static int scd_fan_add(struct scd_fan_group *fan_group, u32 index) {
+   struct scd_fan *fan;
+   const struct fan_info *fan_info;
+   size_t i;
+   u32 fan_id = scd_fan_id_read(fan_group, index);
+
+   fan_info = fan_info_find(fan_group->platform->fan_infos,
+                            fan_group->platform->fan_info_count, fan_id);
+   if (!fan_info) {
+      scd_err("no infomation for fan%u with id=%u", index + 1, fan_id)
+      return -EINVAL;
+   } else if (!fan_info->present) {
+      scd_warn("fan%u with id=%u is not present", index + 1, fan_id)
+   }
+
+   fan = kzalloc(sizeof(*fan), GFP_KERNEL);
+   if (!fan)
+      return -ENOMEM;
+
+   fan->fan_group = fan_group;
+   fan->index = index;
+   fan->info = fan_info;
+   scnprintf(fan->led_name, LED_NAME_MAX_SZ, "fan%d", fan->index + 1);
+
+   fan->attrs = kcalloc(SCD_FAN_ATTR_COUNT * fan_info->fans,
+                        sizeof(*fan->attrs), GFP_KERNEL);
+   if (!fan->attrs) {
+      kfree(fan);
+      return -ENOMEM;
+   }
+
+   for (i = 0; i < fan->info->fans; ++i) {
+      scd_fan_add_attrs(fan, fan_group->attr_index_count++);
+   }
+   fan_group->attr_count += fan->attr_count;
+
+   list_add_tail(&fan->list, &fan_group->slot_list);
 
    return 0;
+}
+
+static int scd_fan_group_add(struct scd_context *ctx, u32 addr, u32 platform_id,
+                             u32 fan_count)
+{
+   struct scd_fan_group *fan_group;
+   const struct fan_platform *platform;
+   size_t i;
+   int err;
+   u32 reg;
+
+   platform = fan_platform_find(platform_id);
+   if (!platform) {
+      scd_warn("no known fan group for platform id=%u", platform_id);
+      return -EINVAL;
+   }
+
+   if (fan_count > platform->max_fan_count) {
+      scd_warn("the fan num argument is larger than %zu", platform->max_fan_count);
+      return -EINVAL;
+   }
+
+   reg = scd_read_register(ctx->pdev, addr + platform->platform_offset);
+   if ((reg & platform->mask_platform) != platform_id) {
+      scd_warn("fan group for platform id=%u does not match hardware", platform_id);
+      return -EINVAL;
+   }
+
+   fan_group = kzalloc(sizeof(*fan_group), GFP_KERNEL);
+   if (!fan_group) {
+      return -ENOMEM;
+   }
+
+   scnprintf(fan_group->name, FIELD_SIZEOF(typeof(*fan_group), name),
+             "scd_fan_p%u", platform_id);
+   fan_group->ctx = ctx;
+   fan_group->addr_base = addr;
+   fan_group->fan_count = fan_count;
+   fan_group->platform = platform;
+   INIT_LIST_HEAD(&fan_group->slot_list);
+
+   for (i = 0; i < fan_count; ++i) {
+      err = scd_fan_add(fan_group, i);
+      if (err)
+         goto fail;
+   }
+
+   err = scd_fan_group_register(ctx, fan_group);
+   if (err)
+      goto fail;
+
+   list_add_tail(&fan_group->list, &ctx->fan_group_list);
+
+   return 0;
+
+fail:
+   scd_fan_group_unregister(ctx, fan_group);
+   kfree(fan_group);
+   return err;
 }
 
 #define PARSE_INT_OR_RETURN(Buf, Tmp, Type, Ptr)        \
@@ -1452,6 +1919,31 @@ static ssize_t parse_new_object_reset(struct scd_context *ctx,
    return count;
 }
 
+// new_fan_group <addr> <platform> <fan_count>
+static ssize_t parse_new_object_fan_group(struct scd_context *ctx,
+                                          char *buf, size_t count)
+{
+   const char *tmp;
+   u32 addr;
+   u32 platform_id;
+   u32 fan_count;
+   int res;
+
+   if (!buf)
+      return -EINVAL;
+
+   PARSE_ADDR_OR_RETURN(&buf, tmp, u32, &addr, ctx->res_size);
+   PARSE_INT_OR_RETURN(&buf, tmp, u32, &platform_id);
+   PARSE_INT_OR_RETURN(&buf, tmp, u32, &fan_count);
+   PARSE_END_OR_RETURN(&buf, tmp);
+
+   res = scd_fan_group_add(ctx, addr, platform_id, fan_count);
+   if (res)
+      return res;
+
+   return count;
+}
+
 // new_gpio <addr> <name> <bitpos> <ro> <activeLow>
 static ssize_t parse_new_object_gpio(struct scd_context *ctx,
                                      char *buf, size_t count)
@@ -1487,13 +1979,14 @@ static struct {
    const char *name;
    new_object_parse_func func;
 } funcs[] = {
-   { "master", parse_new_object_master },
-   { "led",    parse_new_object_led },
-   { "osfp",   parse_new_object_osfp },
-   { "qsfp",   parse_new_object_qsfp },
-   { "sfp",    parse_new_object_sfp },
-   { "reset",  parse_new_object_reset },
-   { "gpio",   parse_new_object_gpio },
+   { "master",    parse_new_object_master },
+   { "led",       parse_new_object_led },
+   { "fan_group", parse_new_object_fan_group},
+   { "osfp",      parse_new_object_osfp },
+   { "qsfp",      parse_new_object_qsfp },
+   { "sfp",       parse_new_object_sfp },
+   { "reset",     parse_new_object_reset },
+   { "gpio",      parse_new_object_gpio },
    { NULL, NULL }
 };
 
@@ -1716,6 +2209,7 @@ static int scd_ext_hwmon_probe(struct pci_dev *pdev, size_t mem_len)
    INIT_LIST_HEAD(&ctx->gpio_list);
    INIT_LIST_HEAD(&ctx->reset_list);
    INIT_LIST_HEAD(&ctx->xcvr_list);
+   INIT_LIST_HEAD(&ctx->fan_group_list);
 
    kobject_get(&pdev->dev.kobj);
 
@@ -1768,6 +2262,7 @@ static void scd_ext_hwmon_remove(struct pci_dev *pdev)
    scd_gpio_remove_all(ctx);
    scd_reset_remove_all(ctx);
    scd_xcvr_remove_all(ctx);
+   scd_fan_group_remove_all(ctx);
    scd_unlock(ctx);
 
    module_lock();

@@ -206,6 +206,9 @@ class ScdKernelDriver(PciKernelDriver):
       for addr, info in scd.masters.items():
          data += ["master %#x %d %d" % (addr, info['id'], info['bus'])]
 
+      for addr, platform, num in scd.fanGroups:
+         data += ["fan_group %#x %u %u" % (addr, platform, num)]
+
       for addr, name in scd.leds:
          data += ["led %#x %s" % (addr, name)]
 
@@ -451,6 +454,7 @@ class Scd(PciComponent):
       self.masters = OrderedDict()
       self.mmapReady = False
       self.interrupts = []
+      self.fanGroups = []
       self.leds = []
       self.gpios = []
       self.powerCycles = []
@@ -510,6 +514,9 @@ class Scd(PciComponent):
       addrs = range(addr, addr + (count + 1) * spacing, spacing)
       for i, addr in enumerate(addrs, 0):
          self.addSmbusMaster(addr, i, bus)
+
+   def addFanGroup(self, addr, platform, num):
+      self.fanGroups += [(addr, platform, num)]
 
    def addLed(self, addr, name):
       self.leds += [(addr, name)]
