@@ -169,6 +169,12 @@ class Ucd(I2cComponent):
 
    def _getFaultNum(self, reg):
       causes = []
+
+      if len(reg) < 11:
+         logging.debug('invalid unknown cause %s' % reg)
+         causes.append(UcdReloadCause('unknown'))
+         return causes
+
       msecs = reg[1] << 24 | reg[2] << 16 | reg[3] << 8 | reg[4]
       fid = reg[5] << 24 | reg[6] << 16 | reg[7] << 8 | reg[8]
       paged = (fid >> 31) & 0x1
