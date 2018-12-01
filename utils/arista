@@ -86,8 +86,6 @@ def forkForLateInitialization(platform):
             os._exit(0)
 
 def doSetup(args, platform):
-   checkRootPermissions()
-
    if args.debug:
       utils.debug = True
 
@@ -114,8 +112,6 @@ def doSetup(args, platform):
          platform.waitForIt()
 
 def doClean(args, platform):
-   checkRootPermissions()
-
    if args.reset:
       logging.debug('putting devices in reset')
       platform.resetIn()
@@ -192,18 +188,18 @@ def doSysEeprom(args):
       print('%s: %s' % (key, value))
 
 def doReboot(args, platform):
-   checkRootPermissions()
    import arista.utils.sonic_reboot
    arista.utils.sonic_reboot.reboot(platform)
 
 def doRebootCause(args, platform):
-   checkRootPermissions()
-   causes = platform.getReloadCauses(clear=args.clear)
+   causes = platform.getReloadCauses(clear=True)
    if not causes:
       print('No reboot cause detected')
       return
+   print('Found reboot cause(s):')
+   print('----------------------')
    for cause in causes:
-      print(' -', cause)
+      print(cause)
 
 def todo(*args, **kwargs):
    raise NotImplementedError
@@ -264,8 +260,6 @@ def parseArgs():
                          'before the watchdog triggers')
    sub = subparsers.add_parser('reboot', help='perform a cold reboot for platform')
    sub = subparsers.add_parser('reboot-cause', help='reload cause information')
-   sub.add_argument('-c', '--clear', action='store_true',
-                    help='clear the reload cause information')
 
    args = parser.parse_args()
    if args.action == 'help':
@@ -302,6 +296,7 @@ def main():
    if args.action in generic_commands:
       generic_commands[args.action](args)
    elif args.action in platform_commands:
+      checkRootPermissions()
       platform_commands[args.action](args, getPlatform(args.platform))
    else:
       logging.error("Command %s doesn't exists", args.command)

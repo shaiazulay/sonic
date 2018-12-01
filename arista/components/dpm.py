@@ -2,11 +2,13 @@ from __future__ import with_statement
 
 import datetime
 import logging
+import re
 from collections import namedtuple
 
+from ..core.config import Config
 from ..core.driver import Driver
 from ..core.inventory import ReloadCause
-from ..core.utils import SMBus, inSimulation
+from ..core.utils import SMBus, JsonStoredData, inSimulation
 
 from .common import I2cComponent
 
@@ -14,11 +16,24 @@ UcdGpi = namedtuple( 'UcdGpi', [ 'bit' ] )
 UcdMon = namedtuple( 'UcdMon', [ 'val' ] )
 
 class UcdReloadCause(ReloadCause):
-   def __init__(self, name):
+   def __init__(self, name=None, time=None):
       self.name = name
+      self.time = time
 
    def reason(self):
+      return '%s%s' % (self.name, ', time: %s' % self.time if self.time else '')
+
+   def getName(self):
       return self.name
+
+   def getTime(self):
+      return self.time
+
+   def setName(self, name):
+      self.name = name
+
+   def setTime(self, time):
+      self.time = time
 
 class UcdI2cDevDriver(Driver):
    def __init__(self, ucd):
@@ -116,6 +131,8 @@ class Ucd(I2cComponent):
          except Exception:
             logging.error('%s: failed to set run time clock', self)
 
+         self.getReloadCauses(clear=True)
+
    def _setRunTimeClock(self, drv):
       size = drv.bus.read_byte_data(self.addr.address, self.RUN_TIME_CLOCK)
       diff = datetime.datetime.now() - self.oldestTime
@@ -135,7 +152,8 @@ class Ucd(I2cComponent):
 
    def _getRunTimeClock(self, drv):
       size = drv.bus.read_byte_data(self.addr.address, self.RUN_TIME_CLOCK)
-      res = drv.bus.read_i2c_block_data(self.addr.address, self.RUN_TIME_CLOCK, size+1)
+      res = drv.bus.read_i2c_block_data(self.addr.address, self.RUN_TIME_CLOCK,
+                                        size+1)
       msecs = res[4] | (res[3] << 8) | (res[2] << 16) | (res[1] << 24)
       days = res[8] | (res[7] << 8) | (res[6] << 16) | (res[5] << 24)
       return self.oldestTime + datetime.timedelta(days=days, milliseconds=msecs)
@@ -158,24 +176,29 @@ class Ucd(I2cComponent):
       page = ((fid >> 23) & 0xf) + 1
       days = fid & 0x7fffff
       value = reg[10] << 8 | reg[9]
-      logging.debug('paged=%d type=%d page=%d days=%d msecs=%d value=0x%04x',
-                    paged, ftype, page, days, msecs, value)
+      days = int(days)
+      secs = int(msecs / 1000)
+      usecs = int((msecs - secs * 1000) * 1000)
+      time = self.oldestTime + datetime.timedelta(days=days, seconds=secs,
+                                                  microseconds=usecs)
+      logging.debug('paged=%d type=%d page=%d value=0x%04x time=%s',
+                    paged, ftype, page, value, time)
 
       if not paged and ftype == 9:
          # this is a Gpi
          for name, typ in self.causes.items():
             if isinstance(typ, UcdGpi) and typ.bit == page:
                logging.debug('found: %s', name)
-               causes.append(UcdReloadCause(name))
+               causes.append(UcdReloadCause(name, str(time)))
       elif paged and ftype in [ 0, 1 ]:
          # this is a Mon
          for name, typ in self.causes.items():
             if isinstance(typ, UcdMon) and typ.val == page:
                logging.debug('found: %s', name)
-               causes.append(UcdReloadCause(name))
+               causes.append(UcdReloadCause(name, str(time)))
       else:
          logging.debug('unknown cause')
-         causes.append(UcdReloadCause('unknown'))
+         causes.append(UcdReloadCause('unknown', str(time)))
 
       return causes
 
@@ -199,16 +222,21 @@ class Ucd(I2cComponent):
       return causes
 
    def getReloadCauses(self, clear=False):
-      if not self.causes:
+      if not self.causes or inSimulation():
          return []
 
-      with self.drivers[0] as drv:
-         causes = self._getReloadCauses(drv)
-         if clear:
-            logging.debug('clearing faults')
-            drv.clearFaults()
+      rebootCauses = JsonStoredData('%s_%s' % (Config().reboot_cause_file, self.addr))
+      if not rebootCauses.exist():
+         with self.drivers[0] as drv:
+            causes = self._getReloadCauses(drv)
+            if clear:
+               logging.debug('clearing faults')
+               drv.clearFaults()
+            if not causes:
+               causes = [UcdReloadCause('unknown')]
+         rebootCauses.writeList(causes)
 
-      return causes
+      return rebootCauses.readList(UcdReloadCause)
 
 class Ucd90160(Ucd):
    pass

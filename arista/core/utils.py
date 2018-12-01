@@ -1,4 +1,5 @@
 import fcntl
+import json
 import logging
 import mmap
 import os
@@ -189,6 +190,32 @@ class StoredData(object):
             'File %s of type %s not found!' % (self.name, self.lifespan)
       with open(self.path, 'r') as tmpFile:
          return tmpFile.read()
+
+class JsonStoredData(StoredData):
+   @staticmethod
+   def _createObj(data, dataType):
+      obj = dataType.__new__(dataType)
+      obj.__dict__.update(data)
+      return obj
+
+   def write(self, data, mode='a+'):
+      super(JsonStoredData, self).write(json.dumps(data, indent=3,
+                                                   separators=(',', ': ')), mode)
+
+   def read(self):
+      return json.loads(super(JsonStoredData, self).read())
+
+   def readObj(self, dataType):
+      return self._createObj(self.read(), dataType)
+
+   def readList(self, dataType):
+      return [self._createObj(data, dataType) for data in self.read()]
+
+   def writeObj(self, data):
+      self.write(data.__dict__)
+
+   def writeList(self, data):
+      self.write([item.__dict__ for item in data])
 
 cmdlineDict = {}
 def getCmdlineDict():

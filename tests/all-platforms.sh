@@ -42,7 +42,6 @@ for platform in $($script $extra_args platforms | awk '/ - / { print $2 }'); do
    try_execute -p $platform clean
    try_execute -p $platform dump
    try_execute -p $platform reboot-cause
-   try_execute -p $platform reboot-cause --clear
 
    try_execute -p $platform watchdog --status
    try_execute -p $platform watchdog --arm
