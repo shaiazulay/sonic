@@ -78,13 +78,14 @@ class Smartsville(Platform):
             name = "qsfp%d_%d" % (xcvrId, laneId)
             scd.addLed(addr, name)
             self.inventory.addXcvrLed(xcvrId, name)
-            addr += 0x40
+            addr += 0x10
+
+      addr = 0x6900
       for xcvrId in self.osfpRange:
-         for laneId in incrange(1, 4):
-            name = "osfp%d_%d" % (xcvrId, laneId)
-            scd.addLed(addr, name)
-            self.inventory.addXcvrLed(xcvrId, name)
-            addr += 0x40
+         name = "osfp%d" % xcvrId
+         scd.addLed(addr, name)
+         self.inventory.addXcvrLed(xcvrId, name)
+         addr += 0x40
 
       intrRegs = [
          scd.createInterrupt(addr=0x3000, num=0),
