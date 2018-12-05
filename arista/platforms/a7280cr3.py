@@ -13,8 +13,8 @@ class Smartsville(Platform):
    def __init__(self):
       super(Smartsville, self).__init__()
 
-      self.qsfpRange = incrange(1, 32)
-      self.osfpRange = incrange(33, 36)
+      self.qsfpRange = incrange(1, 16) + incrange(21,36)
+      self.osfpRange = incrange(17, 20)
 
       self.inventory.addPorts(qsfps=self.qsfpRange, osfps=self.osfpRange)
 
@@ -95,15 +95,15 @@ class Smartsville(Platform):
 
       addr = 0xA010
       bus = 8
-      for xcvrId in self.qsfpRange:
-         intr = intrRegs[1].getInterruptBit(xcvrId - self.qsfpRange[0])
+      for index, xcvrId in enumerate(self.qsfpRange):
+         intr = intrRegs[1].getInterruptBit(index)
          self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
          xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1
-      for xcvrId in self.osfpRange:
-         intr = intrRegs[2].getInterruptBit(xcvrId - self.osfpRange[0])
+      for index, xcvrId in enumerate(self.osfpRange):
+         intr = intrRegs[2].getInterruptBit(index)
          self.inventory.addInterrupt('osfp%d' % xcvrId, intr)
          xcvr = scd.addOsfp(addr, xcvrId, bus, interruptLine=intr)
          self.inventory.addXcvr(xcvr)
