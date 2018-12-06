@@ -102,7 +102,7 @@ class Alhambra(Platform):
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.addComponents([
          I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
-                            'sys/class/hwmon/hwmon3'),
+                            '/sys/class/hwmon/hwmon3'),
          Ucd90160(cpld.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
          Ucd90120A(cpld.i2cAddr(10, 0x4e), priority=Priority.BACKGROUND, causes={
             'powerloss': UcdGpi(1),
@@ -111,8 +111,8 @@ class Alhambra(Platform):
             'watchdog': UcdGpi(5),
          }),
          I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'rook_cpld',
-                            'sys/class/hwmon/hwmon4'),
+                            '/sys/class/hwmon/hwmon4'),
          I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
          I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73',
-                            'sys/class/hwmon/hwmon5')
+                            '/sys/class/hwmon/hwmon5')
       ])
