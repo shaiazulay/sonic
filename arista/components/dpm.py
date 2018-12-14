@@ -186,3 +186,5 @@ class Ucd90120(Ucd):
 class Ucd90120A(Ucd):
    pass
 
+class Ucd90320(Ucd):
+   hasGpi = False
