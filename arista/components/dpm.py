@@ -1,5 +1,6 @@
 from __future__ import with_statement
 
+import datetime
 import logging
 from collections import namedtuple
 
@@ -83,7 +84,7 @@ class UcdI2cDevDriver(Driver):
       return res
 
 class Ucd(I2cComponent):
-
+   RUN_TIME_CLOCK = 0xd7
    LOGGED_FAULTS = 0xea
    LOGGED_FAULT_DETAIL_INDEX = 0xeb
    LOGGED_FAULT_DETAIL = 0xec
@@ -98,6 +99,7 @@ class Ucd(I2cComponent):
       super(Ucd, self).__init__(addr, **kwargs)
       self.addDriver(UcdI2cDevDriver)
       self.causes = causes or {}
+      self.oldestTime = datetime.datetime(1970, 1, 1)
 
    def setup(self):
       with self.drivers[0] as drv:
@@ -106,6 +108,37 @@ class Ucd(I2cComponent):
             logging.info('%s version: %s', self, serial)
          except Exception:
             logging.error('%s: failed to version information', self)
+
+         # DPM run time clock needs to be updated
+         try:
+            self._setRunTimeClock(drv)
+            logging.info('%s time: %s', self, self._getRunTimeClock(drv))
+         except Exception:
+            logging.error('%s: failed to set run time clock', self)
+
+   def _setRunTimeClock(self, drv):
+      size = drv.bus.read_byte_data(self.addr.address, self.RUN_TIME_CLOCK)
+      diff = datetime.datetime.now() - self.oldestTime
+      msecsInt = int(diff.seconds * 1000 + diff.microseconds / 1000)
+      daysInt = diff.days
+      msecsByte1 = (msecsInt >> 24) & 0xff
+      msecsByte2 = (msecsInt >> 16) & 0xff
+      msecsByte3 = (msecsInt >> 8) & 0xff
+      msecsByte4 = msecsInt & 0xff
+      daysByte1 = (daysInt >> 24) & 0xff
+      daysByte2 = (daysInt >> 16) & 0xff
+      daysByte3 = (daysInt >> 8) & 0xff
+      daysByte4 = daysInt & 0xff
+      data = [size, msecsByte1, msecsByte2, msecsByte3, msecsByte4,
+              daysByte1, daysByte2, daysByte3, daysByte4]
+      drv.bus.write_i2c_block_data(self.addr.address, self.RUN_TIME_CLOCK, data)
+
+   def _getRunTimeClock(self, drv):
+      size = drv.bus.read_byte_data(self.addr.address, self.RUN_TIME_CLOCK)
+      res = drv.bus.read_i2c_block_data(self.addr.address, self.RUN_TIME_CLOCK, size+1)
+      msecs = res[4] | (res[3] << 8) | (res[2] << 16) | (res[1] << 24)
+      days = res[8] | (res[7] << 8) | (res[6] << 16) | (res[5] << 24)
+      return self.oldestTime + datetime.timedelta(days=days, milliseconds=msecs)
 
    def _getGpiFaults(self, reg):
       causes = []
