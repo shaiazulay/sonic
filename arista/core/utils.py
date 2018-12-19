@@ -8,6 +8,9 @@ from datetime import datetime
 from functools import wraps
 from struct import pack, unpack
 
+FLASH_MOUNT = '/host'
+TMPFS_MOUNT = '/run'
+
 class MmapResource(object):
    """Resource implementation for a directly-mapped memory region."""
    def __init__(self, path):
@@ -162,6 +165,30 @@ class NoopObj(object):
       return self.noop(attr)
 
 CMDLINE_PATH = '/proc/cmdline'
+
+class StoredData(object):
+   def __init__(self, name, lifespan='temporary'):
+      self.name = name
+      self.lifespan = lifespan
+      self.path = os.path.join(TMPFS_MOUNT, name) if lifespan == 'temporary' \
+            else os.path.join(FLASH_MOUNT, name)
+
+   def exist(self):
+      return os.path.isfile(self.path)
+
+   def write(self, data, mode='a+'):
+      assert os.path.isdir(os.path.dirname(self.path)), \
+            'Base directory for %s file %s not found!' % (self.lifespan, self.name)
+      if not os.path.isfile(self.path):
+         logging.debug('Creating %s file %s', self.lifespan, self.name)
+      with open(self.path, mode) as tmpFile:
+         tmpFile.write(data)
+
+   def read(self):
+      assert os.path.isfile(self.path), \
+            'File %s of type %s not found!' % (self.name, self.lifespan)
+      with open(self.path, 'r') as tmpFile:
+         return tmpFile.read()
 
 cmdlineDict = {}
 def getCmdlineDict():
