@@ -73,7 +73,8 @@ MODULE_PARM_DESC(poll_interval, "interval between two polling in ms");
 static struct workqueue_struct *rook_cpld_workqueue;
 
 enum cpld_type {
-   ROOK_CPLD = 0,
+   LA_CPLD = 0,
+   TEHAMA_CPLD = 1,
 };
 
 struct cpld_info {
@@ -86,10 +87,17 @@ struct cpld_info {
 
 // these info could also be deducted from the id register
 static struct cpld_info cpld_infos[] = {
-   [ROOK_CPLD] = {
-      .id = ROOK_CPLD,
+   [LA_CPLD] = {
+      .id = LA_CPLD,
       .fan_count = 4,
       .rotors = 1,
+      .pulses = 2,
+      .hz = 100000,
+   },
+   [TEHAMA_CPLD] = {
+      .id = TEHAMA_CPLD,
+      .fan_count = 5,
+      .rotors = 2,
       .pulses = 2,
       .hz = 100000,
    },
@@ -912,7 +920,8 @@ static int cpld_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id cpld_id[] = {
-   { "rook_cpld", ROOK_CPLD },
+   { "la_cpld", LA_CPLD },
+   { "tehama_cpld", TEHAMA_CPLD },
    {}
 };
 

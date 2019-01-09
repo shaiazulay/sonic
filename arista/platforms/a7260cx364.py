@@ -112,7 +112,7 @@ class Gardena(Platform):
             'watchdog': UcdGpi(3),
             'overtemp': UcdGpi(4),
          }),
-         I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'rook_cpld',
+         I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'la_cpld',
                             '/sys/class/hwmon/hwmon4'),
          I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
          I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73'),
