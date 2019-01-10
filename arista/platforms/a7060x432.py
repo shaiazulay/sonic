@@ -120,7 +120,7 @@ class BlackhawkO(Platform):
             'watchdog': UcdGpi(5),
             'reboot': UcdGpi(7),
          }),
-         I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'rook_cpld',
+         I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'tehama_cpld',
                             '/sys/class/hwmon/hwmon2'),
          I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
          I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73'),
