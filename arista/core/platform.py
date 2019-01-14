@@ -18,6 +18,7 @@ platforms = {}
 syseeprom = None
 
 host_prefdl_path = '/host/.system-prefdl'
+host_prefdl_path_bin = '/host/.system-prefdl-bin'
 fmted_prefdl_path = '/etc/sonic/.syseeprom'
 
 def formatPrefdlData(data):
@@ -48,6 +49,14 @@ def readPrefdl():
       with open(fmted_prefdl_path) as fp:
          logging.debug('reading system eeprom from %s', fmted_prefdl_path)
          return prefdl.PreFdlFromFile(fp)
+
+   if os.path.exists(host_prefdl_path_bin):
+      with open(host_prefdl_path_bin) as fp:
+         logging.debug('reading bin system eeprom from %s',
+                       host_prefdl_path_bin)
+         pfdl = prefdl.decode(fp)
+         writeFormattedPrefdl(pfdl, fmted_prefdl_path)
+         return pfdl
 
    if os.path.exists(host_prefdl_path):
       with open(host_prefdl_path) as fp:
