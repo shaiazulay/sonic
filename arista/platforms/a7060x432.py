@@ -13,10 +13,10 @@ class BlackhawkO(Platform):
    def __init__(self):
       super(BlackhawkO, self).__init__()
 
-      self.qsfpRange = incrange(1, 32)
+      self.osfpRange = incrange(1, 32)
       self.sfpRange = incrange(33, 34)
 
-      self.inventory.addPorts(qsfps=self.qsfpRange, sfps=self.sfpRange)
+      self.inventory.addPorts(osfps=self.osfpRange, sfps=self.sfpRange)
 
       self.addDriver(KernelDriver, 'rook-fan-cpld')
       self.addDriver(KernelDriver, 'rook-led-driver')
@@ -71,8 +71,8 @@ class BlackhawkO(Platform):
       ])
 
       addr = 0x6100
-      for xcvrId in self.qsfpRange:
-         name = "qsfp%d" % xcvrId
+      for xcvrId in self.osfpRange:
+         name = "osfp%d" % xcvrId
          scd.addLed(addr, name)
          self.inventory.addXcvrLed(xcvrId, name)
          addr += 0x40
@@ -91,17 +91,17 @@ class BlackhawkO(Platform):
       ]
 
       addr = 0xA010
-      bus = 8
-      for xcvrId in sorted(self.qsfpRange):
+      bus = 16
+      for xcvrId in sorted(self.osfpRange):
          intr = intrRegs[1].getInterruptBit(xcvrId - 1)
-         self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
+         self.inventory.addInterrupt('osfp%d' % xcvrId, intr)
+         xcvr = scd.addOsfp(addr, xcvrId, bus, interruptLine=intr)
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1
 
       addr = 0xA210
-      bus = 40
+      bus = 48
       for xcvrId in sorted(self.sfpRange):
          xcvr = scd.addSfp(addr, xcvrId, bus)
          self.inventory.addXcvr(xcvr)

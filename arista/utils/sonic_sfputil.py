@@ -26,6 +26,10 @@ def getSfpUtil():
             return inventory.portEnd
 
         @property
+        def osfp_ports(self):
+            return inventory.osfpRange
+
+        @property
         def qsfp_ports(self):
             return inventory.qsfpRange
 
