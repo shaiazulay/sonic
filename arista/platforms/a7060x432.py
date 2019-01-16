@@ -30,11 +30,11 @@ class BlackhawkO(Platform):
       self.inventory.addWatchdog(scd.createWatchdog())
 
       scd.addComponents([
-         I2cKernelComponent(scd.i2cAddr(0, 0x4d), 'max6581',
+         I2cKernelComponent(scd.i2cAddr(9, 0x4d), 'max6581',
                             '/sys/class/hwmon/hwmon1'),
-         I2cKernelComponent(scd.i2cAddr(3, 0x58), 'pmbus',
+         I2cKernelComponent(scd.i2cAddr(12, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
-         I2cKernelComponent(scd.i2cAddr(4, 0x58), 'pmbus',
+         I2cKernelComponent(scd.i2cAddr(13, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
       ])
 
@@ -113,7 +113,8 @@ class BlackhawkO(Platform):
 
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.addComponents([
-         I2cKernelComponent(cpld.i2cAddr(0, 0x4d), 'max6581'),
+         I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
+                            '/sys/class/hwmon/hwmon2'),
          Ucd90320(cpld.i2cAddr(10, 0x34), priority=Priority.BACKGROUND, causes={
             'overtemp': UcdGpi(1),
             'powerloss': UcdGpi(3),
@@ -121,9 +122,7 @@ class BlackhawkO(Platform):
             'reboot': UcdGpi(7),
          }),
          I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'tehama_cpld',
-                            '/sys/class/hwmon/hwmon2'),
-         I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
-         I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73'),
+                            '/sys/class/hwmon/hwmon3')
       ])
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
