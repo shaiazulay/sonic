@@ -1,7 +1,7 @@
 [Unit]
 Description=Disable the watchdog after boot
 After=swss.service
-After=opennsl-modules-4.9.0-8-2-amd64.service
+After=opennsl-modules.service
 ConditionKernelCommandLine=sid=Gardena
 
 [Service]
