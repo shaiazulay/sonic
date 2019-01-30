@@ -116,3 +116,5 @@ class Alhambra(Platform):
          I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73',
                             '/sys/class/hwmon/hwmon5')
       ])
+
+      self.inventory.addPowerCycle(cpld.createPowerCycle())

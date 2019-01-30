@@ -115,7 +115,8 @@ class Gardena(Platform):
          I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'la_cpld',
                             '/sys/class/hwmon/hwmon4'),
          I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
-         I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73'),
+         I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73',
+                            '/sys/class/hwmon/hwmon5')
       ])
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
