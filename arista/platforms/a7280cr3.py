@@ -13,8 +13,8 @@ class Smartsville(Platform):
    def __init__(self):
       super(Smartsville, self).__init__()
 
-      self.qsfpRange = incrange(1, 16) + incrange(21,36)
-      self.osfpRange = incrange(17, 20)
+      self.qsfpRange = incrange(1, 32)
+      self.osfpRange = incrange(33, 36)
 
       self.inventory.addPorts(qsfps=self.qsfpRange, osfps=self.osfpRange)
 
