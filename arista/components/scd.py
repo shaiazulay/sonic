@@ -9,7 +9,7 @@ from collections import OrderedDict, namedtuple
 from ..core.config import Config
 from ..core.driver import i2cBusFromName
 from ..core.inventory import Interrupt, PowerCycle, Psu, Watchdog, Xcvr, Reset
-from ..core.types import I2cAddr
+from ..core.types import I2cAddr, SysfsPath
 from ..core.utils import MmapResource, inSimulation, simulateWith, writeConfig
 
 from .common import PciComponent, KernelDriver, PciKernelDriver, I2cKernelComponent
@@ -26,15 +26,14 @@ class ScdI2cAddr(I2cAddr):
    def bus(self):
       return self.scd_.i2cOffset + self.bus_
 
-class ScdSysfsGroup(object):
-   def __init__(self, objNum, typeStr, driver):
-      self.driver = driver
+class ScdSysfsGroup(SysfsPath):
+   def __init__(self, objNum, typeStr, sysfsPath):
       self.prefix = '%s%d_' % (typeStr, objNum)
-      self.prefixPath = os.path.join(driver.getSysfsPath(), self.prefix)
+      self.prefixPath = os.path.join(sysfsPath, self.prefix)
 
 class ScdSysfsRW(ScdSysfsGroup):
-   def __init__(self, objNum, typeStr, driver):
-      ScdSysfsGroup.__init__(self, objNum, typeStr, driver)
+   def __init__(self, objNum, typeStr, sysfsPath):
+      ScdSysfsGroup.__init__(self, objNum, typeStr, sysfsPath)
 
    def getSysfsGpio(self, name):
       return '%s%s' % (self.prefixPath, name)
@@ -59,11 +58,10 @@ class ScdSysfsRW(ScdSysfsGroup):
       return True
 
 class ScdKernelXcvr(Xcvr):
-   def __init__(self, portNum, xcvrType, addr, driver, sysfsRWClass,
-                interruptLine=None):
+   def __init__(self, portNum, xcvrType, addr, sysfsDir, interruptLine=None):
       Xcvr.__init__(self, portNum, xcvrType, addr)
       typeStr = Xcvr.typeStr(xcvrType)
-      self.rw = sysfsRWClass(portNum, typeStr, driver)
+      self.rw = ScdSysfsRW(portNum, typeStr, sysfsDir)
       self.interruptLine = interruptLine
       self.reset = None if xcvrType == Xcvr.SFP else ScdXcvrReset(self, typeStr)
 
@@ -151,7 +149,8 @@ class ScdKernelPsu(Psu):
 
 class ScdKernelDriver(PciKernelDriver):
    def __init__(self, scd):
-      super(ScdKernelDriver, self).__init__(scd, 'scd-hwmon')
+      super(ScdKernelDriver, self).__init__(scd.addr, 'scd-hwmon')
+      self.scd = scd
 
    def writeComponents(self, components, filename):
       PAGE_SIZE = 4096
@@ -191,16 +190,16 @@ class ScdKernelDriver(PciKernelDriver):
 
    def refresh(self):
       # reload i2c bus cache
-      masterName = "SCD %s SMBus master %d bus %d" % (self.component.addr, 0, 0)
+      masterName = "SCD %s SMBus master %d bus %d" % (self.addr, 0, 0)
       if not inSimulation():
-         self.component.i2cOffset = i2cBusFromName(masterName, force=True)
+         self.scd.i2cOffset = i2cBusFromName(masterName, force=True)
       else:
-         self.component.i2cOffset = 2
+         self.scd.i2cOffset = 2
 
    def setup(self):
       super(ScdKernelDriver, self).setup()
 
-      scd = self.component
+      scd = self.scd
       data = []
 
       for addr, info in scd.masters.items():
@@ -256,13 +255,13 @@ class ScdKernelDriver(PciKernelDriver):
       super(ScdKernelDriver, self).finish()
 
    def resetSim(self, value):
-      resets = self.component.getSysfsResetNameList()
+      resets = self.scd.getSysfsResetNameList()
       logging.debug('resetting devices %s', resets)
 
    @simulateWith(resetSim)
    def reset(self, value):
       path = self.getSysfsPath()
-      for reset in self.component.getSysfsResetNameList():
+      for reset in self.scd.getSysfsResetNameList():
          with open(os.path.join(path, reset), 'w') as f:
             f.write('1' if value else '0')
 
@@ -433,7 +432,7 @@ class ScdInterruptRegister(object):
    def setup(self):
       if not Config().init_irq:
          return
-      writeConfig(self.scd.getSysfsPath(), OrderedDict([
+      writeConfig(self.scd.pciSysfs, OrderedDict([
          ('interrupt_mask_read_offset%s' % self.num, str(self.readAddr)),
          ('interrupt_mask_set_offset%s' % self.num, str(self.setAddr)),
          ('interrupt_mask_clear_offset%s' % self.num, str(self.clearAddr)),
@@ -449,8 +448,8 @@ class Scd(PciComponent):
    def __init__(self, addr, **kwargs):
       super(Scd, self).__init__(addr)
       self.addDriver(KernelDriver, 'scd')
-      self.addDriver(ScdKernelDriver)
-      self.rwCls = ScdSysfsRW
+      self.addDriver(ScdKernelDriver, self)
+      self.pciSysfs = self.addr.getSysfsPath()
       self.masters = OrderedDict()
       self.mmapReady = False
       self.interrupts = []
@@ -465,7 +464,6 @@ class Scd(PciComponent):
       self.xcvrs = []
       self.uioMap = {}
       self.resets = []
-      self.path = self.getSysfsPath()
       self.i2cOffset = 0
 
    def createPowerCycle(self, reg=0x7000, wr=0xDEAD):
@@ -492,7 +490,7 @@ class Scd(PciComponent):
             # This codepath is unlikely to be used
             drv.setup()
          self.mmapReady = True
-      return MmapResource(os.path.join(self.path, "resource0"))
+      return MmapResource(os.path.join(self.pciSysfs, "resource0"))
 
    def i2cAddr(self, bus, addr):
       return ScdI2cAddr(self, bus, addr)
@@ -525,12 +523,12 @@ class Scd(PciComponent):
       self.leds += leds
 
    def addReset(self, gpio):
-      scdReset = ScdReset(self.path, gpio)
+      scdReset = ScdReset(self.pciSysfs, gpio)
       self.resets += [scdReset]
       return scdReset
 
    def addResets(self, gpios):
-      scdResets = [ScdReset(self.path, gpio) for gpio in gpios]
+      scdResets = [ScdReset(self.pciSysfs, gpio) for gpio in gpios]
       self.resets += scdResets
       return {reset.getName(): reset for reset in scdResets}
 
@@ -542,8 +540,8 @@ class Scd(PciComponent):
 
    def _addXcvr(self, xcvrId, xcvrType, bus, interruptLine):
       devAddr = self.i2cAddr(bus, Xcvr.ADDR)
-      xcvr = ScdKernelXcvr(xcvrId, xcvrType, devAddr, self.drivers[1],
-                           self.rwCls, interruptLine=interruptLine)
+      xcvr = ScdKernelXcvr(xcvrId, xcvrType, devAddr, self.pciSysfs,
+                           interruptLine=interruptLine)
       # XXX: An abstraction should be added for the xcvr driver as it assumes kernel
       self.addComponent(I2cKernelComponent(devAddr, 'sff8436'))
       self.addBusTweak(devAddr)
@@ -563,7 +561,7 @@ class Scd(PciComponent):
       return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine)
 
    def createPsu(self, psuId, presenceGpios=['present'], statusGpios=['status', 'ac_status']):
-      sysfs = self.rwCls(psuId, 'psu', self.drivers[1])
+      sysfs = ScdSysfsRW(psuId, 'psu', self.pciSysfs)
       presenceGpios = presenceGpios[:] if presenceGpios else []
       statusGpios = statusGpios[:] if statusGpios else []
       return ScdKernelPsu(psuId, sysfs, presenceGpios, statusGpios)

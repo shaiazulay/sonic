@@ -1,7 +1,6 @@
 from collections import defaultdict
 
-from arista.utils.sonic_utils import parsePortConfig
-from ..core import platform
+from .sonic_utils import getInventory, parsePortConfig
 
 # DO NOT REMOVE THIS LINE. Needed to import all the platform info.
 import arista.platforms
@@ -22,7 +21,7 @@ class LedControl(led_control_base.LedControlBase):
       self.portMapping = parsePortConfig()
       self.portSysfsMapping = defaultdict(list)
 
-      inventory = platform.getPlatform().getInventory()
+      inventory = getInventory()
       for port, names in inventory.xcvrLeds.items():
          for name in names:
             self.portSysfsMapping[port].append(self.LED_SYSFS_PATH.format(name))

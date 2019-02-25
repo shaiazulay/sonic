@@ -125,6 +125,25 @@ class Retrying:
 
       return Iterator(self.interval, self.delay, self.maxAttempts)
 
+class FileWaiter(object):
+   def __init__(self, waitFile=None, waitTimeout=None):
+      self.waitFile = waitFile
+      self.waitTimeout = float(waitTimeout) if waitTimeout else 1.0
+
+   def waitFileReady(self):
+      if not self.waitFile:
+         return
+
+      logging.debug('Waiting file %s.', self.waitFile)
+
+      for r in Retrying(interval=self.waitTimeout):
+         if os.path.exists(self.waitFile):
+            break
+         logging.debug('Waiting file %s attempt %d.', self.waitFile, r.attempt)
+
+      if not os.path.exists(self.waitFile):
+         logging.error('Waiting file %s failed.', self.waitFile)
+
 class FileLock:
    def __init__(self, lock_file, auto_release=False):
       self.f = open(lock_file, 'w')

@@ -189,7 +189,7 @@ def doSysEeprom(args):
 
 def doReboot(args, platform):
    import arista.utils.sonic_reboot
-   arista.utils.sonic_reboot.reboot(platform)
+   arista.utils.sonic_reboot.reboot(platform.getInventory())
 
 def doRebootCause(args, platform):
    causes = platform.getReloadCauses(clear=True)

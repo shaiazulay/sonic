@@ -3,7 +3,9 @@ import re
 import subprocess
 from collections import namedtuple
 
+from .. import platforms
 from ..core.utils import runningInContainer
+from ..core import platform
 
 Port = namedtuple('Port', ['portNum', 'lanes', 'singular', 'alias'])
 
@@ -63,3 +65,6 @@ def portConfigPath():
    platform = getSonicPlatformName()
    return os.path.join("/usr/share/sonic/device", platform, hwSku,
                         "port_config.ini")
+
+def getInventory():
+   return platform.getPlatform().getInventory()

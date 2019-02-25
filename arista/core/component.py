@@ -41,7 +41,7 @@ class Component(object):
 
    def addDriver(self, driverCls, *args, **kwargs):
       assert issubclass(driverCls, Driver)
-      self.drivers += [driverCls(self, *args, **kwargs)]
+      self.drivers += [driverCls(*args, **kwargs)]
       return self
 
    def setup(self):

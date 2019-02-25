@@ -6,7 +6,8 @@ import subprocess
 
 from collections import OrderedDict
 
-from .utils import Retrying, inDebug, inSimulation
+from .types import I2cAddr
+from .utils import FileWaiter, inDebug, inSimulation
 
 def modprobe(name, args=None):
    logging.debug('loading module %s', name)
@@ -60,9 +61,6 @@ def i2cBusFromName(name, idx=0, force=False):
    return None
 
 class Driver(object):
-   def __init__(self, component):
-      self.component = component
-
    def setup(self):
       pass
 
@@ -90,35 +88,14 @@ class Driver(object):
 
 class KernelDriver(Driver):
    # TODO: handle multiple kernel modules
-   def __init__(self, component, module,
-                waitFile=None, waitTimeout=None,
-                args=None):
-      super(KernelDriver, self).__init__(component)
-      self.component = component
+   def __init__(self, module, waitFile=None, waitTimeout=None, args=None):
       self.module = module
       self.args = args if args is not None else []
-      self.waitFile = waitFile
-      self.waitTimeout = float(waitTimeout) if waitTimeout else 1.0
-
-   def waitFileReady(self):
-      if not self.waitFile:
-         return
-
-      logging.debug('Starting driver. Waiting file %s.', self.waitFile)
-
-      for r in Retrying(interval=self.waitTimeout):
-         if os.path.exists(self.waitFile):
-            break
-         logging.debug('Starting driver. Waiting file %s attempt %d.',
-                       self.waitFile, r.attempt)
-
-      if not os.path.exists(self.waitFile):
-         logging.error('Starting driver. Waiting file %s failed.',
-                       self.waitFile)
+      self.fileWaiter = FileWaiter(waitFile, waitTimeout)
 
    def setup(self):
       modprobe(self.module, self.args)
-      self.waitFileReady()
+      self.fileWaiter.waitFileReady()
 
    def clean(self):
       if self.loaded():
@@ -132,8 +109,47 @@ class KernelDriver(Driver):
    def loaded(self):
       return isModuleLoaded(self.module)
 
-   def getSysfsPath(self):
-      raise NotImplementedError
-
    def __str__(self):
       return '%s(%s)' % (self.__class__.__name__, self.module)
+
+class I2cKernelDriver(Driver):
+   def __init__(self, addr, name, waitFile=None, waitTimeout=None):
+      assert isinstance(addr, I2cAddr)
+      self.addr = addr
+      self.name = name
+      self.fileWaiter = FileWaiter(waitFile, waitTimeout)
+
+   def getSysfsPath(self):
+      return self.addr.getSysfsPath()
+
+   def getSysfsBusPath(self):
+      return '/sys/bus/i2c/devices/i2c-%d' % self.addr.bus
+
+   def setup(self):
+      addr = self.addr
+      devicePath = self.getSysfsPath()
+      path = os.path.join(self.getSysfsBusPath(), 'new_device')
+      logging.debug('creating i2c device %s on bus %d at 0x%02x',
+                    self.name, addr.bus, addr.address)
+      if inSimulation():
+         return
+      if os.path.exists(devicePath):
+         logging.debug('i2c device %s already exists', devicePath)
+      else:
+         with open(path, 'w') as f:
+            f.write('%s 0x%02x' % (self.name, self.addr.address))
+         self.fileWaiter.waitFileReady()
+
+   def clean(self):
+      # i2c kernel devices are automatically cleaned when the module is removed
+      if inSimulation():
+         return
+      path = os.path.join(self.getSysfsBusPath(), 'delete_device')
+      addr = self.addr
+      if os.path.exists(self.getSysfsPath()):
+         logging.debug('removing i2c device %s from bus %d' % (self.name, addr.bus))
+         with open(path, 'w') as f:
+            f.write('0x%02x' % addr.address)
+
+   def __str__(self):
+      return '%s(%s)' % (self.__class__.__name__, self.name)

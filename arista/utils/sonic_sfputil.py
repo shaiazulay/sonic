@@ -1,8 +1,7 @@
 import select
 import time
 
-from ..core import platform as core_platform
-from .. import platforms
+from .sonic_utils import getInventory
 
 try:
     from sonic_sfp.sfputilbase import SfpUtilBase
@@ -11,8 +10,7 @@ except ImportError as e:
 
 
 def getSfpUtil():
-    platform = core_platform.getPlatform()
-    inventory = platform.getInventory()
+    inventory = getInventory()
 
     class SfpUtil(SfpUtilBase):
         """Platform-specific SfpUtil class"""
