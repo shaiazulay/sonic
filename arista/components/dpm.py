@@ -14,6 +14,7 @@ from .common import I2cComponent
 
 UcdGpi = namedtuple( 'UcdGpi', [ 'bit' ] )
 UcdMon = namedtuple( 'UcdMon', [ 'val' ] )
+SMBUS_BLOCK_MAX_SZ = 32
 
 class UcdReloadCause(ReloadCause):
    def __init__(self, name=None, time=None):
@@ -53,9 +54,15 @@ class UcdI2cDevDriver(Driver):
    def dumpReg(self, name, data):
       logging.debug('%s reg: %s', name, ' '.join('%02x' % s for s in data))
 
+   # FIXME: the block read/write is truncated to 32 bytes for smbus support
    def getBlock(self, reg):
       size = self.bus.read_byte_data(self.addr, reg)
-      return self.bus.read_i2c_block_data(self.addr, reg, size + 1)
+      return self.bus.read_i2c_block_data(self.addr, reg,
+                                          min(size + 1, SMBUS_BLOCK_MAX_SZ))
+
+   # FIXME: the block read/write is truncated to 32 bytes for smbus support
+   def setBlock(self, reg, data):
+      self.bus.write_i2c_block_data(self.addr, reg, data[:SMBUS_BLOCK_MAX_SZ])
 
    def getVersion(self):
       if inSimulation():
@@ -70,19 +77,20 @@ class UcdI2cDevDriver(Driver):
       if inSimulation():
          return [ 0 ] * 12
       reg = reg or self.registers.LOGGED_FAULTS
-      size = self.bus.read_byte_data(self.addr, reg)
-      res = self.bus.read_i2c_block_data(self.addr, reg, size + 1)
+      res = self.getBlock(reg)
       if reg == self.registers.LOGGED_FAULTS:
          self.dumpReg('fault', res)
       return res
 
+   # FIXME: the block read/write is truncated to 32 bytes for smbus support
    def clearFaults(self):
       if inSimulation():
          return
       reg = self.registers.LOGGED_FAULTS
       size = self.bus.read_byte_data(self.addr, reg)
+      size = min(size, SMBUS_BLOCK_MAX_SZ - 1)
       data = [ size ] + [ 0 ] * size
-      self.bus.write_i2c_block_data(self.addr, reg, data)
+      self.setBlock(reg, data)
 
    def getFaultCount(self):
       if inSimulation():
@@ -113,6 +121,9 @@ class Ucd(I2cComponent):
    hasGpi = True
    faultValueSize = 2
 
+   faultTimeBase = datetime.datetime(1970, 1, 1)
+   daysOffset = 0
+
    def __init__(self, addr, causes=None, **kwargs):
       super(Ucd, self).__init__(addr, **kwargs)
       self.addDriver(UcdI2cDevDriver, self.Registers, addr)
@@ -141,6 +152,7 @@ class Ucd(I2cComponent):
       diff = datetime.datetime.now() - self.oldestTime
       msecsInt = int(diff.seconds * 1000 + diff.microseconds / 1000)
       daysInt = diff.days
+      daysInt += self.daysOffset
       msecsByte1 = (msecsInt >> 24) & 0xff
       msecsByte2 = (msecsInt >> 16) & 0xff
       msecsByte3 = (msecsInt >> 8) & 0xff
@@ -151,14 +163,13 @@ class Ucd(I2cComponent):
       daysByte4 = daysInt & 0xff
       data = [size, msecsByte1, msecsByte2, msecsByte3, msecsByte4,
               daysByte1, daysByte2, daysByte3, daysByte4]
-      drv.bus.write_i2c_block_data(self.addr.address, self.RUN_TIME_CLOCK, data)
+      drv.setBlock(self.RUN_TIME_CLOCK, data)
 
    def _getRunTimeClock(self, drv):
-      size = drv.bus.read_byte_data(self.addr.address, self.RUN_TIME_CLOCK)
-      res = drv.bus.read_i2c_block_data(self.addr.address, self.RUN_TIME_CLOCK,
-                                        size+1)
+      res = drv.getBlock(self.RUN_TIME_CLOCK)
       msecs = res[4] | (res[3] << 8) | (res[2] << 16) | (res[1] << 24)
       days = res[8] | (res[7] << 8) | (res[6] << 16) | (res[5] << 24)
+      days -= self.daysOffset
       return self.oldestTime + datetime.timedelta(days=days, milliseconds=msecs)
 
    def _getGpiFaults(self, reg):
@@ -170,6 +181,16 @@ class Ucd(I2cComponent):
             causes.append(UcdReloadCause(name))
       return causes
 
+   def _parseFaultDetail(self, reg):
+      msecs = (reg[1] << 24) | (reg[2] << 16) | (reg[3] << 8) | reg[4]
+      fid = (reg[5] << 24) | (reg[6] << 16) | (reg[7] << 8) | reg[8]
+      paged = (fid >> 31) & 0x1
+      ftype = (fid >> 27) & 0xf
+      page = ((fid >> 23) & 0xf) + 1
+      days = fid & 0x7fffff
+      value = (reg[10] << 8) | reg[9]
+      return paged, ftype, page, value, days, msecs
+
    def _getFaultNum(self, reg):
       causes = []
 
@@ -178,18 +199,13 @@ class Ucd(I2cComponent):
          causes.append(UcdReloadCause('unknown'))
          return causes
 
-      msecs = reg[1] << 24 | reg[2] << 16 | reg[3] << 8 | reg[4]
-      fid = reg[5] << 24 | reg[6] << 16 | reg[7] << 8 | reg[8]
-      paged = (fid >> 31) & 0x1
-      ftype = (fid >> 27) & 0xf
-      page = ((fid >> 23) & 0xf) + 1
-      days = fid & 0x7fffff
-      value = reg[10] << 8 | reg[9]
+      paged, ftype, page, value, days, msecs = self._parseFaultDetail(reg)
       days = int(days)
       secs = int(msecs / 1000)
       usecs = int((msecs - secs * 1000) * 1000)
-      time = self.oldestTime + datetime.timedelta(days=days, seconds=secs,
-                                                  microseconds=usecs)
+
+      time = self.faultTimeBase + datetime.timedelta(days=days, seconds=secs,
+                                                     microseconds=usecs)
       logging.debug('paged=%d type=%d page=%d value=0x%04x time=%s',
                     paged, ftype, page, value, time)
 
@@ -257,4 +273,18 @@ class Ucd90120A(Ucd):
    pass
 
 class Ucd90320(Ucd):
-   hasGpi = False
+   # The fault time is from 2000-01-01
+   faultTimeBase = datetime.datetime(2000, 1, 1)
+   # RUN_TIME_CLOCK is from 0001-01-01
+   daysOffset = 719162    # Equals to 2000-01-01 - 0001-01-01
+
+   def _parseFaultDetail(self, reg):
+      pageAndMsecs = (reg[1] << 24) | (reg[2] << 16) | (reg[3] << 8) | reg[4]
+      page = (pageAndMsecs >> 27) + 1
+      msecs = pageAndMsecs & 0x7ffffff
+      fid = (reg[5] << 24) | (reg[6] << 16) | (reg[7] << 8) | reg[8]
+      paged = (fid >> 31) & 0x1
+      ftype = (fid >> 27) & 0xf
+      days = (fid >> 11) & 0xffff
+      value = (reg[10] << 8) | reg[9]
+      return paged, ftype, page, value, days, msecs
