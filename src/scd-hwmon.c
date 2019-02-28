@@ -73,6 +73,7 @@ struct scd_master {
    u32 resp;
    struct mutex mutex;
    struct list_head bus_list;
+   bool br_supported;
 
    int max_retries;
 };
@@ -316,7 +317,11 @@ union smbus_ctrl_status_reg {
    struct {
       u32 reserved1:13;
       u32 foe:1;
-      u32 reserved2:17;
+      u32 reserved2:12;
+      u32 brb:1;
+      u32 reserved3:1;
+      u32 ver:2;
+      u32 reserved4:1;
       u32 reset:1;
    } __packed;
 };
@@ -786,6 +791,7 @@ static int scd_smbus_master_add(struct scd_context *ctx, u32 addr, u32 id,
                                 u32 bus_count)
 {
    struct scd_master *master;
+   union smbus_ctrl_status_reg cs;
    int err = 0;
    int i;
 
@@ -817,6 +823,10 @@ static int scd_smbus_master_add(struct scd_context *ctx, u32 addr, u32 id,
    }
 
    smbus_master_reset(master);
+
+   cs = smbus_master_read_cs(master);
+   master->br_supported = (cs.ver >= 2);
+   scd_dbg("smbus 0x%x:0x%x version %d", id, addr, cs.ver);
 
    list_add_tail(&master->list, &ctx->master_list);
 
