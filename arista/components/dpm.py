@@ -41,11 +41,10 @@ class UcdI2cDevDriver(Driver):
       super(UcdI2cDevDriver, self).__init__()
       self.bus = None
       self.registers = registers
-      self.addr = addr.address
-      self.addrBus = addr.bus
+      self.addr = addr
 
    def __enter__(self):
-      self.bus = SMBus(self.addrBus)
+      self.bus = SMBus(self.addr.bus)
       return self
 
    def __exit__(self, *args):
@@ -56,13 +55,13 @@ class UcdI2cDevDriver(Driver):
 
    # FIXME: the block read/write is truncated to 32 bytes for smbus support
    def getBlock(self, reg):
-      size = self.bus.read_byte_data(self.addr, reg)
-      return self.bus.read_i2c_block_data(self.addr, reg,
+      size = self.bus.read_byte_data(self.addr.address, reg)
+      return self.bus.read_i2c_block_data(self.addr.address, reg,
                                           min(size + 1, SMBUS_BLOCK_MAX_SZ))
 
    # FIXME: the block read/write is truncated to 32 bytes for smbus support
    def setBlock(self, reg, data):
-      self.bus.write_i2c_block_data(self.addr, reg, data[:SMBUS_BLOCK_MAX_SZ])
+      self.bus.write_i2c_block_data(self.addr.address, reg, data[:SMBUS_BLOCK_MAX_SZ])
 
    def getVersion(self):
       if inSimulation():
@@ -87,7 +86,7 @@ class UcdI2cDevDriver(Driver):
       if inSimulation():
          return
       reg = self.registers.LOGGED_FAULTS
-      size = self.bus.read_byte_data(self.addr, reg)
+      size = self.bus.read_byte_data(self.addr.address, reg)
       size = min(size, SMBUS_BLOCK_MAX_SZ - 1)
       data = [ size ] + [ 0 ] * size
       self.setBlock(reg, data)
@@ -96,13 +95,13 @@ class UcdI2cDevDriver(Driver):
       if inSimulation():
          return 0
       reg = self.registers.LOGGED_FAULT_DETAIL_INDEX
-      res = self.bus.read_word_data(self.addr, reg)
+      res = self.bus.read_word_data(self.addr.address, reg)
       return res >> 8
 
    def getFaultNum(self, num):
       if inSimulation():
          return [ 0 ] * 12
-      self.bus.write_word_data(self.addr,
+      self.bus.write_word_data(self.addr.address,
                                self.registers.LOGGED_FAULT_DETAIL_INDEX, num)
       res = self.readFaults(self.registers.LOGGED_FAULT_DETAIL)
       self.dumpReg('fault %d' % num, res)
@@ -148,7 +147,7 @@ class Ucd(I2cComponent):
          self.getReloadCauses(clear=True)
 
    def _setRunTimeClock(self, drv):
-      size = drv.bus.read_byte_data(self.addr.address, self.RUN_TIME_CLOCK)
+      size = drv.bus.read_byte_data(self.addr.address, self.Registers.RUN_TIME_CLOCK)
       diff = datetime.datetime.now() - self.oldestTime
       msecsInt = int(diff.seconds * 1000 + diff.microseconds / 1000)
       daysInt = diff.days
@@ -161,12 +160,12 @@ class Ucd(I2cComponent):
       daysByte2 = (daysInt >> 16) & 0xff
       daysByte3 = (daysInt >> 8) & 0xff
       daysByte4 = daysInt & 0xff
-      data = [size, msecsByte1, msecsByte2, msecsByte3, msecsByte4,
+      data = [msecsByte1, msecsByte2, msecsByte3, msecsByte4,
               daysByte1, daysByte2, daysByte3, daysByte4]
-      drv.setBlock(self.RUN_TIME_CLOCK, data)
+      drv.setBlock(self.Registers.RUN_TIME_CLOCK, [ len(data) ] + data)
 
    def _getRunTimeClock(self, drv):
-      res = drv.getBlock(self.RUN_TIME_CLOCK)
+      res = drv.getBlock(self.Registers.RUN_TIME_CLOCK)
       msecs = res[4] | (res[3] << 8) | (res[2] << 16) | (res[1] << 24)
       days = res[8] | (res[7] << 8) | (res[6] << 16) | (res[5] << 24)
       days -= self.daysOffset
