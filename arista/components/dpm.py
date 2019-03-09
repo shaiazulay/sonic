@@ -117,7 +117,7 @@ class Ucd(I2cComponent):
       MFR_SERIAL = 0x9e
       DEVICE_ID = 0xfd
 
-   hasGpi = True
+   gpiSize = 1
    faultValueSize = 2
 
    faultTimeBase = datetime.datetime(1970, 1, 1)
@@ -232,8 +232,11 @@ class Ucd(I2cComponent):
          logging.debug('some non paged faults were detected')
 
       causes = []
-      if self.hasGpi:
-         causes = self._getGpiFaults(reg[ 2 ])
+      if self.gpiSize:
+         gpi = 0
+         for i in range(0, self.gpiSize):
+            gpi |= reg[ 2 + i ] << (8 * i)
+         causes = self._getGpiFaults(gpi)
          logging.debug('found %d gpi faults', len(causes))
          for cause in causes:
             logging.debug('found: %s', cause)
@@ -266,12 +269,14 @@ class Ucd90160(Ucd):
    pass
 
 class Ucd90120(Ucd):
-   hasGpi = False
+   gpiSize = 0
 
 class Ucd90120A(Ucd):
    pass
 
 class Ucd90320(Ucd):
+   gpiSize = 4
+
    # The fault time is from 2000-01-01
    faultTimeBase = datetime.datetime(2000, 1, 1)
    # RUN_TIME_CLOCK is from 0001-01-01
