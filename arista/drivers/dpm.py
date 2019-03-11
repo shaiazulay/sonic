@@ -1,6 +1,7 @@
 import logging
 
 from ..core.driver import Driver
+from ..core.i2c_utils import I2cMsg
 from ..core.utils import inSimulation, SMBus
 
 SMBUS_BLOCK_MAX_SZ = 32
@@ -9,28 +10,29 @@ class UcdI2cDevDriver(Driver):
    def __init__(self, registers=None, addr=None, **kwargs):
       super(UcdI2cDevDriver, self).__init__()
       self.bus = None
+      self.busMsg = I2cMsg(addr)
       self.registers = registers
       self.addr = addr
 
    def __enter__(self):
       self.bus = SMBus(self.addr.bus)
+      if not inSimulation():
+         self.busMsg.open()
       return self
 
    def __exit__(self, *args):
+      self.busMsg.close()
       self.bus.close()
 
    def dumpReg(self, name, data):
       logging.debug('%s reg: %s', name, ' '.join('%02x' % s for s in data))
 
-   # FIXME: the block read/write is truncated to 32 bytes for smbus support
    def getBlock(self, reg):
-      size = self.bus.read_byte_data(self.addr.address, reg)
-      return self.bus.read_i2c_block_data(self.addr.address, reg,
-                                          min(size + 1, SMBUS_BLOCK_MAX_SZ))
+      size = self.bus.read_byte_data(self.addr.address, reg) + 1
+      return self.busMsg.getI2cBlock(self.addr.address, reg, size)
 
-   # FIXME: the block read/write is truncated to 32 bytes for smbus support
    def setBlock(self, reg, data):
-      self.bus.write_i2c_block_data(self.addr.address, reg, data[:SMBUS_BLOCK_MAX_SZ])
+      self.busMsg.setI2cBlock(self.addr.address, reg, data)
 
    def getVersion(self):
       if inSimulation():
@@ -50,13 +52,11 @@ class UcdI2cDevDriver(Driver):
          self.dumpReg('fault', res)
       return res
 
-   # FIXME: the block read/write is truncated to 32 bytes for smbus support
    def clearFaults(self):
       if inSimulation():
          return
       reg = self.registers.LOGGED_FAULTS
       size = self.bus.read_byte_data(self.addr.address, reg)
-      size = min(size, SMBUS_BLOCK_MAX_SZ - 1)
       data = [ size ] + [ 0 ] * size
       self.setBlock(reg, data)
 
