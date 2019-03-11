@@ -48,6 +48,8 @@
 
 #define MAX_CONFIG_LINE_SIZE 100
 
+#define SMBUS_BLOCK_READ_TIMEOUT_STEP 1
+
 struct scd_context {
    struct pci_dev *pdev;
    size_t res_size;
@@ -302,7 +304,7 @@ union smbus_request_reg {
       u32 d:8;
       u32 ss:6;
       u32 ed:1;
-      u32 reserved1:1;
+      u32 br:1;
       u32 dat:2;
       u32 t:2;
       u32 sp:1;
@@ -323,7 +325,7 @@ union smbus_ctrl_status_reg {
       u32 brb:1;
       u32 reserved3:1;
       u32 ver:2;
-      u32 reserved4:1;
+      u32 fe:1;
       u32 reset:1;
    } __packed;
 };
@@ -338,7 +340,8 @@ union smbus_response_reg {
       u32 flushed:1;
       u32 ti:4;
       u32 ss:6;
-      u32 reserved2:9;
+      u32 reserved2:8;
+      u32 foe:1;
       u32 fe:1;
    } __packed;
 };
@@ -446,6 +449,10 @@ static s32 smbus_check_resp(union smbus_response_reg resp, u32 tid)
       error = "tid";
       goto fail;
    }
+   if (resp.foe) {
+      error = "overflow";
+      goto fail;
+   }
 
    return 0;
 
@@ -485,6 +492,87 @@ static const struct bus_params *get_bus_params(struct scd_bus *bus, u16 addr) {
    }
 
    return params;
+}
+
+static s32 scd_smbus_block_read(struct scd_bus *bus, u16 addr, u8 command,
+                                union i2c_smbus_data *data, int data_size)
+{
+   struct scd_master *master = bus->master;
+   const struct bus_params *params;
+   int i, t, ct;
+   union smbus_request_reg req;
+   union smbus_response_reg resp;
+   union smbus_ctrl_status_reg cs;
+   int ret = 0;
+   u32 ss = 3;
+
+   params = get_bus_params(bus, addr);
+
+   req.reg = 0;
+   req.bs = bus->id;
+   req.t = params->t;
+   req.st = 1;
+   req.ss = ss;
+   req.d = (((addr & 0xff) << 1) | 0);
+   req.dod = 1;
+   for (i = 0; i < ss; ++i) {
+      if (i == 1) {
+         req.st = 0;
+         req.ss = 0;
+         req.d = command;
+      }
+      if (i == 2) {
+         req.br = 1;
+         req.st = 1;
+         req.d = (((addr & 0xff) << 1) | 1);
+      }
+      req.da = ((!(req.dod || req.sp)) ? 1 : 0);
+      smbus_master_write_req(master, req);
+      req.ti++;
+   }
+
+   ++ss;
+   if (params->t > 3) {
+      t = 100;
+   } else {
+      t = (int[]){5, 35 + 5, 500 + 5, 1000 + 5}[params->t];
+   }
+   ct = 0;
+   cs = smbus_master_read_cs(master);
+   while (cs.brb && ct < t) {
+      msleep(SMBUS_BLOCK_READ_TIMEOUT_STEP);
+      ct += SMBUS_BLOCK_READ_TIMEOUT_STEP;
+      cs = smbus_master_read_cs(master);
+   }
+
+   if (ct == t) {
+      scd_warn("smbus response timeout(%d) cs=0x%x adapter=\"%s\"\n",
+               t, cs.reg, bus->adap.name);
+      return -EINVAL;
+   }
+
+   req.ti = 0;
+   for (i = 0; i < ss; ++i) {
+      resp = smbus_master_read_resp(master);
+      ret = smbus_check_resp(resp, req.ti);
+      if (ret)
+         return ret;
+      req.ti++;
+      if (i == 3)
+         ss += resp.d;
+
+      if (i >= 3) {
+         if (i - 3 >= data_size) {
+            scd_warn("smbus read failed (output too big) addr=0x%02x " \
+                     "reg=0x%02x data_size=0x%04x adapter=\"%s\"\n", addr,
+                     command, data_size, bus->adap.name);
+            return -EINVAL;
+         }
+         data->block[i - 3] = resp.d;
+      }
+   }
+
+   return 0;
 }
 
 static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags,
@@ -547,11 +635,20 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
       if (read_write == I2C_SMBUS_WRITE) {
          ss = 3 + data->block[0];
       } else {
-         ret = scd_smbus_do_impl(bus, addr, flags, I2C_SMBUS_READ, command,
-                                 I2C_SMBUS_BYTE_DATA, data, data_size);
-         if (ret) {
-            fail_reason = "cannot get size";
-            goto fail;
+         if (master->br_supported) {
+            ret = scd_smbus_block_read(bus, addr, command, data, data_size);
+            if (ret) {
+               fail_reason = "block read failed";
+               goto fail;
+            }
+            return 0;
+         } else {
+            ret = scd_smbus_do_impl(bus, addr, flags, I2C_SMBUS_READ, command,
+                                    I2C_SMBUS_BYTE_DATA, data, data_size);
+            if (ret) {
+               fail_reason = "cannot get size";
+               goto fail;
+            }
          }
          ss = 4 + data->block[0];
       }
