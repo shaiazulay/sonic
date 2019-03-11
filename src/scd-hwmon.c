@@ -38,6 +38,8 @@
 #define SMBUS_CONTROL_STATUS_OFFSET 0x20
 #define SMBUS_RESPONSE_OFFSET 0x30
 
+#define I2C_SMBUS_I2C_BLOCK_DATA_MSG 0x9
+
 #define RESET_SET_OFFSET 0x00
 #define RESET_CLEAR_OFFSET 0x10
 
@@ -456,7 +458,7 @@ static u32 scd_smbus_func(struct i2c_adapter *adapter)
 {
    return I2C_FUNC_SMBUS_QUICK | I2C_FUNC_SMBUS_BYTE |
       I2C_FUNC_SMBUS_BYTE_DATA | I2C_FUNC_SMBUS_WORD_DATA |
-      I2C_FUNC_SMBUS_I2C_BLOCK | I2C_FUNC_SMBUS_BLOCK_DATA;
+      I2C_FUNC_SMBUS_I2C_BLOCK | I2C_FUNC_SMBUS_BLOCK_DATA | I2C_FUNC_I2C;
 }
 
 static void smbus_master_reset(struct scd_master *master)
@@ -487,7 +489,7 @@ static const struct bus_params *get_bus_params(struct scd_bus *bus, u16 addr) {
 
 static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags,
                              char read_write, u8 command, int size,
-                             union i2c_smbus_data *data)
+                             union i2c_smbus_data *data, int data_size)
 {
    struct scd_master *master = bus->master;
    const struct bus_params *params;
@@ -497,6 +499,7 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
    int ret = 0;
    u32 ss = 0;
    u32 data_offset = 0;
+   const char* fail_reason = "";
 
    params = get_bus_params(bus, addr);
 
@@ -525,6 +528,13 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
          ss = 5;
       }
       break;
+   case I2C_SMBUS_I2C_BLOCK_DATA_MSG:
+      if (read_write == I2C_SMBUS_WRITE) {
+         ss = 2 + data_size;
+      } else {
+         ss = 3 + data_size;
+      }
+      break;
    case I2C_SMBUS_I2C_BLOCK_DATA:
       data_offset = 1;
       if (read_write == I2C_SMBUS_WRITE) {
@@ -538,8 +548,9 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
          ss = 3 + data->block[0];
       } else {
          ret = scd_smbus_do_impl(bus, addr, flags, I2C_SMBUS_READ, command,
-                                 I2C_SMBUS_BYTE_DATA, data);
+                                 I2C_SMBUS_BYTE_DATA, data, data_size);
          if (ret) {
+            fail_reason = "cannot get size";
             goto fail;
          }
          ss = 4 + data->block[0];
@@ -591,6 +602,7 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
       resp = smbus_master_read_resp(master);
       ret = smbus_check_resp(resp, req.ti);
       if (ret) {
+         fail_reason = "bad response";
          goto fail;
       }
       req.ti++;
@@ -607,10 +619,20 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
             }
          } else {
             if (i >= 3) {
-               if (size == I2C_SMBUS_BLOCK_DATA) {
-                  data->block[i - 3] = resp.d;
-               } else {
+               if (size == I2C_SMBUS_I2C_BLOCK_DATA) {
+                  if (i - 2 >= data_size) {
+                     fail_reason = "buffer is too short";
+                     ret = -EINVAL;
+                     goto fail;
+                  }
                   data->block[i - 2] = resp.d;
+               } else {
+                  if (i - 3 >= data_size) {
+                     fail_reason = "buffer is too short";
+                     ret = -EINVAL;
+                     goto fail;
+                  }
+                  data->block[i - 3] = resp.d;
                }
             }
          }
@@ -620,53 +642,106 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
    return 0;
 
 fail:
-   scd_dbg("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x adapter=\"%s\"\n",
-           (read_write) ? "read" : "write", addr, command, size, bus->adap.name);
+   scd_dbg("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x data_size=0x%x " \
+           "adapter=\"%s\" (%s)\n", (read_write) ? "read" : "write", addr, command,
+           size, data_size, bus->adap.name, fail_reason);
    smbus_master_reset(master);
    return ret;
 }
 
 static s32 scd_smbus_do(struct scd_bus *bus, u16 addr, unsigned short flags,
                         char read_write, u8 command, int size,
-                        union i2c_smbus_data *data)
+                        union i2c_smbus_data *data, int data_size)
 {
    struct scd_master *master = bus->master;
    s32 ret;
 
    master_lock(master);
-   ret = scd_smbus_do_impl(bus, addr, flags, read_write, command, size, data);
+   ret = scd_smbus_do_impl(bus, addr, flags, read_write, command, size, data,
+                           data_size);
    master_unlock(master);
 
    return ret;
 }
 
-static s32 scd_smbus_access(struct i2c_adapter *adap, u16 addr,
-                            unsigned short flags, char read_write,
-                            u8 command, int size, union i2c_smbus_data *data)
+static s32 scd_smbus_access_impl(struct i2c_adapter *adap, u16 addr,
+                                 unsigned short flags, char read_write,
+                                 u8 command, int size, union i2c_smbus_data *data,
+                                 int data_size)
 {
    struct scd_bus *bus = i2c_get_adapdata(adap);
    struct scd_master *master = bus->master;
    int retry = 0;
    int ret;
 
-   scd_dbg("smbus %s do addr=0x%02x reg=0x%02x size=0x%02x adapter=\"%s\"\n",
-         (read_write) ? "read" : "write", addr, command, size, bus->adap.name);
+   scd_dbg("smbus %s do addr=0x%02x reg=0x%02x size=0x%02x data_size=0x%04x "
+           "adapter=\"%s\"\n", (read_write) ? "read" : "write", addr, command,
+           size, data_size, bus->adap.name);
    do {
-      ret = scd_smbus_do(bus, addr, flags, read_write, command, size, data);
+      ret = scd_smbus_do(bus, addr, flags, read_write, command, size, data,
+                         data_size);
       if (ret != -EIO)
          return ret;
       retry++;
       scd_dbg("smbus retrying... %d/%d", retry, master->max_retries);
    } while (retry < master->max_retries);
 
-   scd_warn("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x "
+   scd_warn("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x data_size=0x%04x "
             "adapter=\"%s\"\n", (read_write) ? "read" : "write",
-            addr, command, size, bus->adap.name);
+            addr, command, size, data_size, bus->adap.name);
 
    return -EIO;
 }
 
+static s32 scd_smbus_access(struct i2c_adapter *adap, u16 addr,
+                            unsigned short flags, char read_write,
+                            u8 command, int size, union i2c_smbus_data *data)
+{
+   return scd_smbus_access_impl(adap, addr, flags, read_write, command, size,
+                                data, I2C_SMBUS_BLOCK_MAX + 2);
+}
+
+static int scd_master_xfer_get_command(struct i2c_msg *msg) {
+   if ((msg->flags & I2C_M_RD) || (msg->len != 1)) {
+      scd_dbg("i2c rw: unsupported command.\n");
+      return -EINVAL;
+   }
+   return msg->buf[0];
+}
+
+static int scd_master_xfer(struct i2c_adapter *adap,
+                           struct i2c_msg *msgs,
+                           int num)
+{
+   struct scd_bus *bus = i2c_get_adapdata(adap);
+   int ret, command;
+   int read_write;
+
+   if (num != 2) {
+      scd_err("i2c rw num=%d adapter=\"%s\" (unsupported request)\n",
+              num, bus->adap.name);
+      return -EINVAL;
+   }
+
+   command = scd_master_xfer_get_command(&msgs[0]);
+   if (command < 0) {
+      return command;
+   }
+
+   scd_dbg("i2c rw num=%d adapter=\"%s\"\n", num, bus->adap.name);
+   read_write = (msgs[1].flags & I2C_M_RD) ? I2C_SMBUS_READ : 0;
+   ret = scd_smbus_access_impl(adap, msgs[1].addr, 0, read_write, command,
+                               I2C_SMBUS_I2C_BLOCK_DATA_MSG,
+                               (union i2c_smbus_data*)msgs[1].buf, msgs[1].len);
+   if (ret) {
+      scd_warn("i2c rw error=0x%x adapter=\"%s\"\n", ret, bus->adap.name);
+      return ret;
+   }
+   return num;
+}
+
 static struct i2c_algorithm scd_smbus_algorithm = {
+   .master_xfer   = scd_master_xfer,
    .smbus_xfer    = scd_smbus_access,
    .functionality = scd_smbus_func,
 };
