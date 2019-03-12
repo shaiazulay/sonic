@@ -43,6 +43,9 @@ class Ucd(I2cComponent):
       LOGGED_FAULT_DETAIL_INDEX = 0xeb
       LOGGED_FAULT_DETAIL = 0xec
 
+      LOGGED_FAULTS_COUNT = 13
+      LOGGED_FAULT_DETAIL_COUNT = 10
+
       MFR_SERIAL = 0x9e
       DEVICE_ID = 0xfd
 
@@ -91,12 +94,12 @@ class Ucd(I2cComponent):
       daysByte4 = daysInt & 0xff
       data = [msecsByte1, msecsByte2, msecsByte3, msecsByte4,
               daysByte1, daysByte2, daysByte3, daysByte4]
-      drv.setBlock(self.Registers.RUN_TIME_CLOCK, [ len(data) ] + data)
+      drv.setBlock(self.Registers.RUN_TIME_CLOCK, data)
 
    def _getRunTimeClock(self, drv):
       res = drv.getBlock(self.Registers.RUN_TIME_CLOCK)
-      msecs = res[4] | (res[3] << 8) | (res[2] << 16) | (res[1] << 24)
-      days = res[8] | (res[7] << 8) | (res[6] << 16) | (res[5] << 24)
+      msecs = res[3] | (res[2] << 8) | (res[1] << 16) | (res[0] << 24)
+      days = res[7] | (res[6] << 8) | (res[5] << 16) | (res[4] << 24)
       days -= self.daysOffset
       return self.oldestTime + datetime.timedelta(days=days, milliseconds=msecs)
 
@@ -110,19 +113,19 @@ class Ucd(I2cComponent):
       return causes
 
    def _parseFaultDetail(self, reg):
-      msecs = (reg[1] << 24) | (reg[2] << 16) | (reg[3] << 8) | reg[4]
-      fid = (reg[5] << 24) | (reg[6] << 16) | (reg[7] << 8) | reg[8]
+      msecs = (reg[0] << 24) | (reg[1] << 16) | (reg[2] << 8) | reg[3]
+      fid = (reg[4] << 24) | (reg[5] << 16) | (reg[6] << 8) | reg[7]
       paged = (fid >> 31) & 0x1
       ftype = (fid >> 27) & 0xf
       page = ((fid >> 23) & 0xf) + 1
       days = fid & 0x7fffff
-      value = (reg[10] << 8) | reg[9]
+      value = (reg[9] << 8) | reg[8]
       return paged, ftype, page, value, days, msecs
 
    def _getFaultNum(self, reg):
       causes = []
 
-      if len(reg) < 11:
+      if len(reg) < self.Registers.LOGGED_FAULT_DETAIL_COUNT:
          logging.debug('invalid unknown cause %s' % reg)
          causes.append(UcdReloadCause('unknown'))
          return causes
@@ -157,14 +160,14 @@ class Ucd(I2cComponent):
 
    def _getReloadCauses(self, drv):
       reg = drv.readFaults()
-      if reg[ 1 ]:
+      if reg[ 0 ]:
          logging.debug('some non paged faults were detected')
 
       causes = []
       if self.gpiSize:
          gpi = 0
          for i in range(0, self.gpiSize):
-            gpi |= reg[ 2 + i ] << (8 * i)
+            gpi |= reg[1 + i] << (8 * i)
          causes = self._getGpiFaults(gpi)
          logging.debug('found %d gpi faults', len(causes))
          for cause in causes:
@@ -195,15 +198,21 @@ class Ucd(I2cComponent):
       return rebootCauses.readList(UcdReloadCause)
 
 class Ucd90160(Ucd):
-   pass
+   class Registers(Ucd.Registers):
+      LOGGED_FAULTS_COUNT = 18
 
 class Ucd90120(Ucd):
    gpiSize = 0
 
 class Ucd90120A(Ucd):
-   pass
+   class Registers(Ucd.Registers):
+      LOGGED_FAULTS_COUNT = 14
 
 class Ucd90320(Ucd):
+   class Registers(Ucd.Registers):
+      LOGGED_FAULTS_COUNT = 37
+      LOGGED_FAULT_DETAIL_COUNT = 12
+
    gpiSize = 4
 
    # The fault time is from 2000-01-01
@@ -212,12 +221,12 @@ class Ucd90320(Ucd):
    daysOffset = 719162    # Equals to 2000-01-01 - 0001-01-01
 
    def _parseFaultDetail(self, reg):
-      pageAndMsecs = (reg[1] << 24) | (reg[2] << 16) | (reg[3] << 8) | reg[4]
+      pageAndMsecs = (reg[0] << 24) | (reg[1] << 16) | (reg[2] << 8) | reg[3]
       page = (pageAndMsecs >> 27) + 1
       msecs = pageAndMsecs & 0x7ffffff
-      fid = (reg[5] << 24) | (reg[6] << 16) | (reg[7] << 8) | reg[8]
+      fid = (reg[4] << 24) | (reg[5] << 16) | (reg[6] << 8) | reg[7]
       paged = (fid >> 31) & 0x1
       ftype = (fid >> 27) & 0xf
       days = (fid >> 11) & 0xffff
-      value = (reg[10] << 8) | reg[9]
+      value = (reg[9] << 8) | reg[8]
       return paged, ftype, page, value, days, msecs

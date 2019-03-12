@@ -29,27 +29,26 @@ class UcdI2cDevDriver(Driver):
 
    def getBlock(self, reg):
       size = self.bus.read_byte_data(self.addr.address, reg) + 1
-      return self.busMsg.getI2cBlock(self.addr.address, reg, size)
+      data = self.busMsg.getI2cBlock(self.addr.address, reg, size)
+      return data[1:data[0]+1]
 
    def setBlock(self, reg, data):
-      self.busMsg.setI2cBlock(self.addr.address, reg, data)
+      self.busMsg.setI2cBlock(self.addr.address, reg, [ len(data) ] + data)
 
    def getVersion(self):
       if inSimulation():
          return "SERIAL UCDSIM 2.3.4.0005 241218"
       data = self.getBlock(self.registers.MFR_SERIAL)
-      serial = ''.join(chr(c) for c in data[1:data[0]+1])
+      serial = ''.join(chr(c) for c in data)
       data = self.getBlock(self.registers.DEVICE_ID)
-      devid = ''.join(chr(c) for c in data[1:data[0]+1] if c).replace('|', ' ')
+      devid = ''.join(chr(c) for c in data if c).replace('|', ' ')
       return '%s %s' % (serial, devid)
 
-   def readFaults(self, reg=None):
+   def readFaults(self):
       if inSimulation():
-         return [ 0 ] * 12
-      reg = reg or self.registers.LOGGED_FAULTS
-      res = self.getBlock(reg)
-      if reg == self.registers.LOGGED_FAULTS:
-         self.dumpReg('fault', res)
+         return [ 0 ] * self.registers.LOGGED_FAULTS_COUNT
+      res = self.getBlock(self.registers.LOGGED_FAULTS)
+      self.dumpReg('faults', res)
       return res
 
    def clearFaults(self):
@@ -57,7 +56,7 @@ class UcdI2cDevDriver(Driver):
          return
       reg = self.registers.LOGGED_FAULTS
       size = self.bus.read_byte_data(self.addr.address, reg)
-      data = [ size ] + [ 0 ] * size
+      data = [ 0 ] * size
       self.setBlock(reg, data)
 
    def getFaultCount(self):
@@ -69,9 +68,9 @@ class UcdI2cDevDriver(Driver):
 
    def getFaultNum(self, num):
       if inSimulation():
-         return [ 0 ] * 12
+         return [ 0 ] * self.registers.LOGGED_FAULT_DETAIL_COUNT
       self.bus.write_word_data(self.addr.address,
                                self.registers.LOGGED_FAULT_DETAIL_INDEX, num)
-      res = self.readFaults(self.registers.LOGGED_FAULT_DETAIL)
+      res = self.getBlock(self.registers.LOGGED_FAULT_DETAIL)
       self.dumpReg('fault %d' % num, res)
       return res
