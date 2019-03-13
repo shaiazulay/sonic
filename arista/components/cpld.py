@@ -20,7 +20,7 @@ class CpldPowerCycle(PowerCycle):
 
 class CrowCpld(I2cComponent):
    def __init__(self, addr):
-      super(CrowCpld, self).__init__(addr)
+      super(CrowCpld, self).__init__(addr=addr, driver=None)
       self.powerCycles = []
       self.psus = []
 

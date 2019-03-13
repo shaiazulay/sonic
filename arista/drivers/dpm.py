@@ -6,7 +6,7 @@ from ..core.utils import inSimulation, SMBus
 SMBUS_BLOCK_MAX_SZ = 32
 
 class UcdI2cDevDriver(Driver):
-   def __init__(self, registers, addr):
+   def __init__(self, registers=None, addr=None, **kwargs):
       super(UcdI2cDevDriver, self).__init__()
       self.bus = None
       self.registers = registers

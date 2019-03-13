@@ -71,7 +71,7 @@ class PmbusPsuComponent(I2cKernelComponent):
 
 class UpperlakePsuComponent(I2cComponent):
    def __init__(self, psuId, addr, **kwargs):
-      super(UpperlakePsuComponent, self).__init__(addr, **kwargs)
+      super(UpperlakePsuComponent, self).__init__(addr=addr, driver=None, **kwargs)
 
       # MSB: Description (Good/bad values)
       # 3:   PSU1 AC OK (1/0)

@@ -5,9 +5,9 @@ from ..core.driver import Driver
 from ..core.types import I2cAddr
 from ..core.utils import FileWaiter, inDebug, inSimulation
 
-
 class I2cKernelDriver(Driver):
-   def __init__(self, addr, name, waitFile=None, waitTimeout=None):
+   def __init__(self, addr=None, name=None, waitFile=None, waitTimeout=None,
+                **kwargs):
       assert isinstance(addr, I2cAddr)
       self.addr = addr
       self.name = name

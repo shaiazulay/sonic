@@ -6,7 +6,7 @@ import time
 from ..core.component import Component, DEFAULT_WAIT_TIMEOUT, ASIC_YIELD_TIME
 from ..core.driver import KernelDriver
 from ..core.utils import klog, inSimulation
-from ..core.types import PciAddr, I2cAddr, SysfsPath
+from ..core.types import PciAddr, SysfsPath
 
 from ..drivers.i2c import I2cKernelDriver
 
@@ -16,15 +16,16 @@ class PciComponent(Component):
       super(PciComponent, self).__init__(addr=addr, **kwargs)
 
 class I2cComponent(Component):
-   def __init__(self, addr, **kwargs):
-      assert isinstance(addr, I2cAddr)
-      super(I2cComponent, self).__init__(addr=addr, **kwargs)
+   def __init__(self, driver=I2cKernelDriver, **kwargs):
+      super(I2cComponent, self).__init__(**kwargs)
+      self.addDriver(driver, **kwargs)
 
+# Do not use this class as it is being depreciated
 class I2cKernelComponent(I2cComponent):
    def __init__(self, addr, name, waitFile=None, waitTimeout=None, **kwargs):
-      super(I2cKernelComponent, self).__init__(addr, **kwargs)
-      self.addDriver(I2cKernelDriver, addr, name,
-                     waitFile=waitFile, waitTimeout=waitTimeout)
+      super(I2cKernelComponent, self).__init__(addr=addr, name=name,
+                                               waitFile=waitFile,
+                                               waitTimeout=waitTimeout, **kwargs)
 
 class PciKernelDriver(KernelDriver, SysfsPath):
    def __init__(self, addr, name, args=None):

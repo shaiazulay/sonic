@@ -52,9 +52,9 @@ class Ucd(I2cComponent):
    faultTimeBase = datetime.datetime(1970, 1, 1)
    daysOffset = 0
 
-   def __init__(self, addr, causes=None, **kwargs):
-      super(Ucd, self).__init__(addr, **kwargs)
-      self.addDriver(UcdI2cDevDriver, self.Registers, addr)
+   def __init__(self, addr, driver=UcdI2cDevDriver, causes=None, **kwargs):
+      super(Ucd, self).__init__(addr=addr, driver=driver, registers=self.Registers,
+                                **kwargs)
       self.causes = causes or {}
       self.oldestTime = datetime.datetime(1970, 1, 1)
 

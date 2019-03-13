@@ -18,8 +18,7 @@ class Component(object):
       self.components = defaultdict(list)
       self.drivers = []
       self.priority = priority
-      for key, value in kwargs.items():
-         setattr(self, key, value)
+      self.__dict__.update(kwargs)
       self.params = kwargs.keys()
 
    def __str__(self):
@@ -40,6 +39,8 @@ class Component(object):
       return self
 
    def addDriver(self, driverCls, *args, **kwargs):
+      if not driverCls:
+         return
       assert issubclass(driverCls, Driver)
       self.drivers += [driverCls(*args, **kwargs)]
       return self
