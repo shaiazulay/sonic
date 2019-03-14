@@ -90,6 +90,7 @@ class KernelDriver(Driver):
    # TODO: handle multiple kernel modules
    def __init__(self, module, waitFile=None, waitTimeout=None, args=None):
       self.module = module
+      self.driverName = module
       self.args = args if args is not None else []
       self.fileWaiter = FileWaiter(waitFile, waitTimeout)
 

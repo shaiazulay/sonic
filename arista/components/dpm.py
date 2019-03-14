@@ -59,7 +59,7 @@ class Ucd(I2cComponent):
       self.oldestTime = datetime.datetime(1970, 1, 1)
 
    def setup(self):
-      with self.drivers[0] as drv:
+      with self.drivers['UcdI2cDevDriver'] as drv:
          try:
             serial = drv.getVersion()
             logging.info('%s version: %s', self, serial)
@@ -183,7 +183,7 @@ class Ucd(I2cComponent):
 
       rebootCauses = JsonStoredData('%s_%s' % (Config().reboot_cause_file, self.addr))
       if not rebootCauses.exist():
-         with self.drivers[0] as drv:
+         with self.drivers['UcdI2cDevDriver'] as drv:
             causes = self._getReloadCauses(drv)
             if clear:
                logging.debug('clearing faults')

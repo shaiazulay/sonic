@@ -485,7 +485,7 @@ class Scd(PciComponent):
    def getMmap(self):
       if not self.mmapReady:
          # check that the scd driver is loaded the first time
-         drv = self.drivers[0]
+         drv = self.drivers['scd']
          if not drv.loaded():
             # This codepath is unlikely to be used
             drv.setup()
