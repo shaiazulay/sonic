@@ -11,8 +11,8 @@ setup(
       'arista',
       'arista.core',
       'arista.components',
+      'arista.drivers',
       'arista.platforms',
       'arista.utils',
    ],
 )
-

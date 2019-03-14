@@ -4,9 +4,11 @@ import os
 import time
 
 from ..core.component import Component, DEFAULT_WAIT_TIMEOUT, ASIC_YIELD_TIME
-from ..core.driver import I2cKernelDriver, KernelDriver
+from ..core.driver import KernelDriver
 from ..core.utils import klog, inSimulation
 from ..core.types import PciAddr, I2cAddr, SysfsPath
+
+from ..drivers.i2c import I2cKernelDriver
 
 class PciComponent(Component):
    def __init__(self, addr, **kwargs):
