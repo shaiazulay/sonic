@@ -61,6 +61,9 @@ def i2cBusFromName(name, idx=0, force=False):
    return None
 
 class Driver(object):
+   def __init__(self, **kwargs):
+      self.__dict__.update(kwargs)
+
    def setup(self):
       pass
 

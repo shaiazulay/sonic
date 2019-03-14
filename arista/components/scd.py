@@ -14,6 +14,9 @@ from ..core.utils import MmapResource, inSimulation, simulateWith, writeConfig
 from ..drivers.pci import PciKernelDriver
 from ..drivers.scd import ScdKernelDriver
 
+from ..drivers.sysfs import SysfsDriver
+from ..drivers.accessors import PsuImpl
+
 from .common import PciComponent, KernelDriver, I2cKernelComponent
 
 SCD_WAIT_TIMEOUT = 5.
@@ -132,22 +135,6 @@ class ScdXcvrReset(Reset):
 
    def getName(self):
       return self.name
-
-class ScdKernelPsu(Psu):
-   def __init__(self, psuId, rw, presenceGpios, statusGpios):
-      self.psuId = psuId
-      self.rw_ = rw
-      self.presenceGpios_ = presenceGpios
-      self.statusGpios_ = statusGpios
-
-   def getPresence(self):
-      return all(self.rw_.readValue(pin) == '1' for pin in self.presenceGpios_)
-
-   def getStatus(self):
-      if not self.statusGpios_:
-         return self.getPresence()
-
-      return all(self.rw_.readValue(pin) == '1' for pin in self.statusGpios_)
 
 class ScdReset(Reset):
    def __init__(self, path, reset):
@@ -327,6 +314,7 @@ class Scd(PciComponent):
       super(Scd, self).__init__(addr)
       self.addDriver(KernelDriver, 'scd')
       self.addDriver(ScdKernelDriver, self)
+      self.addDriver(SysfsDriver, sysfsPath=self.addr.getSysfsPath())
       self.pciSysfs = self.addr.getSysfsPath()
       self.masters = OrderedDict()
       self.mmapReady = False
@@ -438,11 +426,10 @@ class Scd(PciComponent):
       self.sfps += [(addr, xcvrId)]
       return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine)
 
-   def createPsu(self, psuId, presenceGpios=['present'], statusGpios=['status', 'ac_status']):
-      sysfs = ScdSysfsRW(psuId, 'psu', self.pciSysfs)
-      presenceGpios = presenceGpios[:] if presenceGpios else []
-      statusGpios = statusGpios[:] if statusGpios else []
-      return ScdKernelPsu(psuId, sysfs, presenceGpios, statusGpios)
+   def createPsu(self, psuId, presenceGpios='present', statusGpios='status',
+                 **kwargs):
+      return PsuImpl(psuId=psuId, driver=self.drivers['SysfsDriver'],
+                     presenceGpios=presenceGpios, statusGpios=statusGpios, **kwargs)
 
    def allGpios(self):
       def zipXcvr(xcvrType, gpio_names, entries):
