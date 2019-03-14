@@ -13,12 +13,13 @@ class Priority:
    BACKGROUND = 1
 
 class Component(object):
-   def __init__(self, priority=Priority.DEFAULT, **kwargs):
+   def __init__(self, priority=Priority.DEFAULT, driver=None, **kwargs):
       self.components = defaultdict(list)
       self.drivers = OrderedDict()
       self.priority = priority
       self.__dict__.update(kwargs)
       self.params = kwargs.keys()
+      self.addDriver(driver, **kwargs)
 
    def __str__(self):
       kwargs = ['%s=%s' % (k, getattr(self, k)) for k in self.params]
@@ -37,6 +38,7 @@ class Component(object):
       self.components[component.priority].append(component)
       return self
 
+   # Keep *args for compatibility
    def addDriver(self, driver, *args, **kwargs):
       if driver:
          drv = driver(*args, **kwargs)

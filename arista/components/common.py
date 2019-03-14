@@ -12,13 +12,11 @@ from ..drivers.i2c import I2cKernelDriver
 
 class PciComponent(Component):
    def __init__(self, addr, **kwargs):
-      assert isinstance(addr, PciAddr)
       super(PciComponent, self).__init__(addr=addr, **kwargs)
 
 class I2cComponent(Component):
    def __init__(self, driver=I2cKernelDriver, **kwargs):
-      super(I2cComponent, self).__init__(**kwargs)
-      self.addDriver(driver, **kwargs)
+      super(I2cComponent, self).__init__(driver=driver, **kwargs)
 
 # Do not use this class as it is being depreciated
 class I2cKernelComponent(I2cComponent):
