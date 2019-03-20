@@ -19,13 +19,13 @@ class CpldPowerCycle(PowerCycle):
       logging.info("Powercycle triggered from CPLD")
 
 class CrowCpld(I2cComponent):
-   def __init__(self, addr):
-      super(CrowCpld, self).__init__(addr=addr, driver=None)
+   def __init__(self, addr, driver=None, **kwargs):
+      super(CrowCpld, self).__init__(addr=addr, driver=driver, **kwargs)
       self.powerCycles = []
       self.psus = []
 
    def createPsuComponent(self, num, **kwargs):
-      psuComponent = UpperlakePsuComponent(num, self.addr, **kwargs)
+      psuComponent = UpperlakePsuComponent(psuId=num, addr=self.addr, **kwargs)
       self.psus.append(psuComponent)
       return psuComponent
 

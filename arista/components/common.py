@@ -11,8 +11,8 @@ from ..core.types import PciAddr, SysfsPath
 from ..drivers.i2c import I2cKernelDriver
 
 class PciComponent(Component):
-   def __init__(self, addr, **kwargs):
-      super(PciComponent, self).__init__(addr=addr, **kwargs)
+   def __init__(self, **kwargs):
+      super(PciComponent, self).__init__(**kwargs)
 
 class I2cComponent(Component):
    def __init__(self, driver=I2cKernelDriver, **kwargs):
@@ -26,6 +26,9 @@ class I2cKernelComponent(I2cComponent):
                                                waitTimeout=waitTimeout, **kwargs)
 
 class SwitchChip(PciComponent):
+   def __init__(self, addr, **kwargs):
+      super(SwitchChip, self).__init__(addr=addr, **kwargs)
+      
    def pciRescan(self):
       logging.info('triggering kernel pci rescan')
       with open('/sys/bus/pci/rescan', 'w') as f:

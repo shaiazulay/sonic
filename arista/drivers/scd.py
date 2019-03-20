@@ -1,11 +1,14 @@
 import logging
 import os
+import time
 
 from collections import OrderedDict
 
 from .pci import PciKernelDriver
 from ..core.config import Config
 from ..core.utils import inSimulation, simulateWith, writeConfig
+
+SCD_WAIT_TIMEOUT = 5.
 
 _i2cBuses = OrderedDict()
 def getKernelI2cBuses(force=False):

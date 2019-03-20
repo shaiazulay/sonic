@@ -6,13 +6,12 @@ from contextlib import closing
 
 from ..core.utils import Retrying, SMBus, simulateWith
 
-from .common import I2cKernelComponent
+from .common import I2cComponent
 
-class Ds460(I2cKernelComponent):
+class Ds460(I2cComponent):
    def __init__(self, addr, hwmonDir, **kwargs):
       # pmbus if dps460 is not available
-      super(Ds460, self).__init__(addr, 'dps460',
-                                  waitFile=hwmonDir,
+      super(Ds460, self).__init__(addr=addr, name='dps460', waitFile=hwmonDir,
                                   **kwargs)
       self.hwmonDir = hwmonDir
 

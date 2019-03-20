@@ -13,11 +13,11 @@ class SysfsDriver(Driver):
          return f.read().rstrip()
 
    def getPsuPresence(self, psu):
-      return self.read('psu%d_%s' % (psu.psuId, psu.presenceGpios)) == '1'
+      return self.read('psu%d_%s' % (psu.psuId, 'present')) == '1'
 
    def getPsuStatus(self, psu):
-      if psu.statusGpios:
-         return self.read('psu%d_%s' % (psu.psuId, psu.statusGpios)) == '1'
+      if psu.statusGpio:
+         return self.read('psu%d_%s' % (psu.psuId, 'status')) == '1'
       return self.getPsuPresence(psu)
 
    def __str__(self):

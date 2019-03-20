@@ -5,7 +5,7 @@ from contextlib import closing
 
 from ..core.inventory import Psu
 from ..core.utils import SMBus, simulateWith
-from .common import I2cComponent, I2cKernelComponent
+from .common import I2cComponent
 
 class ScdPmbusPsu(Psu):
    def __init__(self, scd, pmbus):
@@ -19,9 +19,9 @@ class ScdPmbusPsu(Psu):
    def getStatus(self):
       return self.pmbus_.getStatus()
 
-class PmbusPsuComponent(I2cKernelComponent):
+class PmbusPsuComponent(I2cComponent):
    def __init__(self, addr, hwmonDir, **kwargs):
-      super(PmbusPsuComponent, self).__init__(addr, "pmbus", waitFile=hwmonDir, **kwargs)
+      super(PmbusPsuComponent, self).__init__(addr=addr, name="pmbus", waitFile=hwmonDir, **kwargs)
       self.hwmonDir = hwmonDir
 
    def getStatus():
@@ -70,8 +70,8 @@ class PmbusPsuComponent(I2cKernelComponent):
       return nonZero
 
 class UpperlakePsuComponent(I2cComponent):
-   def __init__(self, psuId, addr, **kwargs):
-      super(UpperlakePsuComponent, self).__init__(addr=addr, driver=None, **kwargs)
+   def __init__(self, psuId=1, driver=None, **kwargs):
+      super(UpperlakePsuComponent, self).__init__(driver=driver, **kwargs)
 
       # MSB: Description (Good/bad values)
       # 3:   PSU1 AC OK (1/0)
