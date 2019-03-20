@@ -308,12 +308,25 @@ static s32 read_fan_present_buf(struct device *dev, char *buf, int index)
     return sprintf(buf, "%d\n", present);
 }
 
+static s32 read_fan_airflow(struct device *dev, u8 reg, char *buf)
+{
+    s32 status;
+    u8 id;
+
+    status = read_cpld(dev, reg, &id);
+    if (status) {
+        return status;
+    }
+
+    return sprintf(buf, "%s\n", (id & 0x4) ? "forward" : "reverse");
+}
+
 #define GENERIC_FAN_READ(_name, _dev, _reg)                                         \
 static ssize_t fan_##_name##_##_dev##_show(struct device *dev,                      \
                                            struct device_attribute *attr,           \
                                            char *buf)                               \
 {                                                                                   \
-    return read_cpld_buf(dev, _reg, buf);                                     \
+    return read_cpld_buf(dev, _reg, buf);                                           \
 }                                                                                   \
 
 #define GENERIC_FAN_WRITE(_name, _dev, _reg)                                        \
@@ -321,21 +334,21 @@ static ssize_t fan_##_name##_##_dev##_store(struct device *dev,                 
                                             struct device_attribute *attr,          \
                                             const char *buf, size_t count)          \
 {                                                                                   \
-    write_cpld_buf(dev, _reg, buf);                                           \
+    write_cpld_buf(dev, _reg, buf);                                                 \
     return count;                                                                   \
 }                                                                                   \
 
-#define GENERIC_LED(_name)                                    \
+#define GENERIC_LED(_name)                                                          \
 static ssize_t fan_##_name##_led_show(struct device *dev,                           \
                                       struct device_attribute *attr, char *buf)     \
 {                                                                                   \
-    return read_led_color_buf(dev, buf, _name-1);                        \
+    return read_led_color_buf(dev, buf, _name-1);                                   \
 }                                                                                   \
 static ssize_t fan_##_name##_led_store(struct device *dev,                          \
                                        struct device_attribute *attr,               \
                                        const char *buf, size_t count)               \
 {                                                                                   \
-    write_led_color_buf(dev, buf, _name-1);                         \
+    write_led_color_buf(dev, buf, _name-1);                                         \
     return count;                                                                   \
 }                                                                                   \
 DEVICE_ATTR(fan##_name##_led, S_IRUGO|S_IWGRP|S_IWUSR,                              \
@@ -346,12 +359,19 @@ DEVICE_ATTR(fan##_name##_led, S_IRUGO|S_IWGRP|S_IWUSR,                          
 static ssize_t tach_##_name##_show(struct device *dev,                              \
                                    struct device_attribute *attr, char *buf)        \
 {                                                                                   \
-    return read_tach_buf(dev, TACH##_name##HIGHREG, TACH##_name##LOWREG, buf);          \
+    return read_tach_buf(dev, TACH##_name##HIGHREG, TACH##_name##LOWREG, buf);      \
 }                                                                                   \
 DEVICE_ATTR(fan##_name##_input, S_IRUGO, tach_##_name##_show, NULL);                \
                                                                                     \
 GENERIC_FAN_READ(_name, id, FAN##_name##IDREG);                                     \
 DEVICE_ATTR(fan##_name##_id, S_IRUGO, fan_##_name##_id_show, NULL);                 \
+                                                                                    \
+static ssize_t fan_##_name##_airflow_show(struct device *dev,                       \
+                                          struct device_attribute *attr, char *buf) \
+{                                                                                   \
+    return read_fan_airflow(dev, FAN##_name##IDREG, buf);                           \
+}                                                                                   \
+DEVICE_ATTR(fan##_name##_airflow, S_IRUGO, fan_##_name##_airflow_show, NULL);       \
                                                                                     \
 GENERIC_FAN_READ(_name, pwm, FAN##_name##PWMREG);                                   \
 GENERIC_FAN_WRITE(_name, pwm, FAN##_name##PWMREG);                                  \
@@ -361,11 +381,11 @@ DEVICE_ATTR(pwm##_name, S_IRUGO|S_IWGRP|S_IWUSR,                                
 static ssize_t fan_##_name##_present_show(struct device *dev,                       \
                                           struct device_attribute *attr, char *buf) \
 {                                                                                   \
-    return read_fan_present_buf(dev, buf, _name-1);                        \
+    return read_fan_present_buf(dev, buf, _name-1);                                 \
 }                                                                                   \
 DEVICE_ATTR(fan##_name##_present, S_IRUGO, fan_##_name##_present_show, NULL);       \
                                                                                     \
-GENERIC_LED(_name)                                    \
+GENERIC_LED(_name)                                                                  \
 
 
 static ssize_t crow_cpld_rev_show(struct device *dev,
@@ -384,6 +404,7 @@ FAN_DEVICE_ATTR(4);
 #define FANATTR(_name)                   \
     &dev_attr_pwm##_name.attr,           \
     &dev_attr_fan##_name##_id.attr,      \
+    &dev_attr_fan##_name##_airflow.attr, \
     &dev_attr_fan##_name##_input.attr,   \
     &dev_attr_fan##_name##_present.attr, \
     &dev_attr_fan##_name##_led.attr,     \
