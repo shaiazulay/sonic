@@ -15,11 +15,6 @@ class Xcvr(object):
    def typeStr(cls, typeIndex):
       return ['sfp', 'qsfp', 'osfp'][typeIndex]
 
-   def __init__(self, portNum, xcvrType, addr):
-      self.portNum = portNum
-      self.xcvrType = xcvrType
-      self.addr = addr
-
    def getPresence(self):
       raise NotImplementedError()
 
@@ -155,7 +150,7 @@ class Inventory(object):
       self.portEnd = self.allXcvrsRange[-1]
 
    def addXcvr(self, xcvr):
-      self.xcvrs[xcvr.portNum] = xcvr
+      self.xcvrs[xcvr.xcvrId] = xcvr
       xcvrReset = xcvr.getReset()
       if xcvrReset is not None:
          self.resets[xcvrReset.getName()] = xcvrReset

@@ -117,7 +117,7 @@ def getSfpUtil():
                   pollRet = dict(pollRet)
                   for xcvr, openFile in openFiles:
                      if openFile.fileno() in pollRet:
-                        ret[str(xcvr.portNum)] = '1' if xcvr.getPresence() else '0'
+                        ret[str(xcvr.xcvrId)] = '1' if xcvr.getPresence() else '0'
                   return True, ret
             finally:
                for _, openFile in openFiles:
