@@ -181,6 +181,9 @@ class Inventory(object):
    def addPsus(self, psus):
       self.psus = psus
 
+   def getPsus(self):
+      return self.psus
+
    def getPsu(self, index):
       return self.psus[index]
 
