@@ -813,23 +813,35 @@ static int scd_master_xfer(struct i2c_adapter *adap,
    struct scd_bus *bus = i2c_get_adapdata(adap);
    int ret, command;
    int read_write;
+   union i2c_smbus_data *data;
+   int len;
+   struct i2c_msg *msg;
 
-   if (num != 2) {
+   if (num > 2) {
       scd_err("i2c rw num=%d adapter=\"%s\" (unsupported request)\n",
               num, bus->adap.name);
       return -EINVAL;
    }
 
-   command = scd_master_xfer_get_command(&msgs[0]);
-   if (command < 0) {
-      return command;
+   if (num == 2) {
+      command = scd_master_xfer_get_command(&msgs[0]);
+      if (command < 0) {
+         return command;
+      }
+      data = (union i2c_smbus_data*)msgs[1].buf;
+      len = msgs[1].len;
+      msg = &msgs[1];
+   } else {
+      command = msgs[0].buf[0];
+      data = (union i2c_smbus_data*)&msgs[0].buf[1];
+      len = msgs[0].len - 1;
+      msg = &msgs[0];
    }
 
    scd_dbg("i2c rw num=%d adapter=\"%s\"\n", num, bus->adap.name);
-   read_write = (msgs[1].flags & I2C_M_RD) ? I2C_SMBUS_READ : 0;
-   ret = scd_smbus_access_impl(adap, msgs[1].addr, 0, read_write, command,
-                               I2C_SMBUS_I2C_BLOCK_DATA_MSG,
-                               (union i2c_smbus_data*)msgs[1].buf, msgs[1].len);
+   read_write = (msg->flags & I2C_M_RD) ? I2C_SMBUS_READ : 0;
+   ret = scd_smbus_access_impl(adap, msg->addr, 0, read_write, command,
+                               I2C_SMBUS_I2C_BLOCK_DATA_MSG, data, len);
    if (ret) {
       scd_warn("i2c rw error=0x%x adapter=\"%s\"\n", ret, bus->adap.name);
       return ret;
