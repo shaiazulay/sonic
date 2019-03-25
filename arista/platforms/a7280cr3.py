@@ -28,7 +28,7 @@ class Smartsville(Platform):
 
       scd.addComponents([
          I2cKernelComponent(scd.i2cAddr(0, 0x48), 'tmp468',
-                            '/sys/class/hwmon/hwmon2'),
+                            '/sys/class/hwmon/hwmon3'),
          I2cKernelComponent(scd.i2cAddr(6, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
          I2cKernelComponent(scd.i2cAddr(7, 0x58), 'pmbus',
