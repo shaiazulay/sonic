@@ -70,15 +70,14 @@ class PmbusPsuComponent(I2cComponent):
       return nonZero
 
 class UpperlakePsuComponent(I2cComponent):
-   def __init__(self, psuId=1, driver=None, **kwargs):
-      super(UpperlakePsuComponent, self).__init__(driver=driver, **kwargs)
-
+   def __init__(self, psuId=1, **kwargs):
       # MSB: Description (Good/bad values)
       # 3:   PSU1 AC OK (1/0)
       # 2:   PSU2 AC OK (1/0)
       # 1:   PSU1 DC OK (1/0)
       # 0:   PSU2 DC OK (1/0)
       self.statusMask_ = 0b1010 >> (psuId - 1)
+      super(UpperlakePsuComponent, self).__init__(**kwargs)
 
    def getStatus(self):
       reg = 0x0c

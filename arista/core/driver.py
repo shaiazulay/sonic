@@ -6,7 +6,6 @@ import subprocess
 
 from collections import OrderedDict
 
-from .types import I2cAddr
 from .utils import FileWaiter, inDebug, inSimulation
 
 def modprobe(name, args=None):
@@ -90,12 +89,11 @@ class Driver(object):
       print('%s%s%s' % (spacer, prefix, self))
 
 class KernelDriver(Driver):
-   # TODO: handle multiple kernel modules
-   def __init__(self, module, waitFile=None, waitTimeout=None, args=None):
-      self.module = module
-      self.driverName = module
+   def __init__(self, waitFile=None, waitTimeout=None, args=None, **kwargs):
       self.args = args if args is not None else []
       self.fileWaiter = FileWaiter(waitFile, waitTimeout)
+      self.module = self.driverName = kwargs.get('module')
+      super(KernelDriver, self).__init__(**kwargs)
 
    def setup(self):
       modprobe(self.module, self.args)

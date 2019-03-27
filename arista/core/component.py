@@ -1,6 +1,7 @@
 from __future__ import print_function
 from collections import defaultdict, OrderedDict
 
+from .driver import KernelDriver
 from .utils import flatten
 
 import os
@@ -13,13 +14,13 @@ class Priority:
    BACKGROUND = 1
 
 class Component(object):
-   def __init__(self, priority=Priority.DEFAULT, driver=None, **kwargs):
+   def __init__(self, priority=Priority.DEFAULT, drivers=None, **kwargs):
       self.components = defaultdict(list)
-      self.drivers = OrderedDict()
       self.priority = priority
+      self.drivers = OrderedDict()
+      self.addDrivers(drivers)
       self.__dict__.update(kwargs)
       self.params = kwargs.keys()
-      self.addDriver(driver, **kwargs)
 
    def __str__(self):
       kwargs = ['%s=%s' % (k, getattr(self, k)) for k in self.params]
@@ -38,11 +39,20 @@ class Component(object):
       self.components[component.priority].append(component)
       return self
 
-   # Keep *args for compatibility
+   def addDrivers(self, drivers):
+      if drivers:
+         for drv in drivers:
+            self.drivers[getattr(drv, 'driverName', None) or
+                         drv.__class__.__name__] = drv
+
+   # Compatibility function for platform code
    def addDriver(self, driver, *args, **kwargs):
       if driver:
-         drv = driver(*args, **kwargs)
-         self.drivers[getattr(drv, 'driverName', None) or driver.__name__] = drv
+         if driver == KernelDriver:
+            kwargs['module'] = args[0]
+         drv = driver(**kwargs)
+         self.drivers[getattr(drv, 'driverName', None) or
+                      driver.__class__.__name__] = drv
 
    def setup(self):
       for driver in self.drivers.values():

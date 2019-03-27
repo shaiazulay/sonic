@@ -34,9 +34,8 @@ def i2cBusFromName(name, idx=0, force=False):
    return None
 
 class ScdKernelDriver(PciKernelDriver):
-   def __init__(self, scd):
-      super(ScdKernelDriver, self).__init__(scd.addr, 'scd-hwmon')
-      self.scd = scd
+   def __init__(self, **kwargs):
+      super(ScdKernelDriver, self).__init__(module='scd-hwmon', **kwargs)
 
    def writeComponents(self, components, filename):
       PAGE_SIZE = 4096
@@ -46,23 +45,23 @@ class ScdKernelDriver(PciKernelDriver):
       for entry in components:
          entry_size = len(entry) + 1
          if entry_size + data_size > PAGE_SIZE:
-            writeConfig(self.getSysfsPath(), {filename: '\n'.join(data)})
+            writeConfig(self.addr.getSysfsPath(), {filename: '\n'.join(data)})
             data_size = 0
             data = []
          data.append(entry)
          data_size += entry_size
 
       if data:
-         writeConfig(self.getSysfsPath(), {filename: '\n'.join(data)})
+         writeConfig(self.addr.getSysfsPath(), {filename: '\n'.join(data)})
 
    def waitReadySim(self):
-      logging.info('Waiting SCD %s.', os.path.join(self.getSysfsPath(),
+      logging.info('Waiting SCD %s.', os.path.join(self.addr.getSysfsPath(),
                                                    'smbus_tweaks'))
       logging.info('Done.')
 
    @simulateWith(waitReadySim)
    def waitReady(self):
-      path = os.path.join(self.getSysfsPath(), 'smbus_tweaks')
+      path = os.path.join(self.addr.getSysfsPath(), 'smbus_tweaks')
       logging.debug('Waiting SCD %s.', path)
 
       count = 0
@@ -135,7 +134,7 @@ class ScdKernelDriver(PciKernelDriver):
 
    def finish(self):
       logging.debug('applying scd configuration')
-      path = self.getSysfsPath()
+      path = self.addr.getSysfsPath()
       if Config().lock_scd_conf:
          writeConfig(path, {'init_trigger': '1'})
       super(ScdKernelDriver, self).finish()
@@ -146,7 +145,7 @@ class ScdKernelDriver(PciKernelDriver):
 
    @simulateWith(resetSim)
    def reset(self, value):
-      path = self.getSysfsPath()
+      path = self.addr.getSysfsPath()
       for reset in self.scd.getSysfsResetNameList():
          with open(os.path.join(path, reset), 'w') as f:
             f.write('1' if value else '0')

@@ -5,11 +5,9 @@ from ..core.driver import Driver
 from ..core.utils import FileWaiter, inSimulation
 
 class I2cKernelDriver(Driver):
-   def __init__(self, addr=None, name=None, waitFile=None, waitTimeout=None,
-                **kwargs):
-      self.addr = addr
-      self.name = name
+   def __init__(self, waitFile=None, waitTimeout=None, **kwargs):
       self.fileWaiter = FileWaiter(waitFile, waitTimeout)
+      super(I2cKernelDriver, self).__init__(**kwargs)
 
    def getSysfsPath(self):
       return self.addr.getSysfsPath()

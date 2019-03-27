@@ -122,10 +122,10 @@ def registerPlatform(skus):
    return wrapper
 
 class Platform(Component):
-   def __init__(self):
-      super(Platform, self).__init__()
-      self.addDriver(KernelDriver, 'eeprom')
-      self.addDriver(KernelDriver, 'i2c-dev')
+   def __init__(self, drivers=None, **kwargs):
+      drivers = drivers or [KernelDriver(module='eeprom'),
+                            KernelDriver(module='i2c-dev')]
+      super(Platform, self).__init__(drivers=drivers, **kwargs)
       self.inventory = Inventory()
 
    def setup(self, priority=Priority.DEFAULT):

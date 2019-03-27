@@ -2,7 +2,6 @@ from __future__ import with_statement
 
 import datetime
 import logging
-import re
 from collections import namedtuple
 
 from ..core.config import Config
@@ -55,11 +54,12 @@ class Ucd(I2cComponent):
    faultTimeBase = datetime.datetime(1970, 1, 1)
    daysOffset = 0
 
-   def __init__(self, addr, driver=UcdI2cDevDriver, causes=None, **kwargs):
-      super(Ucd, self).__init__(addr=addr, driver=driver, registers=self.Registers,
-                                **kwargs)
+   def __init__(self, addr, drivers=None, causes=None, **kwargs):
+      drivers = drivers or [UcdI2cDevDriver(addr=addr, registers=self.Registers)]
+      self.addr = addr
       self.causes = causes or {}
       self.oldestTime = datetime.datetime(1970, 1, 1)
+      super(Ucd, self).__init__(drivers=drivers, **kwargs)
 
    def setup(self):
       with self.drivers['UcdI2cDevDriver'] as drv:

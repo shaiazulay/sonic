@@ -6,15 +6,17 @@ import os
 from collections import OrderedDict, namedtuple
 
 from ..core.config import Config
+from ..core.driver import KernelDriver
 from ..core.inventory import Interrupt, PowerCycle, Watchdog, Xcvr, Reset
 from ..core.types import I2cAddr
 from ..core.utils import MmapResource, inSimulation, simulateWith, writeConfig
 
+from ..drivers.i2c import I2cKernelDriver
 from ..drivers.scd import ScdKernelDriver
 from ..drivers.sysfs import SysfsDriver
 from ..drivers.accessors import PsuImpl, ResetImpl, XcvrImpl
 
-from .common import PciComponent, KernelDriver, I2cComponent
+from .common import PciComponent, I2cComponent
 
 SYS_UIO_PATH = '/sys/class/uio'
 
@@ -199,11 +201,11 @@ class ScdInterruptRegister(object):
 
 class Scd(PciComponent):
    BusTweak = namedtuple('BusTweak', 'addr, t, datr, datw, ed')
-   def __init__(self, addr, **kwargs):
-      super(Scd, self).__init__(addr=addr, **kwargs)
-      self.addDriver(KernelDriver, 'scd')
-      self.addDriver(ScdKernelDriver, self)
-      self.addDriver(SysfsDriver, sysfsPath=self.addr.getSysfsPath())
+   def __init__(self, addr, drivers=None, **kwargs):
+      drivers = drivers or [KernelDriver(module='scd'),
+                            ScdKernelDriver(scd=self, addr=addr),
+                            SysfsDriver(sysfsPath=addr.getSysfsPath())]
+      super(Scd, self).__init__(addr=addr, drivers=drivers, **kwargs)
       self.pciSysfs = self.addr.getSysfsPath()
       self.masters = OrderedDict()
       self.mmapReady = False
@@ -303,7 +305,8 @@ class Scd(PciComponent):
                       driver=self.drivers['SysfsDriver'],
                       addr=addr, interruptLine=interruptLine,
                       reset=reset)
-      self.addComponent(I2cComponent(addr=addr, name='sff8436'))
+      self.addComponent(I2cComponent(addr=addr,
+                           drivers=[I2cKernelDriver(name='sff8436', addr=addr)]))
       self.addBusTweak(addr)
       self.xcvrs.append(xcvr)
       return xcvr

@@ -8,11 +8,11 @@ SMBUS_BLOCK_MAX_SZ = 32
 
 class UcdI2cDevDriver(Driver):
    def __init__(self, registers=None, addr=None, **kwargs):
-      super(UcdI2cDevDriver, self).__init__()
       self.bus = None
       self.busMsg = I2cMsg(addr)
       self.registers = registers
       self.addr = addr
+      super(UcdI2cDevDriver, self).__init__(**kwargs)
 
    def __enter__(self):
       self.bus = SMBus(self.addr.bus)
