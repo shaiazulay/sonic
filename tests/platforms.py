@@ -16,7 +16,8 @@ from arista.core.platform import getPlatforms
 from arista.core.types import I2cAddr
 import arista.core.utils
 
-from arista.drivers.accessors import PsuImpl, XcvrImpl
+from arista.drivers.accessors import FanImpl, PsuImpl, XcvrImpl
+from arista.drivers.i2c import I2cFanDriver
 from arista.drivers.scd import ScdKernelDriver
 from arista.drivers.sysfs import SysfsDriver
 
@@ -33,12 +34,10 @@ def mock_writeComponents(self, components, filename):
    assert filename
 
 def mock_read(self, name):
-   assert self.sysfsPath
    assert name
    return '1'
 
 def mock_write(self, name, value):
-   assert self.sysfsPath
    assert name
    assert value != None
 
@@ -67,6 +66,8 @@ def mock_readReg(self, reg):
 @patch.object(ScdKernelDriver, 'writeComponents', mock_writeComponents)
 @patch.object(SysfsDriver, 'read', mock_read)
 @patch.object(SysfsDriver, 'write', mock_write)
+@patch.object(I2cFanDriver, 'read', mock_read)
+@patch.object(I2cFanDriver, 'write', mock_write)
 class MockTest(unittest.TestCase):
    @classmethod
    def setUpClass(cls):
@@ -137,6 +138,18 @@ class MockTest(unittest.TestCase):
                assert isinstance(psu.psuId, int)
                assert isinstance(psu.getPresence(), bool)
                assert isinstance(psu.getStatus(), bool)
+
+   def testFans(self):
+      for name, inventory in self.inventories.items():
+         self.logger.info('Testing fans for platform %s', name)
+         for fan in inventory.getFans():
+            assert isinstance(fan, FanImpl)
+            assert isinstance(fan.driver, Driver)
+            assert isinstance(fan.fanId, int)
+            assert isinstance(fan.getSpeed(), int)
+            assert (not fan.getSpeed() < 0) or (not fan.getSpeed() > 100)
+            fan.setSpeed(100)
+            assert isinstance(fan.getDirection(), str)
 
 if __name__ == '__main__':
    unittest.main()

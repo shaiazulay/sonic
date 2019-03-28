@@ -1,19 +1,41 @@
-import os
 import logging
 
-from ..core.inventory import Fan
+from ..core.driver import KernelDriver
+from .common import I2cComponent
 
-class SysfsFan(Fan):
-   def __init__(self, hwmonPath, index):
-      self.hwmonPath = hwmonPath
-      self.index = index
-      self.pwmPath = os.path.join(hwmonPath, "pwm%d" % index)
+from ..drivers.accessors import FanImpl
+from ..drivers.i2c import I2cFanDriver
+from ..drivers.sysfs import SysfsDriver
 
-   def getSpeed(self):
-      with open(self.pwmPath, "r") as pwm:
-         return int(pwm.read())
+class CrowFanCpldComponent(I2cComponent):
+   def __init__(self, addr=None, drivers=None, **kwargs):
+      drivers = drivers or [I2cFanDriver(name='crow_cpld', addr=addr, maxPwm=255),
+                            KernelDriver(module='crow-fan-driver')]
+      super(CrowFanCpldComponent, self).__init__(addr=addr, drivers=drivers,
+                                                 **kwargs)
 
-   def setSpeed(self, speed):
-      logging.info("Setting fan %d to speed %d", self.index, speed)
-      with open(self.pwmPath, "w") as pwm:
-         pwm.write(speed)
+   def createFan(self, fanId, driver='I2cFanDriver', **kwargs):
+      logging.debug('creating crow fan %s', fanId)
+      return FanImpl(fanId=fanId, driver=self.drivers[driver], **kwargs)
+
+class LAFanCpldComponent(I2cComponent):
+   def __init__(self, addr=None, drivers=None, **kwargs):
+      drivers = drivers or [I2cFanDriver(name='la_cpld', addr=addr, maxPwm=255)]
+      super(LAFanCpldComponent, self).__init__(addr=addr, drivers=drivers,
+                                               **kwargs)
+
+   def createFan(self, fanId, driver='I2cFanDriver', **kwargs):
+      logging.debug('creating LA fan %s', fanId)
+      return FanImpl(fanId=fanId, driver=self.drivers[driver], **kwargs)
+
+class RavenFanCpldComponent(I2cComponent):
+   def __init__(self, addr=None, drivers=None, **kwargs):
+      sysfsDriver = SysfsDriver(maxPwm=255,
+            sysfsPath='/sys/devices/platform/sb800-fans/hwmon/hwmon1')
+      drivers = drivers or [KernelDriver(module='raven-fan-driver'), sysfsDriver]
+      super(RavenFanCpldComponent, self).__init__(addr=addr, drivers=drivers,
+                                                  **kwargs)
+
+   def createFan(self, fanId, driver='SysfsDriver', **kwargs):
+      logging.debug('creating raven fan %s', fanId)
+      return FanImpl(fanId=fanId, driver=self.drivers[driver], **kwargs)

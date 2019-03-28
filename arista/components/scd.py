@@ -207,7 +207,7 @@ class Scd(PciComponent):
       drivers = drivers or [KernelDriver(module='scd'),
                             ScdKernelDriver(scd=self, addr=addr),
                             SysfsDriver(sysfsPath=addr.getSysfsPath())]
-      super(Scd, self).__init__(addr=addr, drivers=drivers, **kwargs)
+      self.addr = addr
       self.pciSysfs = self.addr.getSysfsPath()
       self.masters = OrderedDict()
       self.mmapReady = False
@@ -225,6 +225,7 @@ class Scd(PciComponent):
       self.resets = []
       self.i2cOffset = 0
       self.msiRearmOffset = None
+      super(Scd, self).__init__(drivers=drivers, **kwargs)
 
    def setMsiRearmOffset(self, offset):
       self.msiRearmOffset = offset
@@ -332,8 +333,8 @@ class Scd(PciComponent):
       return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine)
 
    # In platforms, should change "statusGpios" to "statusGpio" and make it a boolean
-   def createPsu(self, psuId, statusGpios=True, **kwargs):
-      return PsuImpl(psuId=psuId, driver=self.drivers['SysfsDriver'],
+   def createPsu(self, psuId, driver='SysfsDriver', statusGpios=True, **kwargs):
+      return PsuImpl(psuId=psuId, driver=self.drivers[driver],
                      statusGpio=statusGpios, **kwargs)
 
    def allGpios(self):

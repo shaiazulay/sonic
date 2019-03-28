@@ -9,7 +9,8 @@ from ..core.utils import inSimulation
 
 class SysfsDriver(Driver):
    def __init__(self, sysfsPath=None, **kwargs):
-      super(SysfsDriver, self).__init__(sysfsPath=sysfsPath, **kwargs)
+      self.sysfsPath = sysfsPath
+      super(SysfsDriver, self).__init__(**kwargs)
 
    def __str__(self):
       return '%s(%s)' % (self.__class__.__name__, self.sysfsPath)
@@ -80,3 +81,19 @@ class SysfsDriver(Driver):
    def resetComponentOut(self, reset):
       logging.debug('putting %s out of reset', reset.name)
       return self.write('%s_%s' % (reset.name, 'reset'), 0)
+
+   # Fan
+   # Fan speeds are a percentage
+   def getFanSpeed(self, fan):
+      return int(float(self.read('pwm%s' % fan.fanId)) / self.maxPwm * 100)
+
+   def setFanSpeed(self, fan, speed):
+      if not int(speed) in range(101):
+         logging.error('invalid speed setting %s for fan %s', speed, fan.fanId)
+         return None
+      logging.debug('setting fan %s speed to %s', fan.fanId, speed)
+      return self.write('pwm%s' % fan.fanId,
+                        str(int(int(speed) * 0.01 * self.maxPwm)))
+
+   def getFanDirection(self, fan):
+      return self.read('fan%s_airflow' % fan.fanId)

@@ -37,6 +37,9 @@ class Fan(object):
    def setSpeed(self, speed):
       raise NotImplementedError()
 
+   def getDirection(self):
+      raise NotImplementedError()
+
 class Psu(object):
    def getPresence(self):
       raise NotImplementedError()
@@ -190,11 +193,17 @@ class Inventory(object):
    def getNumPsus(self):
       return len(self.psus)
 
+   def addFan(self, fan):
+      self.fans.append(fan)
+
    def addFans(self, fans):
-      self.fans = fans
+      self.fans.extend(fans)
 
    def getFan(self, index):
       return self.fans[index]
+
+   def getFans(self):
+      return self.fans
 
    def getNumFans(self):
       return len(self.fans)

@@ -1,9 +1,10 @@
 from __future__ import print_function, with_statement
 
-from ..core.inventory import Psu, Reset, Xcvr
+from ..core.inventory import Fan, Psu, Reset, Xcvr
 
 class PsuImpl(Psu):
-   def __init__(self, **kwargs):
+   def __init__(self, driver=None, **kwargs):
+      self.driver = driver
       self.statusGpio = True
       self.__dict__.update(kwargs)
 
@@ -14,7 +15,10 @@ class PsuImpl(Psu):
       return self.driver.getPsuStatus(self)
 
 class XcvrImpl(Xcvr):
-   def __init__(self, **kwargs):
+   def __init__(self, driver=None, interruptLine=None, reset=None, **kwargs):
+      self.driver = driver
+      self.interruptLine = interruptLine
+      self.reset = reset
       typeStr = Xcvr.typeStr(kwargs['xcvrType'])
       self.name = '%s%s' % (typeStr, kwargs['xcvrId'])
       self.__dict__.update(kwargs)
@@ -47,7 +51,9 @@ class XcvrImpl(Xcvr):
       return self.reset
 
 class ResetImpl(Reset):
-   def __init__(self, **kwargs):
+   def __init__(self, name=None, driver=None, **kwargs):
+      self.name = name
+      self.driver = driver
       self.__dict__.update(kwargs)
 
    def read(self):
@@ -61,3 +67,17 @@ class ResetImpl(Reset):
 
    def getName(self):
       return self.name
+
+class FanImpl(Fan):
+   def __init__(self, driver=None, **kwargs):
+      self.driver = driver
+      self.__dict__.update(kwargs)
+
+   def getSpeed(self):
+      return self.driver.getFanSpeed(self)
+
+   def setSpeed(self, speed):
+      return self.driver.setFanSpeed(self, speed)
+
+   def getDirection(self):
+      return self.driver.getFanDirection(self)
