@@ -118,11 +118,20 @@ static const struct fan_platform fan_platforms[] = {
    },
 };
 
+/* Constants */
+#define FAN_LED_COLOR_GREEN(_fan) \
+    (0xff & (_fan)->fan_group->platform->mask_green_led)
+#define FAN_LED_COLOR_RED(_fan) \
+    (0xff & (_fan)->fan_group->platform->mask_green_red)
+
 /* Helpers to calculate register address */
-#define FAN_ADDR(group, type) (group->addr_base + group->platform->type##_offset)
-#define FAN_ADDR_2(g, t, index) (FAN_ADDR(g, t) + g->platform->t##_step * (index))
-#define FAN_ADDR_3(g, t, i, type2) \
-   (FAN_ADDR_2(g, t, i) + g->platform->t##_##type2##_offset)
+#define FAN_ADDR(_group, _type) \
+    ((_group)->addr_base + (_group)->platform->_type##_offset)
+#define FAN_ADDR_2(_group, _type, _index) \
+    (FAN_ADDR(_group, _type) + (_group)->platform->_type##_step * (_index))
+#define FAN_ADDR_3(_group, _type, _index, _type2) \
+    (FAN_ADDR_2(_group, _type, _index) + \
+     (_group)->platform->_type##_##_type2##_offset)
 
 static const struct fan_platform *fan_platform_find(u32 id) {
    size_t i;

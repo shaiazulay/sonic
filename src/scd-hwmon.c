@@ -1578,6 +1578,7 @@ static int scd_fan_group_register(struct scd_context *ctx,
       if (err) {
          scd_warn("failed to create sysfs entry of led class for %s", fan->led_name);
       }
+      scd_fan_led_write(fan, FAN_LED_COLOR_GREEN(fan));
    }
 
    return 0;
