@@ -1,13 +1,13 @@
 from ..core.platform import registerPlatform, Platform
-from ..core.driver import KernelDriver
 from ..core.utils import incrange
 from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 from ..core.inventory import Psu
 
 from ..components.common import SwitchChip, I2cKernelComponent
-from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.cpld import CrowCpld
+from ..components.dpm import Ucd90120A, UcdGpi
+from ..components.fan import CrowFanCpldComponent
 from ..components.scd import Scd
 
 @registerPlatform(['DCS-7060CX-32S', 'DCS-7060CX-32S-ES'])
@@ -32,8 +32,6 @@ class Upperlake(Platform):
 
       self.inventory.addPorts(sfps=self.sfpRange, qsfps=self.qsfp100gRange)
 
-      self.addDriver(KernelDriver, 'crow-fan-driver')
-
       switchChip = SwitchChip(PciAddr(bus=0x01))
       self.addComponent(switchChip)
 
@@ -42,13 +40,19 @@ class Upperlake(Platform):
 
       self.inventory.addWatchdog(scd.createWatchdog())
 
+      crowFanCpldAddr = scd.i2cAddr(1, 0x60)
+      crowFanComponent = CrowFanCpldComponent(addr=crowFanCpldAddr,
+                                              waitFile='/sys/class/hwmon/hwmon4')
+
+      for fanId in incrange(1, 4):
+         self.inventory.addFan(crowFanComponent.createFan(fanId))
+
       scd.addComponents([
          I2cKernelComponent(scd.i2cAddr(0, 0x1a), 'max6697',
                             '/sys/class/hwmon/hwmon2'),
          I2cKernelComponent(scd.i2cAddr(1, 0x4c), 'max6658',
                             '/sys/class/hwmon/hwmon3'),
-         I2cKernelComponent(scd.i2cAddr(1, 0x60), 'crow_cpld',
-                            '/sys/class/hwmon/hwmon4'),
+         crowFanComponent,
          Ucd90120A(scd.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
          I2cKernelComponent(scd.i2cAddr(3, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),

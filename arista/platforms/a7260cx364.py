@@ -1,11 +1,12 @@
 from ..core.platform import registerPlatform, Platform
 from ..core.driver import KernelDriver
 from ..core.utils import incrange
-from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
+from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi
+from ..components.fan import LAFanCpldComponent
 from ..components.scd import Scd
 
 @registerPlatform('DCS-7260CX3-64')
@@ -18,7 +19,6 @@ class Gardena(Platform):
 
       self.inventory.addPorts(qsfps=self.qsfpRange, sfps=self.sfpRange)
 
-      self.addDriver(KernelDriver, 'rook-fan-cpld')
       self.addDriver(KernelDriver, 'rook-led-driver')
 
       switchChip = SwitchChip(PciAddr(bus=0x07))
@@ -101,6 +101,13 @@ class Gardena(Platform):
       cpld = Scd(PciAddr(bus=0xff, device=0x0b, func=3), newDriver=True)
       self.addComponent(cpld)
 
+      laFanCpldAddr = cpld.i2cAddr(12, 0x60)
+      laFanComponent = LAFanCpldComponent(addr=laFanCpldAddr,
+                                          waitFile='/sys/class/hwmon/hwmon4')
+
+      for fanId in incrange(1, 4):
+         self.inventory.addFan(laFanComponent.createFan(fanId))
+
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.addComponents([
          I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
@@ -112,8 +119,7 @@ class Gardena(Platform):
             'watchdog': UcdGpi(3),
             'overtemp': UcdGpi(4),
          }),
-         I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'la_cpld',
-                            '/sys/class/hwmon/hwmon4'),
+         laFanComponent,
          I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
          I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73',
                             '/sys/class/hwmon/hwmon5')

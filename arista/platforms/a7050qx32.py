@@ -1,11 +1,11 @@
 from ..core.platform import registerPlatform, Platform
-from ..core.driver import KernelDriver
 from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi, UcdMon
+from ..components.fan import RavenFanCpldComponent
 from ..components.psu import ScdPmbusPsu
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
@@ -21,8 +21,6 @@ class Cloverdale(Platform):
 
       self.inventory.addPorts(qsfps=self.allQsfps)
 
-      self.addDriver(KernelDriver, 'raven-fan-driver', '/sys/class/hwmon/hwmon1')
-
       switchChip = SwitchChip(PciAddr(bus=0x02))
       self.addComponent(switchChip)
 
@@ -33,7 +31,10 @@ class Cloverdale(Platform):
 
       self.inventory.addPowerCycle(scd.createPowerCycle())
 
+      ravenFanComponent = RavenFanCpldComponent(waitFile='/sys/class/hwmon/hwmon1')
+
       scd.addComponents([
+         ravenFanComponent,
          I2cKernelComponent(scd.i2cAddr(0, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
          I2cKernelComponent(scd.i2cAddr(1, 0x48), 'lm73', '/sys/class/hwmon/hwmon3'),
 
@@ -48,6 +49,9 @@ class Cloverdale(Platform):
             'powerloss': UcdMon(13),
          }),
       ])
+
+      for fanId in incrange(1, 4):
+         self.inventory.addFan(ravenFanComponent.createFan(fanId))
 
       psu1Addr = scd.i2cAddr(3, 0x58)
       psu1 = Ds460(psu1Addr, '/sys/class/hwmon/hwmon4',

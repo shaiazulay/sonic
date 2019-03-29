@@ -1,11 +1,11 @@
 from ..core.platform import registerPlatform, Platform
-from ..core.driver import KernelDriver
 from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, UcdGpi
+from ..components.fan import CrowFanCpldComponent
 from ..components.psu import PmbusPsuComponent, ScdPmbusPsu
 from ..components.scd import Scd
 from ..components.ds125br import Ds125Br
@@ -22,8 +22,6 @@ class Clearlake(Platform):
 
       self.inventory.addPorts(sfps=self.sfpRange, qsfps=self.allQsfps)
 
-      self.addDriver(KernelDriver, 'crow-fan-driver', '/sys/class/hwmon/hwmon1')
-
       switchChip = SwitchChip(PciAddr(bus=0x01))
       self.addComponent(switchChip)
 
@@ -34,13 +32,19 @@ class Clearlake(Platform):
 
       self.inventory.addPowerCycle(scd.createPowerCycle())
 
+      crowFanCpldAddr = scd.i2cAddr(1, 0x60)
+      crowFanComponent = CrowFanCpldComponent(addr=crowFanCpldAddr,
+                                              waitFile='/sys/class/hwmon/hwmon4')
+
+      for fanId in incrange(1, 4):
+         self.inventory.addFan(crowFanComponent.createFan(fanId))
+
       scd.addComponents([
          I2cKernelComponent(scd.i2cAddr(0, 0x4c), 'max6658',
                             '/sys/class/hwmon/hwmon2'),
          I2cKernelComponent(scd.i2cAddr(1, 0x4c), 'max6658',
                             '/sys/class/hwmon/hwmon3'),
-         I2cKernelComponent(scd.i2cAddr(1, 0x60), 'crow_cpld',
-                            '/sys/class/hwmon/hwmon4'),
+         crowFanComponent,
          Ucd90120A(scd.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
          I2cKernelComponent(scd.i2cAddr(3, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),

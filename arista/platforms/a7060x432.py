@@ -6,6 +6,7 @@ from ..core.utils import incrange
 
 from ..components.common import I2cKernelComponent, SwitchChip
 from ..components.dpm import Ucd90320, UcdGpi
+from ..components.fan import TehamaFanCpldComponent
 from ..components.scd import Scd
 
 @registerPlatform('DCS-7060PX4-32')
@@ -18,7 +19,6 @@ class BlackhawkO(Platform):
 
       self.inventory.addPorts(osfps=self.osfpRange, sfps=self.sfpRange)
 
-      self.addDriver(KernelDriver, 'rook-fan-cpld')
       self.addDriver(KernelDriver, 'rook-led-driver')
 
       switchChip = SwitchChip(PciAddr(bus=0x06))
@@ -111,18 +111,24 @@ class BlackhawkO(Platform):
       cpld = Scd(PciAddr(bus=0xff, device=0x0b, func=3))
       self.addComponent(cpld)
 
+      tehamaFanCpldAddr = cpld.i2cAddr(12, 0x60)
+      tehamaFanComponent = TehamaFanCpldComponent(addr=tehamaFanCpldAddr,
+                                                  waitFile='/sys/class/hwmon/hwmon4')
+
+      for fanId in incrange(1, 5):
+         self.inventory.addFan(tehamaFanComponent.createFan(fanId))
+
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.addComponents([
          I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
-                            '/sys/class/hwmon/hwmon4'),
+                            '/sys/class/hwmon/hwmon3'),
          Ucd90320(cpld.i2cAddr(10, 0x11), priority=Priority.BACKGROUND, causes={
             'overtemp': UcdGpi(1),
             'powerloss': UcdGpi(3),
             'watchdog': UcdGpi(5),
             'reboot': UcdGpi(7),
          }),
-         I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'tehama_cpld',
-                            '/sys/class/hwmon/hwmon3')
+         tehamaFanComponent,
       ])
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
