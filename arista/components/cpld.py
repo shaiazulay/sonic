@@ -20,10 +20,9 @@ class CpldPowerCycle(PowerCycle):
 
 class CrowCpld(I2cComponent):
    def __init__(self, addr, **kwargs):
-      self.addr = addr
       self.powerCycles = []
       self.psus = []
-      super(CrowCpld, self).__init__(**kwargs)
+      super(CrowCpld, self).__init__(addr=addr, **kwargs)
 
    def createPsuComponent(self, num, **kwargs):
       psuComponent = UpperlakePsuComponent(psuId=num, addr=self.addr, **kwargs)

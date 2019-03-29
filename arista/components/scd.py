@@ -227,6 +227,9 @@ class Scd(PciComponent):
       self.msiRearmOffset = None
       super(Scd, self).__init__(drivers=drivers, **kwargs)
 
+   def __str__(self):
+      return '%s()' % self.__class__.__name__
+
    def setMsiRearmOffset(self, offset):
       self.msiRearmOffset = offset
 

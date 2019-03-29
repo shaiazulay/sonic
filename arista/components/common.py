@@ -16,6 +16,9 @@ class I2cComponent(Component):
    def __init__(self, **kwargs):
       super(I2cComponent, self).__init__(**kwargs)
 
+   def __str__(self):
+      return '%s(addr=%s)' % (self.__class__.__name__, self.addr)
+
 # Do not use this class as it is being depreciated
 class I2cKernelComponent(I2cComponent):
    def __init__(self, addr, name, waitFile=None, waitTimeout=None, **kwargs):
@@ -26,8 +29,10 @@ class I2cKernelComponent(I2cComponent):
 
 class SwitchChip(PciComponent):
    def __init__(self, addr, **kwargs):
-      self.addr = addr
-      super(SwitchChip, self).__init__(**kwargs)
+      super(SwitchChip, self).__init__(addr=addr, **kwargs)
+
+   def __str__(self):
+      return '%s(addr=%s)' % (self.__class__.__name__, self.addr)
 
    def pciRescan(self):
       logging.info('triggering kernel pci rescan')

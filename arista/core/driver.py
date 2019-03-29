@@ -88,12 +88,19 @@ class Driver(object):
       spacer = ' ' * (depth * 3)
       print('%s%s%s' % (spacer, prefix, self))
 
+   def __str__(self):
+      kwargs = ['%s=%s' % (k, v) for k, v in self.__dict__.items()]
+      return '%s(%s)' % (self.__class__.__name__, ', '.join(kwargs))
+
 class KernelDriver(Driver):
    def __init__(self, waitFile=None, waitTimeout=None, args=None, **kwargs):
       self.args = args if args is not None else []
       self.fileWaiter = FileWaiter(waitFile, waitTimeout)
       self.module = self.driverName = kwargs.get('module')
       super(KernelDriver, self).__init__(**kwargs)
+
+   def __str__(self):
+      return '%s(name=%s)' % (self.__class__.__name__, self.driverName)
 
    def setup(self):
       modprobe(self.module, self.args)
@@ -110,6 +117,3 @@ class KernelDriver(Driver):
 
    def loaded(self):
       return isModuleLoaded(self.module)
-
-   def __str__(self):
-      return '%s(%s)' % (self.__class__.__name__, self.module)

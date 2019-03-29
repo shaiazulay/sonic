@@ -13,7 +13,7 @@ class SysfsDriver(Driver):
       super(SysfsDriver, self).__init__(**kwargs)
 
    def __str__(self):
-      return '%s(%s)' % (self.__class__.__name__, self.sysfsPath)
+      return '%s(path=%s)' % (self.__class__.__name__, self.sysfsPath)
 
    def read(self, name):
       with open(os.path.join(self.sysfsPath, name), 'r') as f:

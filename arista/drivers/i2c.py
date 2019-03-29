@@ -47,7 +47,7 @@ class I2cKernelDriver(Driver):
             f.write('0x%02x' % addr.address)
 
    def __str__(self):
-      return '%s(%s)' % (self.__class__.__name__, self.name)
+      return '%s(name=%s)' % (self.__class__.__name__, self.name)
 
 class I2cFanDriver(I2cKernelDriver, SysfsDriver):
    def __init__(self, **kwargs):

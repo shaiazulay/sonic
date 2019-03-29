@@ -14,16 +14,16 @@ class Priority:
    BACKGROUND = 1
 
 class Component(object):
-   def __init__(self, priority=Priority.DEFAULT, drivers=None, **kwargs):
+   def __init__(self, addr=None, priority=Priority.DEFAULT, drivers=None, **kwargs):
       self.components = defaultdict(list)
+      self.addr = addr
       self.priority = priority
       self.drivers = OrderedDict()
       self.addDrivers(drivers)
       self.__dict__.update(kwargs)
-      self.params = kwargs.keys()
 
    def __str__(self):
-      kwargs = ['%s=%s' % (k, getattr(self, k)) for k in self.params]
+      kwargs = ['%s=%s' % (k, v) for k, v in self.__dict__.items()]
       return '%s(%s)' % (self.__class__.__name__, ', '.join(kwargs))
 
    def addComponents(self, components):

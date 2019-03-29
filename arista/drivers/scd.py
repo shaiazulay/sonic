@@ -34,8 +34,12 @@ def i2cBusFromName(name, idx=0, force=False):
    return None
 
 class ScdKernelDriver(PciKernelDriver):
-   def __init__(self, **kwargs):
+   def __init__(self, scd=None, **kwargs):
+      self.scd = scd
       super(ScdKernelDriver, self).__init__(module='scd-hwmon', **kwargs)
+
+   def __str__(self):
+      return '%s(addr=%s)' % (self.__class__.__name__, self.addr)
 
    def writeComponents(self, components, filename):
       PAGE_SIZE = 4096

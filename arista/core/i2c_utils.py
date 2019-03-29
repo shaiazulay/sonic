@@ -40,6 +40,9 @@ class I2cMsg(object):
       self.addr = addr
       self.device = None
 
+   def __str__(self):
+      return '%s(addr=%s, device=%s)' % (self.__class__.__name__, self.addr, self.device)
+
    def open(self):
       if self.device is None:
          self.device = open("/dev/i2c-%d" % self.addr.bus, 'r+b', buffering=0)

@@ -48,6 +48,9 @@ class Ucd(I2cComponent):
       MFR_SERIAL = 0x9e
       DEVICE_ID = 0xfd
 
+      def __str__(self):
+         return '%s()' % self.__class__.__name__
+
    gpiSize = 1
    faultValueSize = 2
 
@@ -56,10 +59,12 @@ class Ucd(I2cComponent):
 
    def __init__(self, addr, drivers=None, causes=None, **kwargs):
       drivers = drivers or [UcdI2cDevDriver(addr=addr, registers=self.Registers)]
-      self.addr = addr
       self.causes = causes or {}
       self.oldestTime = datetime.datetime(1970, 1, 1)
-      super(Ucd, self).__init__(drivers=drivers, **kwargs)
+      super(Ucd, self).__init__(addr=addr, drivers=drivers, **kwargs)
+
+   def __str__(self):
+      return '%s()' % self.__class__.__name__
 
    def setup(self):
       with self.drivers['UcdI2cDevDriver'] as drv:

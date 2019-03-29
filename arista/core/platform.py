@@ -134,3 +134,6 @@ class Platform(Component):
 
    def getInventory(self):
       return self.inventory
+
+   def __str__(self):
+      return '%s()' % self.__class__.__name__
