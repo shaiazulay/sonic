@@ -62,6 +62,12 @@
 #define FAN_LED_GREEN 1
 #define FAN_LED_RED 2
 
+#define FAN_MAX_PWM 255
+
+static bool safe_mode = true;
+module_param(safe_mode, bool, S_IRUSR | S_IWUSR);
+MODULE_PARM_DESC(safe_mode, "force fan speed to 100% during probe");
+
 static bool managed_leds = true;
 module_param(managed_leds, bool, S_IRUSR | S_IWUSR);
 MODULE_PARM_DESC(managed_leds, "let the driver handle the leds");
@@ -839,6 +845,8 @@ static int cpld_init(struct cpld_data *cpld)
          cpld_read_fan_id(cpld, i);
          cpld_read_fan_tach(cpld, i);
          cpld_read_fan_pwm(cpld, i);
+         if (safe_mode)
+            cpld_write_pwm(cpld, i, FAN_MAX_PWM);
          err = led_init(fan, cpld->client, i);
          if (err) {
             cpld_leds_unregister(cpld, i);
@@ -861,6 +869,19 @@ static int cpld_init(struct cpld_data *cpld)
    cpld_work_start(cpld);
 
    return err;
+}
+
+static int cpld_remove(struct i2c_client *client)
+{
+   struct cpld_data *cpld = i2c_get_clientdata(client);
+
+   mutex_lock(&cpld->lock);
+   cancel_delayed_work_sync(&cpld->dwork);
+   mutex_unlock(&cpld->lock);
+
+   cpld_leds_unregister(cpld, cpld->info->fan_count);
+
+   return 0;
 }
 
 static int cpld_probe(struct i2c_client *client,
@@ -892,31 +913,22 @@ static int cpld_probe(struct i2c_client *client,
       cpld->groups[i + 1] = fan_groups[i];
    }
 
-   hwmon_dev = devm_hwmon_device_register_with_groups(dev, client->name,
-                                                      cpld, cpld->groups);
-   if (IS_ERR(hwmon_dev))
-      return PTR_ERR(hwmon_dev);
-
-   cpld->hwmon_dev = hwmon_dev;
-
    mutex_lock(&cpld->lock);
    err = cpld_init(cpld);
    mutex_unlock(&cpld->lock);
+   if (err)
+      return err;
+
+   hwmon_dev = devm_hwmon_device_register_with_groups(dev, client->name,
+                                                      cpld, cpld->groups);
+   if (IS_ERR(hwmon_dev)) {
+      cpld_remove(client);
+      return PTR_ERR(hwmon_dev);
+   }
+
+   cpld->hwmon_dev = hwmon_dev;
 
    return err;
-}
-
-static int cpld_remove(struct i2c_client *client)
-{
-   struct cpld_data *cpld = i2c_get_clientdata(client);
-
-   mutex_lock(&cpld->lock);
-   cancel_delayed_work_sync(&cpld->dwork);
-   mutex_unlock(&cpld->lock);
-
-   cpld_leds_unregister(cpld, cpld->info->fan_count);
-
-   return 0;
 }
 
 static const struct i2c_device_id cpld_id[] = {

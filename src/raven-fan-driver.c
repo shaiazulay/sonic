@@ -73,6 +73,12 @@
 #define FAN_PWM_BASE_ADDR 3
 #define FAN_PWM_ADDR_OFFSET 0x10
 
+#define FAN_MAX_PWM 255
+
+static bool safe_mode = true;
+module_param(safe_mode, bool, S_IRUSR | S_IWUSR);
+MODULE_PARM_DESC(safe_mode, "force fan speed to 100% during probe");
+
 struct raven_led {
    char name[LED_NAME_MAX_SZ];
    struct led_classdev cdev;
@@ -433,6 +439,11 @@ static void set_fan_init_state(struct device * dev)
 
       iowrite8(0x01, reg + FAN_DETECT_CTRL_BASE_ADDR + (FAN_DETECT_ADDR_OFFSET *
                num_fan));
+
+       if (safe_mode) {
+          iowrite8(FAN_MAX_PWM, reg + FAN_PWM_BASE_ADDR +
+                   (FAN_PWM_ADDR_OFFSET * num_fan));
+       }
    }
 }
 
