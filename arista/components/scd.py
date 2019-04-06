@@ -9,7 +9,8 @@ from ..core.config import Config
 from ..core.driver import KernelDriver
 from ..core.inventory import Interrupt, PowerCycle, Watchdog, Xcvr, Reset
 from ..core.types import I2cAddr
-from ..core.utils import MmapResource, inSimulation, simulateWith, writeConfig
+from ..core.utils import FileWaiter, MmapResource, inSimulation, simulateWith, \
+                         writeConfig
 
 from ..drivers.i2c import I2cKernelDriver
 from ..drivers.scd import ScdKernelDriver
@@ -244,14 +245,16 @@ class Scd(PciComponent):
       return interrupt
 
    def getMmap(self):
+      path = os.path.join(self.pciSysfs, "resource0")
       if not self.mmapReady:
          # check that the scd driver is loaded the first time
          drv = self.drivers['scd']
          if not drv.loaded():
             # This codepath is unlikely to be used
-            drv.setup()
+            drv.setup()            
+            FileWaiter(path, 5).waitFileReady()
          self.mmapReady = True
-      return MmapResource(os.path.join(self.pciSysfs, "resource0"))
+      return MmapResource(path)
 
    def i2cAddr(self, bus, addr):
       return ScdI2cAddr(self, bus, addr)

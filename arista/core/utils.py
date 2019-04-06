@@ -132,17 +132,19 @@ class FileWaiter(object):
 
    def waitFileReady(self):
       if not self.waitFile:
-         return
+         return False
 
       logging.debug('Waiting file %s.', self.waitFile)
 
       for r in Retrying(interval=self.waitTimeout):
          if os.path.exists(self.waitFile):
-            break
+            return True
          logging.debug('Waiting file %s attempt %d.', self.waitFile, r.attempt)
 
       if not os.path.exists(self.waitFile):
          logging.error('Waiting file %s failed.', self.waitFile)
+         return False
+      return True
 
 class FileLock:
    def __init__(self, lock_file, auto_release=False):

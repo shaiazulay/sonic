@@ -6,7 +6,7 @@ from collections import OrderedDict
 
 from .pci import PciKernelDriver
 from ..core.config import Config
-from ..core.utils import inSimulation, simulateWith, writeConfig
+from ..core.utils import FileWaiter, inSimulation, simulateWith, writeConfig
 
 SCD_WAIT_TIMEOUT = 5.
 
@@ -62,16 +62,7 @@ class ScdKernelDriver(PciKernelDriver):
    @simulateWith(waitReadySim)
    def waitReady(self):
       path = os.path.join(self.addr.getSysfsPath(), 'smbus_tweaks')
-      logging.debug('Waiting SCD %s.', path)
-
-      count = 0
-      retries = 100
-      while not os.path.exists(path) and count <= retries:
-         time.sleep(SCD_WAIT_TIMEOUT / retries)
-         count = count + 1
-         logging.debug('Waiting SCD %s attempt %d.', path, count)
-      if not os.path.exists(path):
-         logging.error('Waiting SCD %s failed.', path)
+      FileWaiter(path, SCD_WAIT_TIMEOUT).waitFileReady()
 
    def refresh(self):
       # reload i2c bus cache
