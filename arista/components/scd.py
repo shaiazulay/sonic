@@ -134,8 +134,6 @@ class ScdInterrupt(Interrupt):
    def __init__(self, reg, bit):
       self.reg = reg
       self.bit = bit
-      if not inSimulation():
-         self.clear()
 
    def set(self):
       self.reg.setMask(self.bit)
