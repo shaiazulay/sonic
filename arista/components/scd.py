@@ -148,13 +148,14 @@ class ScdInterrupt(Interrupt):
       return self.reg.scd.getUio(self.reg.num, self.bit)
 
 class ScdInterruptRegister(object):
-   def __init__(self, scd, addr, num):
+   def __init__(self, scd, addr, num, mask):
       self.scd = scd
       self.num = num
       self.readAddr = addr
       self.setAddr = addr
       self.clearAddr = addr + 0x10
       self.statusAddr = addr + 0x20
+      self.mask = mask
 
    def setReg(self, reg, wr):
       try:
@@ -194,7 +195,7 @@ class ScdInterruptRegister(object):
          ('interrupt_mask_set_offset%s' % self.num, str(self.setAddr)),
          ('interrupt_mask_clear_offset%s' % self.num, str(self.clearAddr)),
          ('interrupt_status_offset%s' % self.num, str(self.statusAddr)),
-         ('interrupt_mask%s' % self.num, str(0xffffffff)),
+         ('interrupt_mask%s' % self.num, str(self.mask)),
       ]))
 
    def getInterruptBit(self, bit):
@@ -239,8 +240,8 @@ class Scd(PciComponent):
    def createWatchdog(self, reg=0x0120):
       return ScdWatchdog(self, reg=reg)
 
-   def createInterrupt(self, addr, num):
-      interrupt = ScdInterruptRegister(self, addr, num)
+   def createInterrupt(self, addr, num, mask=0xffffffff):
+      interrupt = ScdInterruptRegister(self, addr, num, mask)
       self.interrupts.append(interrupt)
       return interrupt
 

@@ -75,7 +75,7 @@ class Alhambra(Platform):
       scd.setMsiRearmOffset(0x190)
 
       intrRegs = [
-         scd.createInterrupt(addr=0x3000, num=0),
+         scd.createInterrupt(addr=0x3000, num=0, mask=0x60003ff),
          scd.createInterrupt(addr=0x3030, num=1),
          scd.createInterrupt(addr=0x3060, num=2),
       ]
