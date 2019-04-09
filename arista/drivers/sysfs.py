@@ -8,8 +8,9 @@ from ..core.inventory import Xcvr
 from ..core.utils import inSimulation
 
 class SysfsDriver(Driver):
-   def __init__(self, sysfsPath=None, **kwargs):
+   def __init__(self, sysfsPath=None, maxPwm=None, **kwargs):
       self.sysfsPath = sysfsPath
+      self.maxPwm = maxPwm
       super(SysfsDriver, self).__init__(**kwargs)
 
    def __str__(self):

@@ -4,7 +4,7 @@ import os
 from .sysfs import SysfsDriver
 
 from ..core.driver import Driver
-from ..core.utils import FileWaiter, inSimulation
+from ..core.utils import FileWaiter, inSimulation, locateHwmonPath
 
 class I2cKernelDriver(Driver):
    def __init__(self, name=None, addr=None, waitFile=None, waitTimeout=None,
@@ -50,30 +50,11 @@ class I2cKernelDriver(Driver):
       return '%s(name=%s)' % (self.__class__.__name__, self.name)
 
 class I2cFanDriver(I2cKernelDriver, SysfsDriver):
-   def __init__(self, **kwargs):
-      self.maxPwm = 255
-      super(I2cFanDriver, self).__init__(**kwargs)
+   def __init__(self, maxPwm=255, addr=None, waitTimeout=1.0, **kwargs):
+      self.waitTimeout = waitTimeout
+      super(I2cFanDriver, self).__init__(maxPwm=maxPwm, addr=addr, **kwargs)
 
-   # The i2c path for fans has hwmon directories that need to be navigated
-   def locateHwmonPath(self):
-      if self.sysfsPath:
-         return True
-
-      for root, _, files in os.walk(os.path.join(self.getSysfsPath(), 'hwmon')):
-         for name in files:
-            if name.startswith('pwm'):
-               self.sysfsPath = root
-               logging.debug('got hwmon path for %s as %s', self.name,
-                             self.sysfsPath)
-               return True
-
-      logging.error('could not locate hwmon path for %s', self.name)
-      return False
-
-   def read(self, name):
-      self.locateHwmonPath()
-      return super(I2cFanDriver, self).read(name)
-
-   def write(self, name, value):
-      self.locateHwmonPath()
-      super(I2cFanDriver, self).write(name, value)
+   def setup(self):
+      super(I2cFanDriver, self).setup()
+      locateHwmonPath(self.sysfsPath, self.addr.getSysfsPath(), self.waitTimeout,
+                      'pwm')
