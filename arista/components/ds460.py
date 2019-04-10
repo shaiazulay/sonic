@@ -1,6 +1,5 @@
 import logging
 import os.path
-import time
 
 from contextlib import closing
 
@@ -8,11 +7,18 @@ from ..core.utils import Retrying, SMBus, simulateWith
 
 from .common import I2cComponent
 
+from ..drivers.i2c import I2cKernelDriver
+
 class Ds460(I2cComponent):
-   def __init__(self, addr, hwmonDir, **kwargs):
+   def __init__(self, addr, hwmonDir, name=None, drivers=None, priority=None,
+                waitTimeout=None, **kwargs):
+      name = name or 'dps460'
+      drivers = drivers or [I2cKernelDriver(name='dps460', addr=addr,
+                                            waitFile=hwmonDir,
+                                            waitTimeout=waitTimeout)]
       # pmbus if dps460 is not available
       super(Ds460, self).__init__(addr=addr, name='dps460', waitFile=hwmonDir,
-                                  **kwargs)
+                                  drivers=drivers, **kwargs)
       self.hwmonDir = hwmonDir
 
    def sensorPath(self, name):
