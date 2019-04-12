@@ -1,6 +1,6 @@
 from __future__ import print_function, with_statement
 
-from ..core.inventory import Fan, Psu, Reset, Xcvr
+from ..core.inventory import Fan, Led, Psu, Reset, Xcvr
 
 class PsuImpl(Psu):
    def __init__(self, driver=None, **kwargs):
@@ -81,3 +81,14 @@ class FanImpl(Fan):
 
    def getDirection(self):
       return self.driver.getFanDirection(self)
+
+class LedImpl(Led):
+   def __init__(self, driver=None, **kwargs):
+      self.driver = driver
+      self.__dict__.update(kwargs)
+
+   def getColor(self):
+      return self.driver.getLedColor(self)
+
+   def setColor(self, color):
+      return self.driver.setLedColor(self, color)

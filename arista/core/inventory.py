@@ -92,6 +92,13 @@ class Phy(object):
    def getReset(self):
       raise NotImplementedError()
 
+class Led(object):
+   def getColor(self):
+      raise NotImplementedError()
+
+   def setColor(self, color):
+      raise NotImplementedError()
+
 class Inventory(object):
    def __init__(self):
       self.sfpRange = []

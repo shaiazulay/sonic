@@ -15,14 +15,16 @@ class SysfsDriver(Driver):
    def __str__(self):
       return '%s(path=%s)' % (self.__class__.__name__, self.sysfsPath)
 
-   def read(self, name):
-      with open(os.path.join(self.sysfsPath, name), 'r') as f:
+   def read(self, name, path=None):
+      path = path or os.path.join(self.sysfsPath, name)
+      with open(path, 'r') as f:
          return f.read().rstrip()
 
-   def write(self, name, value):
+   def write(self, name, value, path=None):
       if utils.inSimulation():
          return None
-      with open(os.path.join(self.sysfsPath, name), 'w') as f:
+      path = path or os.path.join(self.sysfsPath, name)
+      with open(path, 'w') as f:
          return f.write(value)
 
 class PsuSysfsDriver(SysfsDriver):
@@ -117,3 +119,21 @@ class FanSysfsDriver(SysfsDriver):
          self.sysfsPath = utils.locateHwmonPath(
                self.addr.getSysfsPath(), 'pwm%s' % fan.fanId)
       return self.read('fan%s_airflow' % fan.fanId)
+
+class LedSysfsDriver(SysfsDriver):
+   def __init__(self, colorDict=None, **kwargs):
+      self.colorDict = colorDict or {
+            '0': 'off',
+            '1': 'green',
+            '2': 'red',
+            '3': 'yellow',
+      }
+      super(LedSysfsDriver, self).__init__(**kwargs)
+
+   def getLedColor(self, led):
+      return self.colorDict[self.read(led.name,
+         path=os.path.join(self.sysfsPath, led.name, 'brightness'))]
+
+   def setLedColor(self, led, value):
+      self.write(led.name, value, path=os.path.join(self.sysfsPath, led.name,
+                 'brightness'))
