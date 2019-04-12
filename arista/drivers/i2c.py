@@ -1,7 +1,7 @@
 import logging
 import os
 
-from .sysfs import SysfsDriver
+from .sysfs import FanSysfsDriver
 
 from ..core.driver import Driver
 from ..core.utils import FileWaiter, inSimulation, locateHwmonPath
@@ -49,7 +49,7 @@ class I2cKernelDriver(Driver):
    def __str__(self):
       return '%s(name=%s)' % (self.__class__.__name__, self.name)
 
-class I2cFanDriver(I2cKernelDriver, SysfsDriver):
+class I2cFanDriver(I2cKernelDriver, FanSysfsDriver):
    def __init__(self, maxPwm=255, addr=None, waitTimeout=1.0, **kwargs):
       self.waitTimeout = waitTimeout
       super(I2cFanDriver, self).__init__(maxPwm=maxPwm, addr=addr, **kwargs)

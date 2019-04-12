@@ -5,7 +5,7 @@ from .common import I2cComponent
 
 from ..drivers.accessors import FanImpl
 from ..drivers.i2c import I2cFanDriver
-from ..drivers.sysfs import SysfsDriver
+from ..drivers.sysfs import FanSysfsDriver
 
 class CrowFanCpldComponent(I2cComponent):
    def __init__(self, addr=None, drivers=None, **kwargs):
@@ -42,11 +42,11 @@ class TehamaFanCpldComponent(I2cComponent):
 
 class RavenFanCpldComponent(I2cComponent):
    def __init__(self, drivers=None, **kwargs):
-      sysfsDriver = SysfsDriver(maxPwm=255,
+      sysfsDriver = FanSysfsDriver(maxPwm=255,
             sysfsPath='/sys/devices/platform/sb800-fans/hwmon/hwmon1')
       drivers = drivers or [KernelDriver(module='raven-fan-driver'), sysfsDriver]
       super(RavenFanCpldComponent, self).__init__(drivers=drivers, **kwargs)
 
-   def createFan(self, fanId, driver='SysfsDriver', **kwargs):
+   def createFan(self, fanId, driver='FanSysfsDriver', **kwargs):
       logging.debug('creating raven fan %s', fanId)
       return FanImpl(fanId=fanId, driver=self.drivers[driver], **kwargs)

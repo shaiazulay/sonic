@@ -14,7 +14,7 @@ from ..core.utils import FileWaiter, MmapResource, inSimulation, simulateWith, \
 
 from ..drivers.i2c import I2cKernelDriver
 from ..drivers.scd import ScdKernelDriver
-from ..drivers.sysfs import SysfsDriver
+from ..drivers.sysfs import PsuSysfsDriver, ResetSysfsDriver, XcvrSysfsDriver
 from ..drivers.accessors import PsuImpl, ResetImpl, XcvrImpl
 
 from .common import PciComponent, I2cComponent
@@ -206,7 +206,9 @@ class Scd(PciComponent):
    def __init__(self, addr, drivers=None, **kwargs):
       drivers = drivers or [KernelDriver(module='scd'),
                             ScdKernelDriver(scd=self, addr=addr),
-                            SysfsDriver(sysfsPath=addr.getSysfsPath())]
+                            PsuSysfsDriver(sysfsPath=addr.getSysfsPath()),
+                            ResetSysfsDriver(sysfsPath=addr.getSysfsPath()),
+                            XcvrSysfsDriver(sysfsPath=addr.getSysfsPath())]
       self.addr = addr
       self.pciSysfs = self.addr.getSysfsPath()
       self.masters = OrderedDict()
@@ -312,9 +314,9 @@ class Scd(PciComponent):
       reset = None
       if xcvrType != Xcvr.SFP:
          reset = ResetImpl(name='%s%s' % (Xcvr.typeStr(xcvrType), xcvrId),
-                           driver=self.drivers['SysfsDriver'])
+                           driver=self.drivers['ResetSysfsDriver'])
       xcvr = XcvrImpl(xcvrId=xcvrId, xcvrType=xcvrType,
-                      driver=self.drivers['SysfsDriver'],
+                      driver=self.drivers['XcvrSysfsDriver'],
                       addr=addr, interruptLine=interruptLine,
                       reset=reset)
       self.addComponent(I2cComponent(addr=addr,
@@ -336,7 +338,7 @@ class Scd(PciComponent):
       return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine)
 
    # In platforms, should change "statusGpios" to "statusGpio" and make it a boolean
-   def createPsu(self, psuId, driver='SysfsDriver', statusGpios=True, **kwargs):
+   def createPsu(self, psuId, driver='PsuSysfsDriver', statusGpios=True, **kwargs):
       return PsuImpl(psuId=psuId, driver=self.drivers[driver],
                      statusGpio=statusGpios, **kwargs)
 

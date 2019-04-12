@@ -8,9 +8,8 @@ from ..core.inventory import Xcvr
 from ..core.utils import inSimulation
 
 class SysfsDriver(Driver):
-   def __init__(self, sysfsPath=None, maxPwm=None, **kwargs):
+   def __init__(self, sysfsPath=None, **kwargs):
       self.sysfsPath = sysfsPath
-      self.maxPwm = maxPwm
       super(SysfsDriver, self).__init__(**kwargs)
 
    def __str__(self):
@@ -26,7 +25,7 @@ class SysfsDriver(Driver):
       with open(os.path.join(self.sysfsPath, name), 'w') as f:
          return f.write(value)
 
-   # PSU
+class PsuSysfsDriver(SysfsDriver):
    def getPsuPresence(self, psu):
       return self.read('psu%d_%s' % (psu.psuId, 'present')) == '1'
 
@@ -35,7 +34,7 @@ class SysfsDriver(Driver):
          return self.read('psu%d_%s' % (psu.psuId, 'status')) == '1'
       return self.getPsuPresence(psu)
 
-   # Xcvr
+class XcvrSysfsDriver(SysfsDriver):
    def getXcvrPresence(self, xcvr):
       return self.read('%s_%s' % (xcvr.name, 'present')) == '1'
 
@@ -71,7 +70,7 @@ class SysfsDriver(Driver):
          return self.write('%s_%s' % (xcvr.name, 'txdisable'), '1' if value else '0')
       return False
 
-   # Reset
+class ResetSysfsDriver(SysfsDriver):
    def readReset(self, reset):
       return self.read('%s_%s' % (reset.name, 'reset'))
 
@@ -83,7 +82,11 @@ class SysfsDriver(Driver):
       logging.debug('putting %s out of reset', reset.name)
       return self.write('%s_%s' % (reset.name, 'reset'), 0)
 
-   # Fan
+class FanSysfsDriver(SysfsDriver):
+   def __init__(self, maxPwm=None, **kwargs):
+      self.maxPwm = maxPwm
+      super(FanSysfsDriver, self).__init__(**kwargs)
+
    # Fan speeds are a percentage
    def getFanSpeed(self, fan):
       return int(float(self.read('pwm%s' % fan.fanId)) / self.maxPwm * 100)
