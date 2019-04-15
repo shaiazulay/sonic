@@ -9,34 +9,34 @@ from ..drivers.sysfs import FanSysfsDriver
 
 class CrowFanCpldComponent(I2cComponent):
    def __init__(self, addr=None, drivers=None, **kwargs):
-      drivers = drivers or [KernelDriver(module='crow-fan-driver'),
-                            I2cFanDriver(name='crow_cpld', addr=addr, maxPwm=255)]
+      drivers = drivers or [I2cFanDriver(name='crow_cpld', module='crow-fan-driver',
+                                         addr=addr, maxPwm=255)]
       super(CrowFanCpldComponent, self).__init__(addr=addr, drivers=drivers,
                                                  **kwargs)
 
-   def createFan(self, fanId, driver='I2cFanDriver', **kwargs):
+   def createFan(self, fanId, driver='crow-fan-driver', **kwargs):
       logging.debug('creating crow fan %s', fanId)
       return FanImpl(fanId=fanId, driver=self.drivers[driver], **kwargs)
 
 class LAFanCpldComponent(I2cComponent):
    def __init__(self, addr=None, drivers=None, **kwargs):
-      drivers = drivers or [KernelDriver(module='rook-fan-cpld'),
-                            I2cFanDriver(name='la_cpld', addr=addr, maxPwm=255)]
+      drivers = drivers or [I2cFanDriver(name='la_cpld', module='rook-fan-cpld',
+                                         addr=addr, maxPwm=255)]
       super(LAFanCpldComponent, self).__init__(addr=addr, drivers=drivers,
                                                **kwargs)
 
-   def createFan(self, fanId, driver='I2cFanDriver', **kwargs):
+   def createFan(self, fanId, driver='rook-fan-cpld', **kwargs):
       logging.debug('creating LA fan %s', fanId)
       return FanImpl(fanId=fanId, driver=self.drivers[driver], **kwargs)
 
 class TehamaFanCpldComponent(I2cComponent):
    def __init__(self, addr=None, drivers=None, **kwargs):
-      drivers = drivers or [KernelDriver(module='rook-fan-cpld'),
-                            I2cFanDriver(name='tehama_cpld', addr=addr, maxPwm=255)]
+      drivers = drivers or [I2cFanDriver(name='tehama_cpld', module='rook-fan-cpld',
+                                         addr=addr, maxPwm=255)]
       super(TehamaFanCpldComponent, self).__init__(addr=addr, drivers=drivers,
                                                    **kwargs)
 
-   def createFan(self, fanId, driver='I2cFanDriver', **kwargs):
+   def createFan(self, fanId, driver='rook-fan-cpld', **kwargs):
       logging.debug('creating Tehama fan %s', fanId)
       return FanImpl(fanId=fanId, driver=self.drivers[driver], **kwargs)
 

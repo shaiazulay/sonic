@@ -68,6 +68,7 @@ def mock_readReg(self, reg):
 @patch.object(SysfsDriver, 'write', mock_write)
 @patch.object(I2cFanDriver, 'read', mock_read)
 @patch.object(I2cFanDriver, 'write', mock_write)
+@patch.object(I2cFanDriver, 'finish', mock_finish)
 class MockTest(unittest.TestCase):
    @classmethod
    def setUpClass(cls):
