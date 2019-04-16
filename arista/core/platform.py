@@ -1,16 +1,13 @@
 from __future__ import print_function
 
 import logging
-import subprocess
 import os
-import sys
 
-from collections import OrderedDict, namedtuple, defaultdict
-
+from .exception import UnknownPlatformError
 from .inventory import Inventory
 from .component import Component, Priority
-from .utils import simulateWith
-from .driver import modprobe, rmmod, KernelDriver
+from .utils import simulateWith, getCmdlineDict
+from .driver import modprobe, KernelDriver
 
 from . import prefdl
 
@@ -98,13 +95,42 @@ def getSysEeprom():
       assert 'SKU' in syseeprom
    return syseeprom
 
+def readSku():
+   return getSysEeprom().get('SKU')
+
+def readSid():
+   return getCmdlineDict().get('sid')
+
+def readPlatformName():
+   return getCmdlineDict().get('platform')
+
 def detectPlatform():
-   return getSysEeprom()['SKU']
+   sku = readSku()
+   platformCls = platforms.get(sku)
+   if platformCls is not None:
+      return platformCls
+
+   sid = readSid()
+   platformCls = platforms.get(sid)
+   if platformCls is not None:
+      return platformCls
+
+   name = readPlatformName()
+   platformCls = platforms.get(name)
+   if platformCls is not None:
+      return platformCls
+
+   raise UnknownPlatformError(sku, sid, name, platforms)
 
 def getPlatform(name=None):
    if name is None:
-      name = detectPlatform()
-   platform = platforms[name]()
+      platformCls = detectPlatform()
+   else:
+      platformCls = platforms.get(name)
+      if platformCls is None:
+         raise UnknownPlatformError(name, platforms)
+
+   platform = platformCls()
    platform.refresh()
    return platform
 
