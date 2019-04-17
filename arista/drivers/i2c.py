@@ -54,7 +54,12 @@ class I2cFanDriver(I2cKernelDriver, FanSysfsDriver, KernelDriver):
       self.waitTimeout = waitTimeout
       super(I2cFanDriver, self).__init__(maxPwm=maxPwm, addr=addr, **kwargs)
 
-   def setup(self):
-      super(I2cFanDriver, self).setup()
+   def read(self, name):
       locateHwmonPath(self.sysfsPath, self.addr.getSysfsPath(), self.waitTimeout,
                       'pwm')
+      return super(I2cFanDriver, self).read(name)
+
+   def write(self, name, value):
+      locateHwmonPath(self.sysfsPath, self.addr.getSysfsPath(), self.waitTimeout,
+                      'pwm')
+      return super(I2cFanDriver, self).write(name, value)

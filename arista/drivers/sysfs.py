@@ -5,7 +5,7 @@ import os
 
 from ..core.driver import Driver
 from ..core.inventory import Xcvr
-from ..core.utils import inSimulation
+from ..core.utils import inSimulation, FileWaiter
 
 class SysfsDriver(Driver):
    def __init__(self, sysfsPath=None, **kwargs):
@@ -83,9 +83,14 @@ class ResetSysfsDriver(SysfsDriver):
       return self.write('%s_%s' % (reset.name, 'reset'), 0)
 
 class FanSysfsDriver(SysfsDriver):
-   def __init__(self, maxPwm=None, **kwargs):
+   def __init__(self, maxPwm=None, waitFile=None, waitTimeout=None, **kwargs):
       self.maxPwm = maxPwm
+      self.fileWaiter = FileWaiter(waitFile, waitTimeout)
       super(FanSysfsDriver, self).__init__(**kwargs)
+
+   def setup(self):
+      super(FanSysfsDriver, self).setup()
+      self.fileWaiter.waitFileReady()
 
    # Fan speeds are a percentage
    def getFanSpeed(self, fan):
