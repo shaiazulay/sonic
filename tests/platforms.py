@@ -10,14 +10,14 @@ import unittest
 from arista.components.ds460 import Ds460
 from arista.components.scd import ScdInterruptRegister
 
+from arista.core import utils
 from arista.core.driver import Driver
 from arista.core.inventory import Psu, Xcvr
 from arista.core.platform import getPlatforms
 from arista.core.types import I2cAddr
-import arista.core.utils
 
 from arista.drivers.accessors import FanImpl, PsuImpl, XcvrImpl
-from arista.drivers.i2c import I2cFanDriver
+from arista.drivers.i2c import I2cKernelDriver
 from arista.drivers.scd import ScdKernelDriver
 from arista.drivers.sysfs import SysfsDriver
 
@@ -28,6 +28,11 @@ from tests.common import getLogger
 # TODO: remove this type of simulation testing
 def mock_inSimulation():
    return False
+
+def mock_locateHwmonPath(searchPath, prefix):
+   assert isinstance(searchPath, str)
+   assert isinstance(prefix, str)
+   return 'mock path'
 
 def mock_writeComponents(self, components, filename):
    assert components
@@ -53,11 +58,15 @@ def mock_setup(self):
 def mock_finish(self):
    return
 
+def mock_waitFileReady(self):
+   return
+
 def mock_readReg(self, reg):
    assert reg
    return None
 
 @patch('arista.core.utils.inSimulation', mock_inSimulation)
+@patch('arista.core.utils.locateHwmonPath', mock_locateHwmonPath)
 @patch.object(Ds460, 'getStatus', mock_getStatus)
 @patch.object(ScdInterruptRegister, 'setup', mock_setup)
 @patch.object(ScdInterruptRegister, 'readReg', mock_readReg)
@@ -66,9 +75,8 @@ def mock_readReg(self, reg):
 @patch.object(ScdKernelDriver, 'writeComponents', mock_writeComponents)
 @patch.object(SysfsDriver, 'read', mock_read)
 @patch.object(SysfsDriver, 'write', mock_write)
-@patch.object(I2cFanDriver, 'read', mock_read)
-@patch.object(I2cFanDriver, 'write', mock_write)
-@patch.object(I2cFanDriver, 'finish', mock_finish)
+@patch.object(I2cKernelDriver, 'setup', mock_setup)
+@patch.object(utils.FileWaiter, 'waitFileReady', mock_waitFileReady)
 class MockTest(unittest.TestCase):
    @classmethod
    def setUpClass(cls):

@@ -5,7 +5,7 @@ import os
 
 from ..core.driver import Driver
 from ..core.inventory import Xcvr
-from ..core.utils import inSimulation, FileWaiter
+from ..core import utils
 
 class SysfsDriver(Driver):
    def __init__(self, sysfsPath=None, **kwargs):
@@ -20,7 +20,7 @@ class SysfsDriver(Driver):
          return f.read().rstrip()
 
    def write(self, name, value):
-      if inSimulation():
+      if utils.inSimulation():
          return None
       with open(os.path.join(self.sysfsPath, name), 'w') as f:
          return f.write(value)
@@ -83,9 +83,11 @@ class ResetSysfsDriver(SysfsDriver):
       return self.write('%s_%s' % (reset.name, 'reset'), 0)
 
 class FanSysfsDriver(SysfsDriver):
-   def __init__(self, maxPwm=None, waitFile=None, waitTimeout=None, **kwargs):
+   def __init__(self, maxPwm=None, addr=None, waitFile=None, waitTimeout=None,
+                **kwargs):
       self.maxPwm = maxPwm
-      self.fileWaiter = FileWaiter(waitFile, waitTimeout)
+      self.addr = addr
+      self.fileWaiter = utils.FileWaiter(waitFile, waitTimeout)
       super(FanSysfsDriver, self).__init__(**kwargs)
 
    def setup(self):
@@ -94,15 +96,24 @@ class FanSysfsDriver(SysfsDriver):
 
    # Fan speeds are a percentage
    def getFanSpeed(self, fan):
+      if not self.sysfsPath:
+         self.sysfsPath = utils.locateHwmonPath(
+               self.addr.getSysfsPath(), 'pwm%s' % fan.fanId)
       return int(float(self.read('pwm%s' % fan.fanId)) / self.maxPwm * 100)
 
    def setFanSpeed(self, fan, speed):
       if not int(speed) in range(101):
          logging.error('invalid speed setting %s for fan %s', speed, fan.fanId)
          return None
+      if not self.sysfsPath:
+         self.sysfsPath = utils.locateHwmonPath(
+               self.addr.getSysfsPath(), 'pwm%s' % fan.fanId)
       logging.debug('setting fan %s speed to %s', fan.fanId, speed)
       return self.write('pwm%s' % fan.fanId,
                         str(int(int(speed) * 0.01 * self.maxPwm)))
 
    def getFanDirection(self, fan):
+      if not self.sysfsPath:
+         self.sysfsPath = utils.locateHwmonPath(
+               self.addr.getSysfsPath(), 'pwm%s' % fan.fanId)
       return self.read('fan%s_airflow' % fan.fanId)

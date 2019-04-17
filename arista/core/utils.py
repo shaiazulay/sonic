@@ -305,19 +305,15 @@ def writeConfig(path, data):
 
 # Hwmon directories that need to be navigated
 # Keeps trying to get path to show up, or search in searchPath
-def locateHwmonPath(path, searchPath, timeout, prefix):
+def locateHwmonPath(searchPath, prefix, timeout=1.0):
    for r in Retrying(interval=timeout):
-      if path:
-         if os.path.exists(path):
-            return path
-      else:
-         for root, _, files in os.walk(os.path.join(searchPath, 'hwmon')):
-            for name in files:
-               if name.startswith(prefix):
-                  path = root
-                  logging.debug('got hwmon path for %s as %s', searchPath,
-                                path)
-                  return path
+      for root, _, files in os.walk(os.path.join(searchPath, 'hwmon')):
+         for name in files:
+            if name.startswith(prefix):
+               path = root
+               logging.debug('got hwmon path for %s as %s', searchPath,
+                             path)
+               return path
       logging.debug('Locate hwmon path attempt %d.', r.attempt)
 
    logging.error('could not locate hwmon path for %s', searchPath)
