@@ -40,12 +40,13 @@ def formatPrefdlData(data):
 
 def writeFormattedPrefdl(pfdl, f):
    fdata = formatPrefdlData(pfdl.data())
-   with open(f, 'w+') as fp:
+   with open(f, 'w+', 0) as fp:
       for k, v in fdata.items():
          fp.write("%s: %s\n" % (k, v))
 
 def readPrefdl():
-   if os.path.exists(fmted_prefdl_path):
+   if os.path.isfile(fmted_prefdl_path) and \
+      os.path.getsize(fmted_prefdl_path) > 0:
       with open(fmted_prefdl_path) as fp:
          logging.debug('reading system eeprom from %s', fmted_prefdl_path)
          return prefdl.PreFdlFromFile(fp)
