@@ -15,10 +15,12 @@ class PsuImpl(Psu):
       return self.driver.getPsuStatus(self)
 
 class XcvrImpl(Xcvr):
-   def __init__(self, driver=None, interruptLine=None, reset=None, **kwargs):
+   def __init__(self, driver=None, interruptLine=None, reset=None, leds=None,
+                **kwargs):
       self.driver = driver
       self.interruptLine = interruptLine
       self.reset = reset
+      self.leds = leds
       typeStr = Xcvr.typeStr(kwargs['xcvrType'])
       self.name = '%s%s' % (typeStr, kwargs['xcvrId'])
       self.__dict__.update(kwargs)
@@ -49,6 +51,9 @@ class XcvrImpl(Xcvr):
 
    def getReset(self):
       return self.reset
+
+   def getLeds(self):
+      return self.leds
 
 class ResetImpl(Reset):
    def __init__(self, name=None, driver=None, **kwargs):
@@ -83,7 +88,8 @@ class FanImpl(Fan):
       return self.driver.getFanDirection(self)
 
 class LedImpl(Led):
-   def __init__(self, driver=None, **kwargs):
+   def __init__(self, name=None, driver=None, **kwargs):
+      self.name = name
       self.driver = driver
       self.__dict__.update(kwargs)
 
@@ -92,3 +98,6 @@ class LedImpl(Led):
 
    def setColor(self, color):
       return self.driver.setLedColor(self, color)
+
+   def getName(self):
+      return self.name

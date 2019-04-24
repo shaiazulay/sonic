@@ -99,6 +99,9 @@ class Led(object):
    def setColor(self, color):
       raise NotImplementedError()
 
+   def getName(self):
+      raise NotImplementedError()
+
 class Slot(object):
    def getPresence(self):
       raise NotImplementedError()
@@ -112,6 +115,9 @@ class Inventory(object):
 
       self.portStart = None
       self.portEnd = None
+
+      self.leds = {}
+      self.ledGroups = {}
 
       self.xcvrs = {}
 
@@ -181,6 +187,27 @@ class Inventory(object):
 
    def addStatusLeds(self, names):
       self.statusLeds.extend(names)
+
+   def addLed(self, led):
+      self.leds[led.getName()] = led
+
+   def addLedGroup(self, name, leds):
+      self.ledGroups[name] = leds
+      for led in leds:
+         self.addLed(led)
+
+   def addLeds(self, leds):
+      for led in leds:
+         self.addLed(led)
+
+   def getLed(self, name):
+      return self.leds[name]
+
+   def getLedGroup(self, name):
+      return self.ledGroups[name]
+
+   def getLeds(self):
+      return self.leds
 
    def addPsus(self, psus):
       self.psus = psus

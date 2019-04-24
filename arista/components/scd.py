@@ -9,13 +9,13 @@ from ..core.config import Config
 from ..core.driver import KernelDriver
 from ..core.inventory import Interrupt, PowerCycle, Watchdog, Xcvr, Reset
 from ..core.types import I2cAddr
-from ..core.utils import FileWaiter, MmapResource, inSimulation, simulateWith, \
-                         writeConfig
+from ..core.utils import FileWaiter, MmapResource, simulateWith, writeConfig
 
 from ..drivers.i2c import I2cKernelDriver
 from ..drivers.scd import ScdKernelDriver
-from ..drivers.sysfs import PsuSysfsDriver, ResetSysfsDriver, XcvrSysfsDriver
-from ..drivers.accessors import PsuImpl, ResetImpl, XcvrImpl
+from ..drivers.sysfs import LedSysfsDriver, PsuSysfsDriver, ResetSysfsDriver, \
+                            XcvrSysfsDriver
+from ..drivers.accessors import LedImpl, PsuImpl, ResetImpl, XcvrImpl
 
 from .common import PciComponent, I2cComponent
 
@@ -222,6 +222,8 @@ class Scd(PciComponent):
       self.pciSysfs = addr.getSysfsPath()
       drivers = drivers or [KernelDriver(module='scd'),
                             ScdKernelDriver(scd=self, addr=addr),
+                            LedSysfsDriver(sysfsPath=os.path.join(self.pciSysfs,
+                                                                  'leds')),
                             PsuSysfsDriver(sysfsPath=self.pciSysfs),
                             ResetSysfsDriver(sysfsPath=self.pciSysfs),
                             XcvrSysfsDriver(sysfsPath=self.pciSysfs)]
@@ -308,9 +310,10 @@ class Scd(PciComponent):
 
    def addLed(self, addr, name):
       self.leds += [(addr, name)]
+      return LedImpl(name=name, driver=self.drivers['LedSysfsDriver'])
 
    def addLeds(self, leds):
-      self.leds += leds
+      return [self.addLed(*led) for led in leds]
 
    def addReset(self, gpio):
       scdReset = ScdReset(self.pciSysfs, gpio)
@@ -328,7 +331,7 @@ class Scd(PciComponent):
    def addGpios(self, gpios):
       self.gpios += gpios
 
-   def _addXcvr(self, xcvrId, xcvrType, bus, interruptLine):
+   def _addXcvr(self, xcvrId, xcvrType, bus, interruptLine, leds=None):
       addr = self.i2cAddr(bus, Xcvr.ADDR)
       reset = None
       if xcvrType != Xcvr.SFP:
@@ -337,24 +340,24 @@ class Scd(PciComponent):
       xcvr = XcvrImpl(xcvrId=xcvrId, xcvrType=xcvrType,
                       driver=self.drivers['XcvrSysfsDriver'],
                       addr=addr, interruptLine=interruptLine,
-                      reset=reset)
+                      reset=reset, leds=leds)
       self.addComponent(I2cComponent(addr=addr,
                            drivers=[I2cKernelDriver(name='sff8436', addr=addr)]))
       self.addBusTweak(addr)
       self.xcvrs.append(xcvr)
       return xcvr
 
-   def addOsfp(self, addr, xcvrId, bus, interruptLine=None):
+   def addOsfp(self, addr, xcvrId, bus, interruptLine=None, leds=None):
       self.osfps += [(addr, xcvrId)]
-      return self._addXcvr(xcvrId, Xcvr.OSFP, bus, interruptLine)
+      return self._addXcvr(xcvrId, Xcvr.OSFP, bus, interruptLine, leds=leds)
 
-   def addQsfp(self, addr, xcvrId, bus, interruptLine=None):
+   def addQsfp(self, addr, xcvrId, bus, interruptLine=None, leds=None):
       self.qsfps += [(addr, xcvrId)]
-      return self._addXcvr(xcvrId, Xcvr.QSFP, bus, interruptLine)
+      return self._addXcvr(xcvrId, Xcvr.QSFP, bus, interruptLine, leds=leds)
 
-   def addSfp(self, addr, xcvrId, bus, interruptLine=None):
+   def addSfp(self, addr, xcvrId, bus, interruptLine=None, leds=None):
       self.sfps += [(addr, xcvrId)]
-      return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine)
+      return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine, leds=leds)
 
    # In platforms, should change "statusGpios" to "statusGpio" and make it a boolean
    def createPsu(self, psuId, driver='PsuSysfsDriver', statusGpios=True, **kwargs):
