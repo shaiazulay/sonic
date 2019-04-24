@@ -40,15 +40,13 @@ class BlackhawkO(Platform):
 
       scd.addSmbusMasterRange(0x8000, 8, 0x80)
 
-      scd.addLeds([
+      self.inventory.addLeds(scd.addLeds([
          (0x6050, 'status'),
          (0x6060, 'fan_status'),
          (0x6070, 'psu1'),
          (0x6080, 'psu2'),
          (0x6090, 'beacon'),
-      ])
-      self.inventory.addStatusLeds(['status', 'fan_status', 'psu1',
-         'psu2'])
+      ]))
 
       self.inventory.addResets(scd.addResets([
          ResetGpio(0x4000, 4, False, 'sat_cpld1_reset'),
@@ -73,15 +71,13 @@ class BlackhawkO(Platform):
       addr = 0x6100
       for xcvrId in self.osfpRange:
          name = "osfp%d" % xcvrId
-         scd.addLed(addr, name)
-         self.inventory.addXcvrLed(xcvrId, name)
+         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
          addr += 0x40
 
       addr = 0x6900
       for xcvrId in self.sfpRange:
          name = "sfp%d" % xcvrId
-         scd.addLed(addr, name)
-         self.inventory.addXcvrLed(xcvrId, name)
+         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
          addr += 0x40
 
       intrRegs = [
@@ -94,8 +90,10 @@ class BlackhawkO(Platform):
       bus = 16
       for xcvrId in sorted(self.osfpRange):
          intr = intrRegs[1].getInterruptBit(xcvrId - 1)
-         self.inventory.addInterrupt('osfp%d' % xcvrId, intr)
-         xcvr = scd.addOsfp(addr, xcvrId, bus, interruptLine=intr)
+         name = 'osfp%d' % xcvrId
+         self.inventory.addInterrupt(name, intr)
+         xcvr = scd.addOsfp(addr, xcvrId, bus, interruptLine=intr,
+                            leds=self.inventory.getLedGroup(name))
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1
@@ -103,7 +101,8 @@ class BlackhawkO(Platform):
       addr = 0xA210
       bus = 48
       for xcvrId in sorted(self.sfpRange):
-         xcvr = scd.addSfp(addr, xcvrId, bus)
+         xcvr = scd.addSfp(addr, xcvrId, bus,
+                           leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1

@@ -20,7 +20,7 @@ class XcvrImpl(Xcvr):
       self.driver = driver
       self.interruptLine = interruptLine
       self.reset = reset
-      self.leds = leds
+      self.leds = leds or []
       typeStr = Xcvr.typeStr(kwargs['xcvrType'])
       self.name = '%s%s' % (typeStr, kwargs['xcvrId'])
       self.__dict__.update(kwargs)
@@ -105,3 +105,6 @@ class LedImpl(Led):
 
    def getName(self):
       return self.name
+
+   def isStatusLed(self):
+      return not 'sfp' in self.name

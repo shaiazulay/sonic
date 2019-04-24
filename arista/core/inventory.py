@@ -102,6 +102,9 @@ class Led(object):
    def getName(self):
       raise NotImplementedError()
 
+   def isStatusLed(self):
+      raise NotImplementedError()
+
 class Slot(object):
    def getPresence(self):
       raise NotImplementedError()
@@ -121,6 +124,7 @@ class Inventory(object):
 
       self.xcvrs = {}
 
+      # These two are deprecated
       self.xcvrLeds = defaultdict(list)
       self.statusLeds = []
 
@@ -179,12 +183,15 @@ class Inventory(object):
    def getPortToI2cAdapterMapping(self):
       return { xcvrId : xcvr.addr.bus for xcvrId, xcvr in self.xcvrs.items() }
 
+   # Deprecated
    def addXcvrLed(self, xcvrId, name):
       self.xcvrLeds[xcvrId].append(name)
 
+   # Deprecated
    def addStatusLed(self, name):
       self.statusLeds.append(name)
 
+   # Deprecated
    def addStatusLeds(self, names):
       self.statusLeds.extend(names)
 
@@ -208,6 +215,9 @@ class Inventory(object):
 
    def getLeds(self):
       return self.leds
+
+   def getLedGroups(self):
+      return self.ledGroups
 
    def addPsus(self, psus):
       self.psus = psus

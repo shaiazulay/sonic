@@ -67,15 +67,13 @@ class Cloverdale(Platform):
 
       scd.addSmbusMasterRange(0x8000, 5)
 
-      scd.addLeds([
+      self.inventory.addLeds(scd.addLeds([
          (0x6050, 'status'),
          (0x6060, 'fan_status'),
          (0x6070, 'psu1'),
          (0x6080, 'psu2'),
          (0x6090, 'beacon'),
-      ])
-      self.inventory.addStatusLeds(['status', 'fan_status', 'psu1',
-         'psu2'])
+      ]))
 
       self.inventory.addResets(scd.addResets([
          ResetGpio(0x4000, 0, False, 'switch_chip_reset'),
@@ -96,17 +94,17 @@ class Cloverdale(Platform):
 
       addr = 0x6100
       for xcvrId in self.qsfp40gAutoRange:
+         leds = []
          for laneId in incrange(1, 4):
             name = "qsfp%d_%d" % (xcvrId, laneId)
-            scd.addLed(addr, name)
-            self.inventory.addXcvrLed(xcvrId, name)
+            leds.append(scd.addLed(addr, name))
             addr += 0x10
+         self.inventory.addLedGroup("qsfp%d" % xcvrId, leds)
 
       addr = 0x6720
       for xcvrId in self.qsfp40gOnlyRange:
          name = "qsfp%d" % xcvrId
-         scd.addLed(addr, name)
-         self.inventory.addXcvrLed(xcvrId, name)
+         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
          addr += 0x30 if xcvrId % 2 else 0x50
 
       intrRegs = [
@@ -118,8 +116,10 @@ class Cloverdale(Platform):
       bus = 8
       for xcvrId in self.allQsfps:
          intr = intrRegs[1].getInterruptBit(xcvrId - 1)
-         self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
+         name = 'qsfp%d' % xcvrId
+         self.inventory.addInterrupt(name, intr)
+         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                            leds=self.inventory.getLedGroup(name))
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1

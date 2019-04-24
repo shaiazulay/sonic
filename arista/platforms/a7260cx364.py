@@ -61,17 +61,17 @@ class Gardena(Platform):
 
       addr = 0x6100
       for xcvrId in self.qsfpRange:
+         leds = []
          for laneId in incrange(1, 4):
             name = "qsfp%d_%d" % (xcvrId, laneId)
-            scd.addLed(addr, name)
-            self.inventory.addXcvrLed(xcvrId, name)
+            leds.append(scd.addLed(addr, name))
             addr += 0x10
+         self.inventory.addLedGroup("qsfp%d" % xcvrId, leds)
 
       addr = 0x7100
       for xcvrId in self.sfpRange:
          name = "sfp%d" % xcvrId
-         scd.addLed(addr, name)
-         self.inventory.addXcvrLed(xcvrId, name)
+         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
          addr += 0x10
 
       intrRegs = [
@@ -84,8 +84,10 @@ class Gardena(Platform):
       bus = 8
       for xcvrId in sorted(self.qsfpRange):
          intr = intrRegs[xcvrId // 33 + 1].getInterruptBit((xcvrId - 1) % 32)
-         self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
+         name = 'qsfp%d' % xcvrId
+         self.inventory.addInterrupt(name, intr)
+         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                            leds=self.inventory.getLedGroup(name))
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1
@@ -93,7 +95,8 @@ class Gardena(Platform):
       addr = 0xA410
       bus = 6
       for xcvrId in sorted(self.sfpRange):
-         xcvr = scd.addSfp(addr, xcvrId, bus)
+         xcvr = scd.addSfp(addr, xcvrId, bus,
+                           leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1
