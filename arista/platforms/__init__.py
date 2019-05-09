@@ -1,8 +1,18 @@
 
-from . import a7050qx32
-from . import a7050qx32s
-from . import a7060cx32s
-from . import a7060x432
-from . import a717064c
-from . import a7260cx364
-from . import a7280cr3
+import os
+
+def getPlatformModules():
+   platformPath = os.path.dirname(__file__)
+   modules = []
+
+   for root, _, files in os.walk(platformPath):
+      root = root[len(platformPath)+1:]
+      for f in files:
+         if not f.endswith('.py') or f == '__init__.py':
+            continue
+         module = os.path.join(root, f[:-3]).replace('/', '.')
+         modules.append(module)
+
+   return modules
+
+__all__ = getPlatformModules()
