@@ -117,6 +117,9 @@ class ScdKernelDriver(PciKernelDriver):
       logging.debug('creating scd objects')
       self.writeComponents(data, "new_object")
 
+      if scd.msiRearmOffset:
+         path = self.addr.getSysfsPath()
+         writeConfig(path, {'msi_rearm_offset': '%d' % scd.msiRearmOffset})
       for intrReg in scd.interrupts:
          intrReg.setup()
 

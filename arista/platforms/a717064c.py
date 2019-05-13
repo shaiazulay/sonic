@@ -72,6 +72,8 @@ class Alhambra(Platform):
          self.inventory.addXcvrLed(xcvrId, name)
          addr += 0x10
 
+      scd.setMsiRearmOffset(0x190)
+
       intrRegs = [
          scd.createInterrupt(addr=0x3000, num=0),
          scd.createInterrupt(addr=0x3030, num=1),

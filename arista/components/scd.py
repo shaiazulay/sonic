@@ -222,6 +222,10 @@ class Scd(PciComponent):
       self.uioMap = {}
       self.resets = []
       self.i2cOffset = 0
+      self.msiRearmOffset = None
+
+   def setMsiRearmOffset(self, offset):
+      self.msiRearmOffset = offset
 
    def createPowerCycle(self, reg=0x7000, wr=0xDEAD):
       powerCycle = ScdPowerCycle(self, reg=reg, wr=wr)
