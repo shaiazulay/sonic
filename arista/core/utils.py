@@ -214,6 +214,10 @@ class StoredData(object):
       with open(self.path, 'r') as tmpFile:
          return tmpFile.read()
 
+   def clear(self):
+      if self.exist():
+         os.remove(self.path)
+
 class JsonStoredData(StoredData):
    @staticmethod
    def _createObj(data, dataType):

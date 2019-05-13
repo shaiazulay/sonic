@@ -4,6 +4,7 @@ import datetime
 import logging
 from collections import namedtuple
 
+from ..core.cause import updateReloadCausesHistory, datetimeToStr
 from ..core.config import Config
 from ..core.inventory import ReloadCause
 from ..core.utils import JsonStoredData, inSimulation
@@ -150,16 +151,16 @@ class Ucd(I2cComponent):
          for name, typ in self.causes.items():
             if isinstance(typ, UcdGpi) and typ.bit == page:
                logging.debug('found: %s', name)
-               causes.append(UcdReloadCause(name, str(time)))
+               causes.append(UcdReloadCause(name, datetimeToStr(time)))
       elif paged and ftype in [ 0, 1 ]:
          # this is a Mon
          for name, typ in self.causes.items():
             if isinstance(typ, UcdMon) and typ.val == page:
                logging.debug('found: %s', name)
-               causes.append(UcdReloadCause(name, str(time)))
+               causes.append(UcdReloadCause(name, datetimeToStr(time)))
       else:
          logging.debug('unknown cause')
-         causes.append(UcdReloadCause('unknown', str(time)))
+         causes.append(UcdReloadCause('unknown', datetimeToStr(time)))
 
       return causes
 
@@ -196,6 +197,8 @@ class Ucd(I2cComponent):
             if clear:
                logging.debug('clearing faults')
                drv.clearFaults()
+               if Config().reboot_cause_history and causes:
+                  updateReloadCausesHistory(causes)
             if not causes:
                causes = [UcdReloadCause('unknown')]
          rebootCauses.writeList(causes)
