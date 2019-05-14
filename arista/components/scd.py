@@ -204,13 +204,12 @@ class ScdInterruptRegister(object):
 class Scd(PciComponent):
    BusTweak = namedtuple('BusTweak', 'addr, t, datr, datw, ed')
    def __init__(self, addr, drivers=None, **kwargs):
+      self.pciSysfs = addr.getSysfsPath()
       drivers = drivers or [KernelDriver(module='scd'),
                             ScdKernelDriver(scd=self, addr=addr),
-                            PsuSysfsDriver(sysfsPath=addr.getSysfsPath()),
-                            ResetSysfsDriver(sysfsPath=addr.getSysfsPath()),
-                            XcvrSysfsDriver(sysfsPath=addr.getSysfsPath())]
-      self.addr = addr
-      self.pciSysfs = self.addr.getSysfsPath()
+                            PsuSysfsDriver(sysfsPath=self.pciSysfs),
+                            ResetSysfsDriver(sysfsPath=self.pciSysfs),
+                            XcvrSysfsDriver(sysfsPath=self.pciSysfs)]
       self.masters = OrderedDict()
       self.mmapReady = False
       self.interrupts = []
@@ -227,7 +226,7 @@ class Scd(PciComponent):
       self.resets = []
       self.i2cOffset = 0
       self.msiRearmOffset = None
-      super(Scd, self).__init__(drivers=drivers, **kwargs)
+      super(Scd, self).__init__(addr=addr, drivers=drivers, **kwargs)
 
    def __str__(self):
       return '%s()' % self.__class__.__name__
