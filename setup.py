@@ -15,6 +15,7 @@ setup(
       'arista.drivers',
       'arista.platforms',
       'arista.utils',
+      'arista.utils.sonic_platform',
    ],
    test_suite='tests',
 )
