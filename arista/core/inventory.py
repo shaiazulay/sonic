@@ -1,7 +1,4 @@
 from collections import defaultdict
-import logging
-
-from .utils import simulateWith
 
 class Xcvr(object):
 
@@ -48,27 +45,12 @@ class Psu(object):
       raise NotImplementedError()
 
 class Watchdog(object):
-   def armSim(self, timeout):
-      logging.info("watchdog arm")
-      return True
-
-   @simulateWith(armSim)
    def arm(self, timeout):
       raise NotImplementedError()
 
-   def stopSim(self):
-      logging.info("watchdog stop")
-      return True
-
-   @simulateWith(stopSim)
    def stop(self):
       raise NotImplementedError()
 
-   def statusSim(self):
-      logging.info("watchdog status")
-      return { "enabled": True, "timeout": 300 }
-
-   @simulateWith(statusSim)
    def status(self):
       raise NotImplementedError()
 
@@ -106,6 +88,10 @@ class Reset(object):
    def getName(self):
       raise NotImplementedError()
 
+class Phy(object):
+   def getReset(self):
+      raise NotImplementedError()
+
 class Inventory(object):
    def __init__(self):
       self.sfpRange = []
@@ -132,6 +118,8 @@ class Inventory(object):
       self.interrupts = {}
 
       self.resets = {}
+
+      self.phys = []
 
    def freeze(self):
       # XXX: compute the range and some basic information from the various
@@ -237,3 +225,9 @@ class Inventory(object):
 
    def getResets(self):
       return self.resets
+
+   def addPhy(self, phy):
+      self.phys.append(phy)
+
+   def getPhys(self):
+      return self.phys

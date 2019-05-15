@@ -201,6 +201,13 @@ class ScdInterruptRegister(object):
    def getInterruptBit(self, bit):
       return ScdInterrupt(self, bit) if Config().init_irq else None
 
+class ScdMdio(object):
+   def __init__(self, scd, addr, bus, name):
+      self.scd = scd
+      self.addr = addr
+      self.bus = bus
+      self.name = name
+
 class Scd(PciComponent):
    BusTweak = namedtuple('BusTweak', 'addr, t, datr, datw, ed')
    def __init__(self, addr, drivers=None, **kwargs):
@@ -225,6 +232,8 @@ class Scd(PciComponent):
       self.uioMap = {}
       self.resets = []
       self.i2cOffset = 0
+      self.mdioMasters = {}
+      self.mdios = []
       self.msiRearmOffset = None
       super(Scd, self).__init__(addr=addr, drivers=drivers, **kwargs)
 
@@ -340,6 +349,23 @@ class Scd(PciComponent):
    def createPsu(self, psuId, driver='PsuSysfsDriver', statusGpios=True, **kwargs):
       return PsuImpl(psuId=psuId, driver=self.drivers[driver],
                      statusGpio=statusGpios, **kwargs)
+
+   def addMdioMaster(self, addr, mid, bus=1):
+      self.mdioMasters[addr] = {
+         'id': mid,
+         'bus': bus,
+      }
+
+   def addMdioMasterRange(self, base, count, spacing=0x40, bus=1):
+      addrs = range(base, base + (count + 1) * spacing, spacing)
+      for i, addr in enumerate(addrs, 0):
+         self.addMdioMaster(addr, i, bus)
+
+   def addMdio(self, master, bus, name=None):
+      addr = [ k for k, v in self.mdioMasters.items() if v['id'] == master ][ 0 ]
+      mdio = ScdMdio(self, addr, bus, name)
+      self.mdios.append(mdio)
+      return mdio
 
    def allGpios(self):
       def zipXcvr(xcvrType, gpio_names, entries):
