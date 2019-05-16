@@ -12,9 +12,7 @@ except ImportError as e:
 def getSfpUtil():
     inventory = getInventory()
 
-    class SfpUtil(SfpUtilBase):
-        """Platform-specific SfpUtil class"""
-
+    class SfpUtilCommon(SfpUtilBase):
         @property
         def port_start(self):
             return inventory.portStart
@@ -49,6 +47,8 @@ def getSfpUtil():
         def __init__(self):
             SfpUtilBase.__init__(self)
 
+    class SfpUtilNative(SfpUtilCommon):
+        """Native Sonic SfpUtil class"""
         def get_presence(self, port_num):
             if not self._is_valid_port(port_num):
                 return False
@@ -126,4 +126,4 @@ def getSfpUtil():
 
             return False, {}
 
-    return SfpUtil
+    return SfpUtilNative
