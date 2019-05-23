@@ -208,6 +208,14 @@ class ScdMdio(object):
       self.bus = bus
       self.name = name
 
+class ScdSmbus(object):
+   def __init__(self, scd, bus):
+      self.scd = scd
+      self.bus = bus
+
+   def i2cAddr(self, addr):
+      return self.scd.i2cAddr(self.bus, addr)
+
 class Scd(PciComponent):
    BusTweak = namedtuple('BusTweak', 'addr, t, datr, datw, ed')
    def __init__(self, addr, drivers=None, **kwargs):
@@ -273,6 +281,9 @@ class Scd(PciComponent):
 
    def i2cAddr(self, bus, addr):
       return ScdI2cAddr(self, bus, addr)
+
+   def getSmbus(self, bus):
+      return ScdSmbus(self, bus)
 
    def getInterrupts(self):
       return self.interrupts
