@@ -99,6 +99,10 @@ class Led(object):
    def setColor(self, color):
       raise NotImplementedError()
 
+class Slot(object):
+   def getPresence(self):
+      raise NotImplementedError()
+
 class Inventory(object):
    def __init__(self):
       self.sfpRange = []
@@ -127,6 +131,8 @@ class Inventory(object):
       self.resets = {}
 
       self.phys = []
+
+      self.slots = []
 
    def freeze(self):
       # XXX: compute the range and some basic information from the various
@@ -238,3 +244,9 @@ class Inventory(object):
 
    def getPhys(self):
       return self.phys
+
+   def addSlot(self, slot):
+      self.slots.append(slot)
+
+   def getSlots(self):
+      return self.slots
