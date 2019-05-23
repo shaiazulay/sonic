@@ -41,6 +41,23 @@ def writeFormattedPrefdl(pfdl, f):
       for k, v in fdata.items():
          fp.write("%s: %s\n" % (k, v))
 
+def readPrefdlEeprom(*addrs):
+   for addr in addrs:
+      eeprompath = os.path.join('/sys/bus/i2c/drivers/eeprom', addr, 'eeprom')
+      if not os.path.exists(eeprompath):
+         continue
+      try:
+         with open(eeprompath) as fp:
+            logging.debug('reading system eeprom from %s', eeprompath)
+            pfdl = prefdl.decode(fp)
+            pfdl.writeToFile(fmted_prefdl_path)
+            return pfdl
+      except Exception as e:
+         logging.warn('could not obtain prefdl from %s', eeprompath)
+         logging.warn('error seen: %s', e)
+
+   raise RuntimeError("Could not find valid system eeprom")
+
 def readPrefdl():
    if os.path.isfile(fmted_prefdl_path) and \
       os.path.getsize(fmted_prefdl_path) > 0:
@@ -65,20 +82,7 @@ def readPrefdl():
          return prefdl.PreFdlFromFile(fp)
 
    modprobe('eeprom')
-   for addr in ['1-0052']:
-      eeprompath = os.path.join('/sys/bus/i2c/drivers/eeprom', addr, 'eeprom')
-      if not os.path.exists(eeprompath):
-         continue
-      try:
-         with open(eeprompath) as fp:
-            logging.debug('reading system eeprom from %s', eeprompath)
-            pfdl = prefdl.decode(fp)
-            pfdl.writeToFile(fmted_prefdl_path)
-            return pfdl
-      except Exception as e:
-         logging.warn('could not obtain prefdl from %s', eeprompath)
-         logging.warn('error seen: %s', e)
-   raise RuntimeError("Could not find valid system eeprom")
+   return readPrefdlEeprom('1-0052')
 
 def getPrefdlDataSim():
    logging.debug('bypass prefdl reading by returning default values')
