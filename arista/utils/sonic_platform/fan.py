@@ -16,13 +16,13 @@ class Fan(FanBase):
    }
 
    def __init__(self, fan):
-      self._fan = fan
+      self.fan_ = fan
 
    def get_direction(self):
-      return self.fanDirectionConversion[self._fan.getDirection()]
+      return self.fanDirectionConversion[self.fan_.getDirection()]
 
    def get_speed(self):
-      return self._fan.getSpeed()
+      return self.fan_.getSpeed()
 
    def set_speed(self, speed):
-      return self._fan.setSpeed(speed)
+      return self.fan_.setSpeed(speed)

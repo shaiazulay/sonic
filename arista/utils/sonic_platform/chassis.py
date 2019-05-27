@@ -11,17 +11,17 @@ except ImportError as e:
 
 class Chassis(ChassisBase):
    def __init__(self, inventory):
-      self.prefdl = readPrefdl()
-      self.inventory = inventory
+      self.prefdl_ = readPrefdl()
+      self.inventory_ = inventory
       self._fan_list = []
-      for fan in self.inventory.getFans():
+      for fan in self.inventory_.getFans():
          self._fan_list.append(Fan(fan))
       ChassisBase.__init__(self)
 
    def get_base_mac(self):
-      mac = self.prefdl.getField("MAC")
+      mac = self.prefdl_.getField("MAC")
       return mac
 
    def get_serial_number(self):
-      serial = self.prefdl.getField("SerialNumber")
+      serial = self.prefdl_.getField("SerialNumber")
       return serial
