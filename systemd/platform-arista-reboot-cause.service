@@ -1,15 +1,16 @@
 [Unit]
-Description=Read Arista reboot cause
-After=sonic-platform-arista.service
+Description=Arista reboot cause processing
+After=platform-arista-pmon.service
+Requires=platform-arista-pmon.service
 Before=process-reboot-cause.service
+PartOf=platform-arista.target
 ConditionKernelCommandLine=Aboot
 
 [Service]
-User=root
 Type=oneshot
 RemainAfterExit=true
 
 ExecStart=/usr/bin/arista --syslog -l /var/log/arista.log reboot-cause
 
 [Install]
-WantedBy=multi-user.target
+RequiredBy=platform-arista.target

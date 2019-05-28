@@ -1,14 +1,15 @@
 [Unit]
 Description=Arista platform daemon
-After=sonic-platform-arista.service
-ConditionKernelCommandLine=Aboot-disabled
+After=platform-arista-pmon.service
+Requires=platform-arista-pmon.service
+PartOf=platform-arista.target
+ConditionKernelCommandLine=Aboot
 
 [Service]
-User=root
 Restart=always
 RestartSec=30
 
 ExecStart=/usr/bin/python3 /usr/bin/arista --syslog -l /var/log/arista-daemon.log daemon
 
 [Install]
-WantedBy=multi-user.target
+RequiredBy=platform-arista.target
