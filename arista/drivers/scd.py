@@ -1,12 +1,11 @@
 import logging
 import os
-import time
 
 from collections import OrderedDict
 
 from .pci import PciKernelDriver
+from ..core import utils
 from ..core.config import Config
-from ..core.utils import FileWaiter, inSimulation, simulateWith, writeConfig
 
 SCD_WAIT_TIMEOUT = 5.
 
@@ -49,29 +48,29 @@ class ScdKernelDriver(PciKernelDriver):
       for entry in components:
          entry_size = len(entry) + 1
          if entry_size + data_size > PAGE_SIZE:
-            writeConfig(self.addr.getSysfsPath(), {filename: '\n'.join(data)})
+            utils.writeConfig(self.addr.getSysfsPath(), {filename: '\n'.join(data)})
             data_size = 0
             data = []
          data.append(entry)
          data_size += entry_size
 
       if data:
-         writeConfig(self.addr.getSysfsPath(), {filename: '\n'.join(data)})
+         utils.writeConfig(self.addr.getSysfsPath(), {filename: '\n'.join(data)})
 
    def waitReadySim(self):
       logging.info('Waiting SCD %s.', os.path.join(self.addr.getSysfsPath(),
                                                    'smbus_tweaks'))
       logging.info('Done.')
 
-   @simulateWith(waitReadySim)
+   @utils.simulateWith(waitReadySim)
    def waitReady(self):
       path = os.path.join(self.addr.getSysfsPath(), 'smbus_tweaks')
-      FileWaiter(path, SCD_WAIT_TIMEOUT).waitFileReady()
+      utils.FileWaiter(path, SCD_WAIT_TIMEOUT).waitFileReady()
 
    def refresh(self):
       # reload i2c bus cache
       masterName = "SCD %s SMBus master %d bus %d" % (self.addr, 0, 0)
-      if not inSimulation():
+      if not utils.inSimulation():
          self.scd.i2cOffset = i2cBusFromName(masterName, force=True)
       else:
          self.scd.i2cOffset = 2
@@ -114,7 +113,7 @@ class ScdKernelDriver(PciKernelDriver):
 
       if scd.msiRearmOffset:
          path = self.addr.getSysfsPath()
-         writeConfig(path, {'msi_rearm_offset': '%d' % scd.msiRearmOffset})
+         utils.writeConfig(path, {'msi_rearm_offset': '%d' % scd.msiRearmOffset})
       for intrReg in scd.interrupts:
          intrReg.setup()
 
@@ -134,14 +133,14 @@ class ScdKernelDriver(PciKernelDriver):
       logging.debug('applying scd configuration')
       path = self.addr.getSysfsPath()
       if Config().lock_scd_conf:
-         writeConfig(path, {'init_trigger': '1'})
+         utils.writeConfig(path, {'init_trigger': '1'})
       super(ScdKernelDriver, self).finish()
 
    def resetSim(self, value):
       resets = self.scd.getSysfsResetNameList()
       logging.debug('resetting devices %s', resets)
 
-   @simulateWith(resetSim)
+   @utils.simulateWith(resetSim)
    def reset(self, value):
       path = self.addr.getSysfsPath()
       for reset in self.scd.getSysfsResetNameList():

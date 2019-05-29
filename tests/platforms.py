@@ -16,7 +16,7 @@ from arista.core.inventory import Psu, Xcvr
 from arista.core.platform import getPlatforms
 from arista.core.types import I2cAddr
 
-from arista.drivers.accessors import FanImpl, PsuImpl, XcvrImpl
+from arista.drivers.accessors import FanImpl, LedImpl, PsuImpl, XcvrImpl
 from arista.drivers.i2c import I2cKernelDriver
 from arista.drivers.scd import ScdKernelDriver
 from arista.drivers.sysfs import SysfsDriver
@@ -24,6 +24,10 @@ from arista.drivers.sysfs import SysfsDriver
 import arista.platforms
 
 from tests.common import getLogger
+
+def mock_i2cBusFromName(name, idx=0, force=False):
+   assert isinstance(name, str)
+   return 0
 
 # TODO: remove this type of simulation testing
 def mock_inSimulation():
@@ -34,15 +38,19 @@ def mock_locateHwmonPath(searchPath, prefix):
    assert isinstance(prefix, str)
    return 'mock path'
 
+def mock_writeConfig(path, data):
+   assert isinstance(path, str)
+   assert isinstance(data, (list, dict))
+
 def mock_writeComponents(self, components, filename):
    assert components
    assert filename
 
-def mock_read(self, name):
+def mock_read(self, name, path=None):
    assert name
    return '1'
 
-def mock_write(self, name, value):
+def mock_write(self, name, value, path=None):
    assert name
    assert value != None
 
@@ -65,8 +73,10 @@ def mock_readReg(self, reg):
    assert reg
    return None
 
+@patch('arista.drivers.scd.i2cBusFromName', mock_i2cBusFromName)
 @patch('arista.core.utils.inSimulation', mock_inSimulation)
 @patch('arista.core.utils.locateHwmonPath', mock_locateHwmonPath)
+@patch('arista.core.utils.writeConfig', mock_writeConfig)
 @patch.object(Ds460, 'getStatus', mock_getStatus)
 @patch.object(ScdInterruptRegister, 'setup', mock_setup)
 @patch.object(ScdInterruptRegister, 'readReg', mock_readReg)
@@ -91,6 +101,18 @@ class MockTest(unittest.TestCase):
          inventory = platformObj.getInventory()
          assert inventory
          cls.inventories[name] = inventory
+      cls.ledColors = ['off', 'green', 'red', 'yellow']
+
+   def _testLed(self, led):
+      assert isinstance(led, LedImpl)
+      assert isinstance(led.name, str)
+      name = led.getName()
+      assert name == led.name
+      assert isinstance(led.driver, Driver)
+      color = led.getColor()
+      assert color in self.ledColors
+      for color in self.ledColors:
+         led.setColor(color)
 
    def testSetup(self):
       for name, platform in getPlatforms().items():
@@ -155,10 +177,14 @@ class MockTest(unittest.TestCase):
             assert isinstance(fan, FanImpl)
             assert isinstance(fan.driver, Driver)
             assert isinstance(fan.fanId, int)
+            assert isinstance(fan.led, LedImpl)
             assert isinstance(fan.getSpeed(), int)
             assert (not fan.getSpeed() < 0) or (not fan.getSpeed() > 100)
             fan.setSpeed(100)
             assert isinstance(fan.getDirection(), str)
+            led = fan.getLed()
+            assert led == fan.led
+            self._testLed(led)
 
 if __name__ == '__main__':
    unittest.main()

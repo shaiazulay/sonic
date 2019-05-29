@@ -128,12 +128,15 @@ class LedSysfsDriver(SysfsDriver):
             '2': 'red',
             '3': 'yellow',
       }
+      self.inverseColorDict = {v: k for k, v in self.colorDict.items()}
       super(LedSysfsDriver, self).__init__(**kwargs)
 
    def getLedColor(self, led):
-      return self.colorDict[self.read(led.name,
-         path=os.path.join(self.sysfsPath, led.name, 'brightness'))]
+      path = os.path.join(self.sysfsPath, led.name, 'brightness')
+      return self.colorDict[self.read(led.name, path=path)]
 
    def setLedColor(self, led, value):
-      self.write(led.name, value, path=os.path.join(self.sysfsPath, led.name,
-                 'brightness'))
+      path = os.path.join(self.sysfsPath, led.name, 'brightness')
+      if value in self.inverseColorDict:
+         value = self.inverseColorDict[value]
+      self.write(led.name, str(value), path=path)
