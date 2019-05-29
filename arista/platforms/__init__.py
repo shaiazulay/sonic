@@ -16,3 +16,6 @@ def getPlatformModules():
    return modules
 
 __all__ = getPlatformModules()
+
+# NOTE: this import relies on __all__ and therefore has to be here
+from . import * # pylint: disable=wildcard-import,wrong-import-position
