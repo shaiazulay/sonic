@@ -26,3 +26,10 @@ class Fan(FanBase):
 
    def set_speed(self, speed):
       return self.fan_.setSpeed(speed)
+
+   def set_status_led(self, color):
+      try:
+         self.fan_.setColor(color)
+         return True
+      except (IOError, OSError, ValueError):
+         return False
