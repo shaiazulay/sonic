@@ -204,7 +204,7 @@ def main():
    # 10) reboot to EOS
    if not args.no_reboot:
       logging.info('rebooting to EOS')
-      subprocess.call(['reboot'])
+      subprocess.call(['reboot', '-f'])
 
 if __name__ == '__main__':
    main()
