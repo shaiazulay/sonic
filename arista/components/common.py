@@ -1,4 +1,5 @@
 
+from collections import namedtuple
 import logging
 import os
 import time
@@ -7,6 +8,15 @@ from ..core.component import Component, DEFAULT_WAIT_TIMEOUT, ASIC_YIELD_TIME
 from ..core.utils import klog, inSimulation
 
 from ..drivers.i2c import I2cKernelDriver
+
+SensorDesc = namedtuple('SensorDesc', [
+   'diode',
+   'name',
+   'position',
+   'target',
+   'overheat',
+   'critical',
+])
 
 class PciComponent(Component):
    def __init__(self, **kwargs):
