@@ -12,7 +12,8 @@ import os
 
 import arista.platforms
 import arista.core.utils as utils
-from arista.core.cause import getReloadCauseHistory
+from arista.core.cause import getReloadCause, getReloadCauseHistory, \
+                              updateReloadCausesHistory
 from arista.core.platform import getPlatform, getSysEeprom, getPlatforms
 from arista.core.component import Priority
 
@@ -63,7 +64,6 @@ def setupLogging(verbose=False, logfile=None, syslog=False):
          log.info('Attaching to syslog')
       except:
          log.warning('Failed open syslog')
-
 
 def setupSimulation():
    global lock_file, log_file
@@ -193,17 +193,20 @@ def doReboot(args, platform):
    arista.utils.sonic_reboot.reboot(platform.getInventory())
 
 def doRebootCause(args, platform):
-   if args.reboot_history:
+   if utils.inSimulation():
+      return
+   updateReloadCausesHistory(platform.getReloadCauses(clear=True))
+   if args.history:
       causes = getReloadCauseHistory()
    else:
-      causes = platform.getReloadCauses(clear=True)
+      causes = getReloadCause()
    if not causes:
       print('No reboot cause detected')
       return
    print('Found reboot cause(s):')
    print('----------------------')
-   for cause in causes:
-      print(cause)
+   for item in causes:
+      print(item)
 
 def todo(*args, **kwargs):
    raise NotImplementedError
@@ -264,7 +267,7 @@ def parseArgs():
                          'before the watchdog triggers')
    sub = subparsers.add_parser('reboot', help='perform a cold reboot for platform')
    sub = subparsers.add_parser('reboot-cause', help='reload cause information')
-   sub.add_argument('--history', action='store_true', dest='reboot_history',
+   sub.add_argument('--history', action='store_true',
                     help='print reboot causes history if it exists')
 
    args = parser.parse_args()

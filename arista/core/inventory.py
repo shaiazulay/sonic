@@ -59,11 +59,11 @@ class PowerCycle(object):
       raise NotImplementedError()
 
 class ReloadCause(object):
-   def reason(self):
+   def getTime(self):
       raise NotImplementedError()
 
-   def __str__(self):
-      return self.reason()
+   def getCause(self):
+      raise NotImplementedError()
 
 class Interrupt(object):
    def set(self):
