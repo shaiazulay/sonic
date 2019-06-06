@@ -230,7 +230,10 @@ class JsonStoredData(StoredData):
                                                    separators=(',', ': ')), mode)
 
    def read(self):
-      return json.loads(super(JsonStoredData, self).read())
+      res = super(JsonStoredData, self).read()
+      if res:
+         return json.loads(res)
+      return {}
 
    def readObj(self, dataType):
       return self._createObj(self.read(), dataType)
