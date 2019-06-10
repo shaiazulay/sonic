@@ -20,6 +20,11 @@ import struct
 import sys
 import zlib
 
+try:
+   from StringIO import StringIO
+except ImportError:
+   from io import StringIO
+
 def showMac( m ):
    return ":".join([m[0:2], m[2:4], m[4:6], m[6:8], m[8:10], m[10:12]])
 
@@ -216,6 +221,9 @@ def decode( fp ):
    if data not in ( "0002", "0003" ):
       raise ValueError
    return PreFdl( fp, data, data )
+
+def decodeBuffer( data ):
+   return decode( StringIO( data ) )
 
 def main():
    output = sys.argv[1]
