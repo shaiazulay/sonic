@@ -9,7 +9,7 @@ from ..components.phy import Babbage
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
-@registerPlatform(['DCS-7280CR3-32P4'])
+@registerPlatform(['DCS-7280CR3-32P4', 'DCS-7280CR3-32P4-M'])
 class Smartsville(Platform):
    def __init__(self):
       super(Smartsville, self).__init__()
@@ -145,3 +145,11 @@ class Smartsville(Platform):
       cpld.addFanGroup(0x9000, 3, 3)
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
+
+@registerPlatform(['DCS-7280CR3K-32P4'])
+class SmartsvilleBK(Smartsville):
+   pass
+
+@registerPlatform(['DCS-7280CR3-32D4', 'DCS-7280CR3-32D4-M'])
+class SmartsvilleDD(Smartsville):
+   pass
