@@ -4,6 +4,7 @@ from __future__ import print_function
 
 try:
    from sonic_platform_base.chassis_base import ChassisBase
+   from arista.core import cause
    from arista.core.platform import readPrefdl
    from arista.utils.sonic_platform.fan import Fan
    from arista.utils.sonic_platform.psu import Psu
@@ -11,11 +12,17 @@ except ImportError as e:
    raise ImportError("%s - required module not found" % e)
 
 class Chassis(ChassisBase):
+   REBOOT_CAUSE_DICT = {
+      'powerloss': ChassisBase.REBOOT_CAUSE_POWER_LOSS,
+      'overtemp': ChassisBase.REBOOT_CAUSE_THERMAL_OVERLOAD_OTHER,
+      'reboot': ChassisBase.REBOOT_CAUSE_NON_HARDWARE,
+      'watchdog': ChassisBase.REBOOT_CAUSE_WATCHDOG,
+   }
    def __init__(self, inventory):
-      self.prefdl_ = readPrefdl()
-      self.inventory_ = inventory
+      self.prefdl = readPrefdl()
+      self.inventory = inventory
       self._fan_list = []
-      for fan in self.inventory_.getFans():
+      for fan in self.inventory.getFans():
          self._fan_list.append(Fan(fan))
       self._psu_list = []
       for psu in self.inventory_.getPsus():
@@ -23,9 +30,22 @@ class Chassis(ChassisBase):
       ChassisBase.__init__(self)
 
    def get_base_mac(self):
-      mac = self.prefdl_.getField("MAC")
+      mac = self.prefdl.getField("MAC")
       return mac
 
    def get_serial_number(self):
-      serial = self.prefdl_.getField("SerialNumber")
+      serial = self.prefdl.getField("SerialNumber")
       return serial
+
+   def get_reboot_cause(self):
+      unknown = (ChassisBase.REBOOT_CAUSE_HARDWARE_OTHER, 'unknown cause')
+      causes = cause.getReloadCause()
+      for item in causes:
+         reason = item.getCause()
+         time = item.getTime()
+         if reason != "unknown" and time != "unknown":
+            retCause = self.REBOOT_CAUSE_DICT.get(reason,
+                  ChassisBase.REBOOT_CAUSE_HARDWARE_OTHER)
+            retDesc = str(item)
+            return (retCause, retDesc)
+      return unknown
