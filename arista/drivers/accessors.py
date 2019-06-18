@@ -14,6 +14,18 @@ class PsuImpl(Psu):
    def getStatus(self):
       return self.driver.getPsuStatus(self)
 
+class MixedPsuImpl(Psu):
+   def __init__(self, presenceDriver=None, statusDriver=None, **kwargs):
+      self.presenceDriver = presenceDriver
+      self.statusDriver = statusDriver
+      self.__dict__.update(kwargs)
+
+   def getPresence(self):
+      return self.presenceDriver.getPsuPresence(self)
+
+   def getStatus(self):
+      return self.statusDriver.getPsuStatus(self)
+
 class XcvrImpl(Xcvr):
    def __init__(self, driver=None, interruptLine=None, reset=None, leds=None,
                 **kwargs):
