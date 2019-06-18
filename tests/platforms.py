@@ -157,6 +157,9 @@ class MockTest(unittest.TestCase):
                assert reset.read() in ['0', '1']
                reset.resetIn()
                reset.resetOut()
+            leds = xcvr.getLeds()
+            for led in leds:
+               self._testLed(led)
 
    def testPsus(self):
       for name, inventory in self.inventories.items():
