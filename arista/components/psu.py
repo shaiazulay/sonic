@@ -24,9 +24,6 @@ class PmbusPsuComponent(I2cComponent):
       super(PmbusPsuComponent, self).__init__(addr=addr, name="pmbus", waitFile=hwmonDir, **kwargs)
       self.hwmonDir = hwmonDir
 
-   def getStatus():
-      return self.rw_.readValue('status') == '1'
-
    def sensorPath(self, name):
       return os.path.join(self.hwmonDir, name)
 
