@@ -6,7 +6,7 @@ from ..core.component import Priority
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi, UcdMon
 from ..components.fan import RavenFanCpldComponent
-from ..components.psu import ScdPmbusPsu
+from ..components.psu import PmbusMixedPsuComponent
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
 
@@ -53,17 +53,35 @@ class Cloverdale(Platform):
       for fanId in incrange(1, 4):
          self.inventory.addFan(ravenFanComponent.createFan(fanId))
 
+      # PSU
       psu1Addr = scd.i2cAddr(3, 0x58)
-      psu1 = Ds460(psu1Addr, '/sys/class/hwmon/hwmon4',
-                   priority=Priority.BACKGROUND,
-                   waitTimeout=30.0)
+      ds460Psu1 = Ds460(psu1Addr, '/sys/class/hwmon/hwmon4',
+                        priority=Priority.BACKGROUND,
+                        waitTimeout=30.0)
       psu2Addr = scd.i2cAddr(4, 0x58)
-      psu2 = Ds460(psu2Addr, '/sys/class/hwmon/hwmon5',
-                   priority=Priority.BACKGROUND,
-                   waitTimeout=30.0)
-      scd.addComponents([psu1, psu2])
+      ds460Psu2 = Ds460(psu2Addr, '/sys/class/hwmon/hwmon5',
+                        priority=Priority.BACKGROUND,
+                        waitTimeout=30.0)
+      scd.addComponents([ds460Psu1, ds460Psu2])
       scd.addBusTweak(psu1Addr, 3, 3, 3, 1)
       scd.addBusTweak(psu2Addr, 3, 3, 3, 1)
+
+      scd.addGpios([
+         NamedGpio(0x5000, 0, True, False, "psu1_present"),
+         NamedGpio(0x5000, 1, True, False, "psu2_present"),
+      ])
+
+      psu1Component = PmbusMixedPsuComponent(presenceComponent=scd,
+                                             statusComponent=ds460Psu1)
+      psu2Component = PmbusMixedPsuComponent(presenceComponent=scd,
+                                             statusComponent=ds460Psu2)
+
+      self.addComponents([psu1Component, psu2Component])
+
+      self.inventory.addPsus([
+         psu1Component.createPsu(psuId=1),
+         psu2Component.createPsu(psuId=2),
+      ])
 
       scd.addSmbusMasterRange(0x8000, 5)
 
@@ -82,15 +100,6 @@ class Cloverdale(Platform):
          ResetGpio(0x4000, 4, False, 'phy3_reset'),
          ResetGpio(0x4000, 5, False, 'phy4_reset'),
       ]))
-
-      scd.addGpios([
-         NamedGpio(0x5000, 0, True, False, "psu1_present"),
-         NamedGpio(0x5000, 1, True, False, "psu2_present"),
-      ])
-      self.inventory.addPsus([
-         ScdPmbusPsu(scd.createPsu(1, statusGpios=None), psu1),
-         ScdPmbusPsu(scd.createPsu(2, statusGpios=None), psu2),
-      ])
 
       addr = 0x6100
       for xcvrId in self.qsfp40gAutoRange:

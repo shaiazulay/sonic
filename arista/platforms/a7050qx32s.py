@@ -6,7 +6,7 @@ from ..core.component import Priority
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.fan import CrowFanCpldComponent
-from ..components.psu import PmbusPsuComponent, ScdPmbusPsu
+from ..components.psu import PmbusMixedPsuComponent, PmbusPsuComponent
 from ..components.scd import Scd
 from ..components.ds125br import Ds125Br
 
@@ -70,19 +70,27 @@ class Clearlake(Platform):
 
       self.inventory.addReset(scd.addReset(ResetGpio(0x4000, 0, False, 'switch_chip_reset')))
 
-      psu1 = PmbusPsuComponent(scd.i2cAddr(3, 0x58), '/sys/class/hwmon/hwmon5',
-                               priority=Priority.BACKGROUND)
-      psu2 = PmbusPsuComponent(scd.i2cAddr(4, 0x58), '/sys/class/hwmon/hwmon6',
-                               priority=Priority.BACKGROUND)
-      scd.addComponents([psu1, psu2])
+      pmbusPsu1 = PmbusPsuComponent(scd.i2cAddr(3, 0x58), '/sys/class/hwmon/hwmon5',
+                                    priority=Priority.BACKGROUND)
+      pmbusPsu2 = PmbusPsuComponent(scd.i2cAddr(4, 0x58), '/sys/class/hwmon/hwmon6',
+                                    priority=Priority.BACKGROUND)
+      scd.addComponents([pmbusPsu1, pmbusPsu2])
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
          NamedGpio(0x6940, 0, False, False, "mux"), # FIXME: oldSetup order/name
       ])
+
+      psu1Component = PmbusMixedPsuComponent(presenceComponent=scd,
+                                             statusComponent=pmbusPsu1)
+      psu2Component = PmbusMixedPsuComponent(presenceComponent=scd,
+                                             statusComponent=pmbusPsu2)
+
+      self.addComponents([psu1Component, psu2Component])
+
       self.inventory.addPsus([
-         ScdPmbusPsu(scd.createPsu(1, statusGpios=None), psu1),
-         ScdPmbusPsu(scd.createPsu(2, statusGpios=None), psu2),
+         psu1Component.createPsu(psuId=1),
+         psu2Component.createPsu(psuId=2),
       ])
 
       addr = 0x6100

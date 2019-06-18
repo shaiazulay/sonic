@@ -28,7 +28,7 @@ class PmbusDriver(Driver):
       return True
 
    @simulateWith(getStatusSim_)
-   def getStatus(self):
+   def getPsuStatus(self, psu):
       # At least one sensor is expected to exist, otherwise treat it as a failure.
       nonZero = False
       # Check input and output values of current and voltage are in the range.

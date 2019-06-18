@@ -3,9 +3,28 @@ import logging
 from contextlib import closing
 
 from ..core.inventory import Psu
+from ..core.component import Component
 from ..core.utils import SMBus
+from ..drivers.accessors import MixedPsuImpl
 from ..drivers.pmbus import PmbusDriver
 from .common import I2cComponent
+
+class MixedPsuComponent(Component):
+   def __init__(self, presenceComponent=None, statusComponent=None, **kwargs):
+      self.presenceComponent=presenceComponent
+      self.statusComponent=statusComponent
+      super(MixedPsuComponent, self).__init__(**kwargs)
+
+   def createPsu(self, psuId=1, led=None, presenceDriver=None, statusDriver=None):
+      return MixedPsuImpl(psuId=psuId,
+                  presenceDriver=self.presenceComponent.drivers[presenceDriver],
+                  statusDriver=self.statusComponent.drivers[statusDriver], led=led)
+
+class PmbusMixedPsuComponent(MixedPsuComponent):
+   def createPsu(self, presenceDriver='PsuSysfsDriver', statusDriver='PmbusDriver',
+                 **kwargs):
+      return super(PmbusMixedPsuComponent, self).createPsu(
+            presenceDriver=presenceDriver, statusDriver=statusDriver, **kwargs)
 
 class ScdPmbusPsu(Psu):
    def __init__(self, scd, pmbus):
