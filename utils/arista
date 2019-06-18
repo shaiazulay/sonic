@@ -268,7 +268,7 @@ def parseArgs():
                     help='print reboot causes history if it exists')
 
    args = parser.parse_args()
-   if args.action == 'help':
+   if args.action is None or args.action == 'help':
       parser.print_help()
       sys.exit(0)
    return args
@@ -305,7 +305,7 @@ def main():
       checkRootPermissions()
       platform_commands[args.action](args, getPlatform(args.platform))
    else:
-      logging.error("Command %s doesn't exists", args.command)
+      logging.error("Command %s doesn't exists", args.action)
 
 if __name__ == '__main__':
    main()
