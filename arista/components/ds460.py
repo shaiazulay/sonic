@@ -1,82 +1,43 @@
 import logging
-import os.path
 
 from contextlib import closing
 
-from ..core.utils import Retrying, SMBus, simulateWith
-
+from ..core.utils import Retrying, SMBus
 from .common import I2cComponent
-
 from ..drivers.i2c import I2cKernelDriver
+from ..drivers.pmbus import PmbusDriver
 
 class Ds460(I2cComponent):
-   def __init__(self, addr, hwmonDir, name=None, drivers=None, priority=None,
+   def __init__(self, addr, hwmonDir, name='dps460', drivers=None, priority=None,
                 waitTimeout=None, **kwargs):
-      name = name or 'dps460'
-      drivers = drivers or [I2cKernelDriver(name='dps460', addr=addr,
-                                            waitFile=hwmonDir,
-                                            waitTimeout=waitTimeout)]
-      # pmbus if dps460 is not available
-      super(Ds460, self).__init__(addr=addr, name='dps460', waitFile=hwmonDir,
-                                  drivers=drivers, **kwargs)
-      self.hwmonDir = hwmonDir
+      self.name = name
+      sensors = ['curr1', 'curr2', 'curr3', 'in1', 'in2']
+      if not drivers:
+         drivers = [I2cKernelDriver(name=name, addr=addr, waitFile=hwmonDir,
+                                    waitTimeout=waitTimeout),
+                    PmbusDriver(addr=addr, hwmonDir=hwmonDir, sensors=sensors)]
+      super(Ds460, self).__init__(addr=addr, name=name, drivers=drivers,
+                                  **kwargs)
 
-   def sensorPath(self, name):
-      return os.path.join(self.hwmonDir, name)
-
-   def readSensor(self, name):
-      path = self.sensorPath(name)
-      if not os.path.exists(path):
-         logging.info('hwmon sensor %s does not exist', path)
-         return 0, False
-      logging.debug('hwmon-read %s', path)
-      with open(path, 'r') as f:
-         return int(f.read()), True
-
-   def getStatusSim_(self):
-      logging.info('reading psu status from hwmon: %s', self.hwmonDir)
-      return True
-
-   @simulateWith(getStatusSim_)
    def getStatus(self):
-      # At least one sensor is expected to exist, otherwise treat it as a failure.
-      nonZero = False
-      # Check input and output values of current and voltage are in the range.
-      for sensor in ['curr1', 'curr2', 'curr3', 'in1', 'in2']:
-         # The value must be non zero.
-         value, exists = self.readSensor('%s_input' % sensor)
-         if not exists:
-            continue
-         elif not value:
-            return False
-         nonZero = True
-
-         # The value must be lower than its critical value.
-         valueCrit, exists = self.readSensor('%s_crit' % sensor)
-         if exists and valueCrit and value > valueCrit:
-            return False
-
-         # The value must be greater than its lowest allowed value.
-         valueLCrit, exists = self.readSensor('%s_lcrit' % sensor)
-         if exists and value < valueLCrit:
-            return False
-
-      return nonZero
+      return self.drivers['PmbusDriver'].getStatus()
 
    def setup(self):
       addr = self.addr.address
 
-      logging.debug('initializing ds460 registers')
+      logging.debug('initializing %s registers', self.name)
       with closing(SMBus(self.addr.bus)) as bus:
          for _ in Retrying(interval=10.0, delay=0.5):
             try:
                bus.read_byte_data(addr, 0x00)
-               logging.debug('ds460: device accessible: bus={}'.format(self.addr.bus))
+               logging.debug('%s: device accessible: bus=%s',
+                             self.name, self.addr.bus)
                break
             except IOError:
-               logging.debug('ds460: device not accessible; retrying...')
+               logging.debug('%s: device not accessible; retrying...', self.name)
          else:
-            logging.error('ds460: failed to access device: bus={}'.format(self.addr.bus))
+            logging.error('%s: failed to access device: bus=%s',
+                          self.name, self.addr.bus)
             return
 
          try:
@@ -85,6 +46,6 @@ class Ds460(I2cComponent):
             bus.write_byte_data(addr, 0x03, 1)
             bus.write_byte_data(addr, 0x10, byte)
          except IOError:
-            logging.debug('ds460: failed to initialize')
+            logging.debug('%s: failed to initialize', self.name)
 
       super(Ds460, self).setup()
