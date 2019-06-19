@@ -2,28 +2,16 @@ from ..core.platform import registerPlatform, Platform
 from ..core.utils import incrange
 from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
-from ..core.inventory import Psu
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.cpld import CrowCpld
 from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.fan import CrowFanCpldComponent
+from ..components.psu import UpperlakeMixedPsuComponent
 from ..components.scd import Scd
 
 @registerPlatform(['DCS-7060CX-32S', 'DCS-7060CX-32S-ES'])
 class Upperlake(Platform):
-   class UpperlakePsu(Psu):
-      def __init__(self, scd, psu):
-         self.psuId = scd.psuId
-         self.scd_ = scd
-         self.psu_ = psu
-
-      def getPresence(self):
-         return self.scd_.getPresence()
-
-      def getStatus(self):
-         return self.psu_.getStatus()
-
    def __init__(self):
       super(Upperlake, self).__init__()
 
@@ -87,13 +75,18 @@ class Upperlake(Platform):
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
       ])
+
+      self.addComponent(cpld)
+
+      psuComponent = UpperlakeMixedPsuComponent(presenceComponent=scd,
+                                                statusComponent=cpld)
+
+      self.addComponent(psuComponent)
+
       self.inventory.addPsus([
-         self.UpperlakePsu(scd.createPsu(1),
-                           cpld.createPsuComponent(1, priority=Priority.BACKGROUND)),
-         self.UpperlakePsu(scd.createPsu(2),
-                           cpld.createPsuComponent(2, priority=Priority.BACKGROUND)),
+         psuComponent.createPsu(psuId=1),
+         psuComponent.createPsu(psuId=2),
       ])
-      scd.addComponents(cpld.getPsuComponents())
 
       addr = 0x6100
       for xcvrId in self.sfpRange:

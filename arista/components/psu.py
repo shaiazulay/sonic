@@ -1,12 +1,9 @@
-import logging
-
-from contextlib import closing
-
-from ..core.inventory import Psu
 from ..core.component import Component
-from ..core.utils import SMBus
+from ..core.inventory import Psu
+
 from ..drivers.accessors import MixedPsuImpl
 from ..drivers.pmbus import PmbusDriver
+
 from .common import I2cComponent
 
 class MixedPsuComponent(Component):
@@ -24,6 +21,12 @@ class PmbusMixedPsuComponent(MixedPsuComponent):
    def createPsu(self, presenceDriver='PsuSysfsDriver', statusDriver='PmbusDriver',
                  **kwargs):
       return super(PmbusMixedPsuComponent, self).createPsu(
+            presenceDriver=presenceDriver, statusDriver=statusDriver, **kwargs)
+
+class UpperlakeMixedPsuComponent(MixedPsuComponent):
+   def createPsu(self, presenceDriver='PsuSysfsDriver',
+                 statusDriver='UpperlakePsuDriver', **kwargs):
+      return super(UpperlakeMixedPsuComponent, self).createPsu(
             presenceDriver=presenceDriver, statusDriver=statusDriver, **kwargs)
 
 class ScdPmbusPsu(Psu):
@@ -49,23 +52,3 @@ class PmbusPsuComponent(I2cComponent):
 
    def getStatus(self):
       return self.drivers['PmbusDriver'].getStatus()
-
-class UpperlakePsuComponent(I2cComponent):
-   def __init__(self, psuId=1, **kwargs):
-      # MSB: Description (Good/bad values)
-      # 3:   PSU1 AC OK (1/0)
-      # 2:   PSU2 AC OK (1/0)
-      # 1:   PSU1 DC OK (1/0)
-      # 0:   PSU2 DC OK (1/0)
-      self.statusMask_ = 0b1010 >> (psuId - 1)
-      super(UpperlakePsuComponent, self).__init__(**kwargs)
-
-   def getStatus(self):
-      reg = 0x0c
-      logging.debug('i2c-read %d %#02x %#02x', self.addr.bus, self.addr.address, reg)
-
-      # Both AC and DC status bits must be on.
-      with closing(SMBus(self.addr.bus)) as bus:
-         state = bus.read_byte_data(self.addr.address, reg)
-         logging.debug('psu state is %#02x', state)
-         return state & self.statusMask_ == self.statusMask_
