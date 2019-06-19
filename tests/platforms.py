@@ -7,7 +7,6 @@ except ImportError:
    from unittest.mock import patch
 import unittest
 
-from arista.components.ds460 import Ds460
 from arista.components.scd import ScdInterruptRegister
 
 from arista.core import utils
@@ -16,8 +15,9 @@ from arista.core.inventory import Psu, Xcvr
 from arista.core.platform import getPlatforms
 from arista.core.types import I2cAddr
 
-from arista.drivers.accessors import FanImpl, LedImpl, PsuImpl, XcvrImpl
+from arista.drivers.accessors import FanImpl, LedImpl, XcvrImpl
 from arista.drivers.i2c import I2cKernelDriver
+from arista.drivers.psu import UpperlakePsuDriver
 from arista.drivers.scd import ScdKernelDriver
 from arista.drivers.sysfs import SysfsDriver
 
@@ -54,39 +54,38 @@ def mock_write(self, name, value, path=None):
    assert name
    assert value != None
 
+def mock_getPsuStatus(self, psu):
+   assert psu
+   assert isinstance(psu.psuId, int)
+   return True
+
+def mock_readReg(self, reg):
+   assert reg
+   return None
+
 def mock_getStatus(self):
    return True
 
 def mock_waitReady(self):
    return True
 
-def mock_setup(self):
+def mock_return(self):
    return
-
-def mock_finish(self):
-   return
-
-def mock_waitFileReady(self):
-   return
-
-def mock_readReg(self, reg):
-   assert reg
-   return None
 
 @patch('arista.drivers.scd.i2cBusFromName', mock_i2cBusFromName)
 @patch('arista.core.utils.inSimulation', mock_inSimulation)
 @patch('arista.core.utils.locateHwmonPath', mock_locateHwmonPath)
 @patch('arista.core.utils.writeConfig', mock_writeConfig)
-@patch.object(Ds460, 'getStatus', mock_getStatus)
-@patch.object(ScdInterruptRegister, 'setup', mock_setup)
+@patch.object(I2cKernelDriver, 'setup', mock_return)
 @patch.object(ScdInterruptRegister, 'readReg', mock_readReg)
-@patch.object(ScdKernelDriver, 'finish', mock_finish)
+@patch.object(ScdInterruptRegister, 'setup', mock_return)
+@patch.object(ScdKernelDriver, 'finish', mock_return)
 @patch.object(ScdKernelDriver, 'waitReady', mock_waitReady)
 @patch.object(ScdKernelDriver, 'writeComponents', mock_writeComponents)
 @patch.object(SysfsDriver, 'read', mock_read)
 @patch.object(SysfsDriver, 'write', mock_write)
-@patch.object(I2cKernelDriver, 'setup', mock_setup)
-@patch.object(utils.FileWaiter, 'waitFileReady', mock_waitFileReady)
+@patch.object(UpperlakePsuDriver, 'getPsuStatus', mock_getPsuStatus)
+@patch.object(utils.FileWaiter, 'waitFileReady', mock_return)
 class MockTest(unittest.TestCase):
    @classmethod
    def setUpClass(cls):
@@ -166,12 +165,9 @@ class MockTest(unittest.TestCase):
          self.logger.info('Testing PSUs for platform %s', name)
          for psu in inventory.getPsus():
             assert isinstance(psu, Psu)
-            # Need to resolve UpperlakePsu, which is not PsuImpl
-            if isinstance(psu, PsuImpl):
-               assert isinstance(psu.driver, Driver)
-               assert isinstance(psu.psuId, int)
-               assert isinstance(psu.getPresence(), bool)
-               assert isinstance(psu.getStatus(), bool)
+            assert isinstance(psu.psuId, int)
+            assert isinstance(psu.getPresence(), bool)
+            assert isinstance(psu.getStatus(), bool)
 
    def testFans(self):
       for name, inventory in self.inventories.items():

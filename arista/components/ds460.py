@@ -19,9 +19,6 @@ class Ds460(I2cComponent):
       super(Ds460, self).__init__(addr=addr, name=name, drivers=drivers,
                                   **kwargs)
 
-   def getStatus(self):
-      return self.drivers['PmbusDriver'].getStatus()
-
    def setup(self):
       addr = self.addr.address
 

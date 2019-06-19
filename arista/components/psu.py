@@ -49,6 +49,3 @@ class PmbusPsuComponent(I2cComponent):
       super(PmbusPsuComponent, self).__init__(addr=addr, name="pmbus",
                                               waitFile=hwmonDir, drivers=drivers,
                                               **kwargs)
-
-   def getStatus(self):
-      return self.drivers['PmbusDriver'].getStatus()
