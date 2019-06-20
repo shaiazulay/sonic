@@ -3,9 +3,10 @@ from __future__ import print_function, with_statement
 from ..core.inventory import Fan, Led, Psu, Reset, Xcvr
 
 class PsuImpl(Psu):
-   def __init__(self, driver=None, **kwargs):
+   def __init__(self, driver=None, led=None, **kwargs):
       self.driver = driver
       self.statusGpio = True
+      self.led = led
       self.__dict__.update(kwargs)
 
    def getPresence(self):
@@ -14,10 +15,14 @@ class PsuImpl(Psu):
    def getStatus(self):
       return self.driver.getPsuStatus(self)
 
+   def getLed(self):
+      return self.led
+
 class MixedPsuImpl(Psu):
-   def __init__(self, presenceDriver=None, statusDriver=None, **kwargs):
+   def __init__(self, presenceDriver=None, statusDriver=None, led=None, **kwargs):
       self.presenceDriver = presenceDriver
       self.statusDriver = statusDriver
+      self.led = led
       self.__dict__.update(kwargs)
 
    def getPresence(self):
@@ -25,6 +30,9 @@ class MixedPsuImpl(Psu):
 
    def getStatus(self):
       return self.statusDriver.getPsuStatus(self)
+
+   def getLed(self):
+      return self.led
 
 class XcvrImpl(Xcvr):
    def __init__(self, driver=None, interruptLine=None, reset=None, leds=None,

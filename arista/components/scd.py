@@ -360,9 +360,10 @@ class Scd(PciComponent):
       return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine, leds=leds)
 
    # In platforms, should change "statusGpios" to "statusGpio" and make it a boolean
-   def createPsu(self, psuId, driver='PsuSysfsDriver', statusGpios=True, **kwargs):
+   def createPsu(self, psuId, driver='PsuSysfsDriver', statusGpios=True, led=None,
+                 **kwargs):
       return PsuImpl(psuId=psuId, driver=self.drivers[driver],
-                     statusGpio=statusGpios, **kwargs)
+                     statusGpio=statusGpios, led=led, **kwargs)
 
    def addMdioMaster(self, addr, mid, bus=1):
       self.mdioMasters[addr] = {
