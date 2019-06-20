@@ -89,8 +89,8 @@ class Clearlake(Platform):
       self.addComponents([psu1Component, psu2Component])
 
       self.inventory.addPsus([
-         psu1Component.createPsu(psuId=1),
-         psu2Component.createPsu(psuId=2),
+         psu1Component.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
+         psu2Component.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
       ])
 
       addr = 0x6100

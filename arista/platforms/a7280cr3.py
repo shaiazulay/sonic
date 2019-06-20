@@ -67,8 +67,8 @@ class Smartsville(Platform):
          NamedGpio(0x5000, 21, False, False, "psu2_ac_status_changed"),
       ])
       self.inventory.addPsus([
-         scd.createPsu(1),
-         scd.createPsu(2),
+         scd.createPsu(1, led=self.inventory.getLed('psu1')),
+         scd.createPsu(2, led=self.inventory.getLed('psu2')),
       ])
 
       addr = 0x6100

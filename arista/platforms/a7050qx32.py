@@ -53,6 +53,14 @@ class Cloverdale(Platform):
       for fanId in incrange(1, 4):
          self.inventory.addFan(ravenFanComponent.createFan(fanId))
 
+      self.inventory.addLeds(scd.addLeds([
+         (0x6050, 'status'),
+         (0x6060, 'fan_status'),
+         (0x6070, 'psu1'),
+         (0x6080, 'psu2'),
+         (0x6090, 'beacon'),
+      ]))
+
       # PSU
       psu1Addr = scd.i2cAddr(3, 0x58)
       ds460Psu1 = Ds460(psu1Addr, '/sys/class/hwmon/hwmon4',
@@ -79,19 +87,11 @@ class Cloverdale(Platform):
       self.addComponents([psu1Component, psu2Component])
 
       self.inventory.addPsus([
-         psu1Component.createPsu(psuId=1),
-         psu2Component.createPsu(psuId=2),
+         psu1Component.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
+         psu2Component.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
       ])
 
       scd.addSmbusMasterRange(0x8000, 5)
-
-      self.inventory.addLeds(scd.addLeds([
-         (0x6050, 'status'),
-         (0x6060, 'fan_status'),
-         (0x6070, 'psu1'),
-         (0x6080, 'psu2'),
-         (0x6090, 'beacon'),
-      ]))
 
       self.inventory.addResets(scd.addResets([
          ResetGpio(0x4000, 0, False, 'switch_chip_reset'),

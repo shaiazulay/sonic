@@ -63,9 +63,10 @@ class BlackhawkO(Platform):
          NamedGpio(0x5000, 10, True, False, "psu2_ac_status"),
          NamedGpio(0x5000, 11, True, False, "psu1_ac_status"),
       ])
+
       self.inventory.addPsus([
-         scd.createPsu(1),
-         scd.createPsu(2),
+         scd.createPsu(1, led=self.inventory.getLed('psu1')),
+         scd.createPsu(2, led=self.inventory.getLed('psu2')),
       ])
 
       addr = 0x6100

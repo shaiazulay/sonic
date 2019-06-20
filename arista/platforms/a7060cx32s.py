@@ -84,8 +84,8 @@ class Upperlake(Platform):
       self.addComponent(psuComponent)
 
       self.inventory.addPsus([
-         psuComponent.createPsu(psuId=1),
-         psuComponent.createPsu(psuId=2),
+         psuComponent.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
+         psuComponent.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
       ])
 
       addr = 0x6100
