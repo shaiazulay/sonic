@@ -7,6 +7,7 @@ from ..core.component import Priority
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi
 from ..components.fan import LAFanCpldComponent
+from ..components.rook import RookLedComponent
 from ..components.scd import Scd
 
 @registerPlatform(['DCS-7170-64', 'DCS-7170-64C', 'DCS-7170-64C-SSD',
@@ -55,7 +56,23 @@ class Alhambra(Platform):
          NamedGpio(0x5000, 10, True, False, "psu1_ac_status"),
          NamedGpio(0x5000, 11, True, False, "psu2_ac_status"),
       ])
-      self.inventory.addPsus([scd.createPsu(1), scd.createPsu(2)])
+
+      ledComponent = RookLedComponent(baseName='rook_leds-96', scd=scd)
+
+      self.addComponent(ledComponent)
+
+      self.inventory.addLeds([
+         ledComponent.createLed(colors=['blue'], name='beacon'),
+         ledComponent.createLed(colors=['green', 'red'], name='fan_status'),
+         ledComponent.createLed(colors=['green', 'red'], name='psu1_status'),
+         ledComponent.createLed(colors=['green', 'red'], name='psu2_status'),
+         ledComponent.createLed(colors=['green', 'red'], name='status'),
+      ])
+
+      self.inventory.addPsus([
+         scd.createPsu(1, led=self.inventory.getLed('psu1_status')),
+         scd.createPsu(2, led=self.inventory.getLed('psu2_status')),
+      ])
 
       addr = 0x6100
       for xcvrId in self.qsfpRange:
