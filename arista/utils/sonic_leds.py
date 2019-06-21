@@ -16,13 +16,6 @@ class LedControlCommon(led_control_base.LedControlBase):
    def __init__(self):
       self.portMapping = parsePortConfig()
       self.inventory = getInventory()
-      # Set status leds to green initially (Rook led driver does this automatically)
-      for led in self.inventory.getLeds().values():
-         if led.isStatusLed():
-            self._setStatusColor(led.getName(), self.LED_COLOR_GREEN)
-
-   def _setStatusColor(self, invStatusLed, color):
-      raise NotImplementedError('Missing override of _setStatusColor')
 
    def _setIntfColor(self, port, idx, color):
       raise NotImplementedError('Missing override of _setIntfColor')
@@ -61,10 +54,10 @@ class LedControlSysfs(LedControlCommon):
             ledName = led.getName()
             port = int(re.search(r'\d+', ledName).group(0))
             self.portSysfsMapping[port].append(self.LED_SYSFS_PATH.format(ledName))
-
-   def _setStatusColor(self, invStatusLed, color):
-      with open(self.LED_SYSFS_PATH.format(invStatusLed), 'w') as fp:
-         fp.write('%d' % color)
+      # Set status leds to green initially (Rook led driver does this automatically)
+      for led in self.inventory.getLeds().values():
+         if led.isStatusLed():
+            led.setColor(self.LED_COLOR_GREEN)
 
    def _setIntfColor(self, port, idx, color):
       portList = self.portSysfsMapping[port.portNum]
