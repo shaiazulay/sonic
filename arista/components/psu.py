@@ -1,7 +1,8 @@
+from ..accessors.psu import MixedPsuImpl
+
 from ..core.component import Component
 from ..core.inventory import Psu
 
-from ..drivers.accessors import MixedPsuImpl
 from ..drivers.pmbus import PmbusDriver
 
 from .common import I2cComponent

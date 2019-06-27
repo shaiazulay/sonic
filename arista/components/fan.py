@@ -1,11 +1,14 @@
 import logging
 
-from ..core.driver import KernelDriver
-from .common import I2cComponent
+from ..accessors.fan import FanImpl
+from ..accessors.led import LedImpl
 
-from ..drivers.accessors import FanImpl, LedImpl
+from ..core.driver import KernelDriver
+
 from ..drivers.i2c import I2cKernelFanDriver
 from ..drivers.sysfs import FanSysfsDriver, LedSysfsDriver
+
+from .common import I2cComponent
 
 class CrowFanCpldComponent(I2cComponent):
    def __init__(self, addr=None, drivers=None, waitFile=None, **kwargs):

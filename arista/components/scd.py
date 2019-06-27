@@ -5,6 +5,11 @@ import os
 
 from collections import OrderedDict, namedtuple
 
+from ..accessors.led import LedImpl
+from ..accessors.psu import PsuImpl
+from ..accessors.reset import ResetImpl
+from ..accessors.xcvr import XcvrImpl
+
 from ..core.config import Config
 from ..core.driver import KernelDriver
 from ..core.inventory import Interrupt, PowerCycle, Watchdog, Xcvr, Reset
@@ -15,7 +20,6 @@ from ..drivers.i2c import I2cKernelDriver
 from ..drivers.scd import ScdKernelDriver
 from ..drivers.sysfs import LedSysfsDriver, PsuSysfsDriver, ResetSysfsDriver, \
                             XcvrSysfsDriver
-from ..drivers.accessors import LedImpl, PsuImpl, ResetImpl, XcvrImpl
 
 from .common import PciComponent, I2cComponent
 

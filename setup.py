@@ -10,6 +10,7 @@ setup(
    install_requires=['pyyaml'],
    packages=[
       'arista',
+      'arista.accessors',
       'arista.core',
       'arista.components',
       'arista.drivers',

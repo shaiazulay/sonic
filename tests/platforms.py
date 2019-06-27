@@ -7,6 +7,10 @@ except ImportError:
    from unittest.mock import patch
 import unittest
 
+from arista.accessors.fan import FanImpl
+from arista.accessors.led import LedImpl
+from arista.accessors.xcvr import XcvrImpl
+
 from arista.components.scd import ScdInterruptRegister
 
 from arista.core import utils
@@ -15,7 +19,6 @@ from arista.core.inventory import Psu, Xcvr
 from arista.core.platform import getPlatforms
 from arista.core.types import I2cAddr
 
-from arista.drivers.accessors import FanImpl, LedImpl, XcvrImpl
 from arista.drivers.i2c import I2cKernelDriver
 from arista.drivers.psu import UpperlakePsuDriver
 from arista.drivers.scd import ScdKernelDriver
