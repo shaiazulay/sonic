@@ -19,22 +19,22 @@ class Chassis(ChassisBase):
       'watchdog': ChassisBase.REBOOT_CAUSE_WATCHDOG,
    }
    def __init__(self, inventory):
-      self.prefdl = readPrefdl()
-      self.inventory = inventory
+      self._prefdl = readPrefdl()
+      self._inventory = inventory
       self._fan_list = []
-      for fan in self.inventory.getFans():
+      for fan in self._inventory.getFans():
          self._fan_list.append(Fan(fan))
       self._psu_list = []
-      for psu in self.inventory_.getPsus():
+      for psu in self._inventory.getPsus():
          self._psu_list.append(Psu(psu))
       ChassisBase.__init__(self)
 
    def get_base_mac(self):
-      mac = self.prefdl.getField("MAC")
+      mac = self._prefdl.getField("MAC")
       return mac
 
    def get_serial_number(self):
-      serial = self.prefdl.getField("SerialNumber")
+      serial = self._prefdl.getField("SerialNumber")
       return serial
 
    def get_reboot_cause(self):
