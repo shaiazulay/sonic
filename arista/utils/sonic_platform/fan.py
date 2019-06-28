@@ -16,26 +16,26 @@ class Fan(FanBase):
    }
 
    def __init__(self, fan):
-      self.fan_ = fan
+      self._fan = fan
 
    def get_direction(self):
-      return self.fanDirectionConversion[self.fan_.getDirection()]
+      return self.fanDirectionConversion[self._fan.getDirection()]
 
    def get_speed(self):
-      return self.fan_.getSpeed()
+      return self._fan.getSpeed()
 
    def set_speed(self, speed):
-      return self.fan_.setSpeed(speed)
+      return self._fan.setSpeed(speed)
 
    def set_status_led(self, color):
       try:
-         self.fan_.setColor(color)
+         self._fan.setColor(color)
          return True
       except (IOError, OSError, ValueError):
          return False
 
    def get_status(self):
-      led = self.fan_.getLed()
+      led = self._fan.getLed()
       return led.getColor() == self.STATUS_LED_COLOR_GREEN
 
    def get_presence(self):

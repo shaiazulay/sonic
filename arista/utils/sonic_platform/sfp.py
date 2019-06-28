@@ -11,4 +11,4 @@ class Sfp(SfpBase):
    """Platform-specific sfp class"""
 
    def __init__(self, sfp):
-      self.sfp_ = sfp
+      self._sfp = sfp

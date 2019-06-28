@@ -11,18 +11,18 @@ class Psu(PsuBase):
    """Platform-specific PSU class"""
 
    def __init__(self, psu):
-      self.psu_ = psu
+      self._psu = psu
 
    def set_status_led(self, color):
       try:
-         self.psu_.getLed().setColor(color)
+         self._psu.getLed().setColor(color)
       except (IOError, OSError, ValueError):
          return False
       return True
 
    def get_status_led(self, color):
       try:
-         if color != self.psu_.getLed().getColor():
+         if color != self._psu.getLed().getColor():
             return False
       except (IOError, OSError, ValueError):
          return False
