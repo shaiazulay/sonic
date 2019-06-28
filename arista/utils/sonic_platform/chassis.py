@@ -8,6 +8,8 @@ try:
    from arista.core.platform import readPrefdl
    from arista.utils.sonic_platform.fan import Fan
    from arista.utils.sonic_platform.psu import Psu
+   from arista.utils.sonic_platform.sfp import Sfp
+   from arista.utils.sonic_platform.watchdog import Watchdog
 except ImportError as e:
    raise ImportError("%s - required module not found" % e)
 
@@ -27,15 +29,22 @@ class Chassis(ChassisBase):
       self._psu_list = []
       for psu in self._inventory.getPsus():
          self._psu_list.append(Psu(psu))
+      self._sfp_list = []
+      for sfp in self._inventory.getXcvrs():
+         self._sfp_list.append(Sfp(sfp))
+      self._watchdog = Watchdog(self._inventory.getWatchdog())
       ChassisBase.__init__(self)
 
    def get_base_mac(self):
       mac = self._prefdl.getField("MAC")
       return mac
 
-   def get_serial_number(self):
+   def get_serial(self):
       serial = self._prefdl.getField("SerialNumber")
       return serial
+
+   def get_serial_number(self):
+      return self.get_serial()
 
    def get_reboot_cause(self):
       unknown = (ChassisBase.REBOOT_CAUSE_HARDWARE_OTHER, 'unknown cause')

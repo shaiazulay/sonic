@@ -33,3 +33,10 @@ class Fan(FanBase):
          return True
       except (IOError, OSError, ValueError):
          return False
+
+   def get_status(self):
+      led = self.fan_.getLed()
+      return led.getColor() == self.STATUS_LED_COLOR_GREEN
+
+   def get_presence(self):
+      return self.get_status()

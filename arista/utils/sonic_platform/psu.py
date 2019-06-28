@@ -13,9 +13,6 @@ class Psu(PsuBase):
    def __init__(self, psu):
       self.psu_ = psu
 
-   def get_powergood_status(self):
-      return self.get_status_led(self.STATUS_LED_COLOR_GREEN)
-
    def set_status_led(self, color):
       try:
          self.psu_.getLed().setColor(color)
@@ -30,3 +27,12 @@ class Psu(PsuBase):
       except (IOError, OSError, ValueError):
          return False
       return True
+
+   def get_status(self):
+      return self.get_status_led(self.STATUS_LED_COLOR_GREEN)
+
+   def get_presence(self):
+      return self.get_status()
+
+   def get_powergood_status(self):
+      return self.get_status()
