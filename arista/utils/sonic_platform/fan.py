@@ -29,7 +29,7 @@ class Fan(FanBase):
 
    def set_status_led(self, color):
       try:
-         self._fan.setColor(color)
+         self._fan.getLed().setColor(color)
          return True
       except (IOError, OSError, ValueError):
          return False
