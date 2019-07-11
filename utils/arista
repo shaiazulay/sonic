@@ -12,6 +12,8 @@ import os
 
 import arista.platforms
 import arista.core.utils as utils
+from arista.core.cause import getReloadCause, getReloadCauseHistory, \
+                              updateReloadCausesHistory
 from arista.core.platform import getPlatform, getSysEeprom, getPlatforms
 from arista.core.component import Priority
 
@@ -63,7 +65,6 @@ def setupLogging(verbose=False, logfile=None, syslog=False):
       except:
          log.warning('Failed open syslog')
 
-
 def setupSimulation():
    global lock_file, log_file
 
@@ -86,8 +87,6 @@ def forkForLateInitialization(platform):
             os._exit(0)
 
 def doSetup(args, platform):
-   checkRootPermissions()
-
    if args.debug:
       utils.debug = True
 
@@ -114,8 +113,6 @@ def doSetup(args, platform):
          platform.waitForIt()
 
 def doClean(args, platform):
-   checkRootPermissions()
-
    if args.reset:
       logging.debug('putting devices in reset')
       platform.resetIn()
@@ -192,18 +189,24 @@ def doSysEeprom(args):
       print('%s: %s' % (key, value))
 
 def doReboot(args, platform):
-   checkRootPermissions()
    import arista.utils.sonic_reboot
-   arista.utils.sonic_reboot.reboot(platform)
+   arista.utils.sonic_reboot.reboot(platform.getInventory())
 
 def doRebootCause(args, platform):
-   checkRootPermissions()
-   causes = platform.getReloadCauses(clear=args.clear)
+   if utils.inSimulation():
+      return
+   updateReloadCausesHistory(platform.getReloadCauses(clear=True))
+   if args.history:
+      causes = getReloadCauseHistory()
+   else:
+      causes = getReloadCause()
    if not causes:
       print('No reboot cause detected')
       return
-   for cause in causes:
-      print(' -', cause)
+   print('Found reboot cause(s):')
+   print('----------------------')
+   for item in causes:
+      print(item)
 
 def todo(*args, **kwargs):
    raise NotImplementedError
@@ -264,11 +267,11 @@ def parseArgs():
                          'before the watchdog triggers')
    sub = subparsers.add_parser('reboot', help='perform a cold reboot for platform')
    sub = subparsers.add_parser('reboot-cause', help='reload cause information')
-   sub.add_argument('-c', '--clear', action='store_true',
-                    help='clear the reload cause information')
+   sub.add_argument('--history', action='store_true',
+                    help='print reboot causes history if it exists')
 
    args = parser.parse_args()
-   if args.action == 'help':
+   if args.action is None or args.action == 'help':
       parser.print_help()
       sys.exit(0)
    return args
@@ -302,9 +305,10 @@ def main():
    if args.action in generic_commands:
       generic_commands[args.action](args)
    elif args.action in platform_commands:
+      checkRootPermissions()
       platform_commands[args.action](args, getPlatform(args.platform))
    else:
-      logging.error("Command %s doesn't exists", args.command)
+      logging.error("Command %s doesn't exists", args.action)
 
 if __name__ == '__main__':
    main()

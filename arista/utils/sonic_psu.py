@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
-from ..core import platform as core_platform
-from .. import platforms
+from .sonic_utils import getInventory
 
 try:
    from sonic_psu.psu_base import PsuBase
@@ -10,8 +9,7 @@ except ImportError as e:
 
 
 def getPsuUtil():
-   platform = core_platform.getPlatform()
-   inventory = platform.getInventory()
+   inventory = getInventory()
 
    class PsuUtil(PsuBase):
       """Platform-specific PsuUtil class"""

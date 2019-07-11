@@ -30,12 +30,15 @@
 
 #include "scd.h"
 #include "scd-hwmon.h"
+#include "scd-fan.h"
 
 #define SCD_MODULE_NAME "scd-hwmon"
 
 #define SMBUS_REQUEST_OFFSET 0x10
 #define SMBUS_CONTROL_STATUS_OFFSET 0x20
 #define SMBUS_RESPONSE_OFFSET 0x30
+
+#define I2C_SMBUS_I2C_BLOCK_DATA_MSG 0x9
 
 #define RESET_SET_OFFSET 0x00
 #define RESET_CLEAR_OFFSET 0x10
@@ -45,7 +48,24 @@
 
 #define MAX_CONFIG_LINE_SIZE 100
 
-struct scd_context;
+#define SMBUS_BLOCK_READ_TIMEOUT_STEP 1
+
+struct scd_context {
+   struct pci_dev *pdev;
+   size_t res_size;
+
+   struct list_head list;
+
+   struct mutex mutex;
+   bool initialized;
+
+   struct list_head gpio_list;
+   struct list_head reset_list;
+   struct list_head led_list;
+   struct list_head master_list;
+   struct list_head xcvr_list;
+   struct list_head fan_group_list;
+};
 
 struct scd_master {
    struct scd_context *ctx;
@@ -57,6 +77,7 @@ struct scd_master {
    u32 resp;
    struct mutex mutex;
    struct list_head bus_list;
+   bool br_supported;
 
    int max_retries;
 };
@@ -187,6 +208,23 @@ struct scd_xcvr {
    SCD_XCVR_ATTR(_xcvr_attr, _name, _name_size, S_IRUGO, attribute_xcvr_get, \
                  NULL, _xcvr, _bit, _active_low, _clear_on_read)
 
+#define to_scd_fan_attr(_sensor_attr) \
+   container_of(_sensor_attr, struct scd_fan_attribute, sensor_attr)
+
+#define __SENSOR_ATTR_NAME_PTR(_name, _mode, _show, _store, _index)   \
+   { .dev_attr = __ATTR_NAME_PTR(_name, _mode, _show, _store),        \
+     .index = _index                                                  \
+   }
+
+#define SCD_FAN_ATTR(_attr, _fan, _name, _index, _suffix, _mode, _show, _store)  \
+   do {                                                                          \
+      snprintf(_attr.name, sizeof(_attr.name), "%s%zu%s", _name,                 \
+               _index + 1, _suffix);                                             \
+      _attr.sensor_attr = (struct sensor_device_attribute)                       \
+         __SENSOR_ATTR_NAME_PTR(_attr.name, _mode, _show, _store, _index);       \
+      _attr.fan = _fan;                                                          \
+   } while(0)
+
 struct scd_reset_attribute {
    struct device_attribute dev_attr;
    struct scd_context *ctx;
@@ -213,20 +251,51 @@ struct scd_reset {
      .bit = _bit,                                                               \
    }
 
-struct scd_context {
-   struct pci_dev *pdev;
-   size_t res_size;
+struct scd_fan;
+struct scd_fan_group;
 
+#define FAN_ATTR_NAME_MAX_SZ 16
+struct scd_fan_attribute {
+   struct sensor_device_attribute sensor_attr;
+   struct scd_fan *fan;
+
+   char name[FAN_ATTR_NAME_MAX_SZ];
+};
+
+/* Driver data for each fan slot */
+struct scd_fan {
+   struct scd_fan_group *fan_group;
    struct list_head list;
 
-   struct mutex mutex;
-   bool initialized;
+   u8 index;
+   const struct fan_info *info;
 
-   struct list_head gpio_list;
-   struct list_head reset_list;
-   struct list_head led_list;
-   struct list_head master_list;
-   struct list_head xcvr_list;
+   struct scd_fan_attribute *attrs;
+   size_t attr_count;
+
+   struct led_classdev led_cdev;
+   char led_name[LED_NAME_MAX_SZ];
+};
+
+#define FAN_GROUP_NAME_MAX_SZ 50
+/* Driver data for each fan group */
+struct scd_fan_group {
+   struct scd_context *ctx;
+   struct list_head list;
+
+   char name[FAN_GROUP_NAME_MAX_SZ];
+   const struct fan_platform *platform;
+   struct list_head slot_list;
+
+   struct device *hwmon_dev;
+   const struct attribute_group *groups[2];
+   struct attribute_group group;
+
+   size_t attr_count;
+   size_t attr_index_count;
+
+   u32 addr_base;
+   size_t fan_count;
 };
 
 union smbus_request_reg {
@@ -235,7 +304,7 @@ union smbus_request_reg {
       u32 d:8;
       u32 ss:6;
       u32 ed:1;
-      u32 reserved1:1;
+      u32 br:1;
       u32 dat:2;
       u32 t:2;
       u32 sp:1;
@@ -252,7 +321,11 @@ union smbus_ctrl_status_reg {
    struct {
       u32 reserved1:13;
       u32 foe:1;
-      u32 reserved2:17;
+      u32 reserved2:12;
+      u32 brb:1;
+      u32 reserved3:1;
+      u32 ver:2;
+      u32 fe:1;
       u32 reset:1;
    } __packed;
 };
@@ -267,7 +340,8 @@ union smbus_response_reg {
       u32 flushed:1;
       u32 ti:4;
       u32 ss:6;
-      u32 reserved2:9;
+      u32 reserved2:8;
+      u32 foe:1;
       u32 fe:1;
    } __packed;
 };
@@ -375,6 +449,10 @@ static s32 smbus_check_resp(union smbus_response_reg resp, u32 tid)
       error = "tid";
       goto fail;
    }
+   if (resp.foe) {
+      error = "overflow";
+      goto fail;
+   }
 
    return 0;
 
@@ -387,7 +465,7 @@ static u32 scd_smbus_func(struct i2c_adapter *adapter)
 {
    return I2C_FUNC_SMBUS_QUICK | I2C_FUNC_SMBUS_BYTE |
       I2C_FUNC_SMBUS_BYTE_DATA | I2C_FUNC_SMBUS_WORD_DATA |
-      I2C_FUNC_SMBUS_I2C_BLOCK | I2C_FUNC_SMBUS_BLOCK_DATA;
+      I2C_FUNC_SMBUS_I2C_BLOCK | I2C_FUNC_SMBUS_BLOCK_DATA | I2C_FUNC_I2C;
 }
 
 static void smbus_master_reset(struct scd_master *master)
@@ -416,9 +494,90 @@ static const struct bus_params *get_bus_params(struct scd_bus *bus, u16 addr) {
    return params;
 }
 
+static s32 scd_smbus_block_read(struct scd_bus *bus, u16 addr, u8 command,
+                                union i2c_smbus_data *data, int data_size)
+{
+   struct scd_master *master = bus->master;
+   const struct bus_params *params;
+   int i, t, ct;
+   union smbus_request_reg req;
+   union smbus_response_reg resp;
+   union smbus_ctrl_status_reg cs;
+   int ret = 0;
+   u32 ss = 3;
+
+   params = get_bus_params(bus, addr);
+
+   req.reg = 0;
+   req.bs = bus->id;
+   req.t = params->t;
+   req.st = 1;
+   req.ss = ss;
+   req.d = (((addr & 0xff) << 1) | 0);
+   req.dod = 1;
+   for (i = 0; i < ss; ++i) {
+      if (i == 1) {
+         req.st = 0;
+         req.ss = 0;
+         req.d = command;
+      }
+      if (i == 2) {
+         req.br = 1;
+         req.st = 1;
+         req.d = (((addr & 0xff) << 1) | 1);
+      }
+      req.da = ((!(req.dod || req.sp)) ? 1 : 0);
+      smbus_master_write_req(master, req);
+      req.ti++;
+   }
+
+   ++ss;
+   if (params->t > 3) {
+      t = 100;
+   } else {
+      t = (int[]){5, 35 + 5, 500 + 5, 1000 + 5}[params->t];
+   }
+   ct = 0;
+   cs = smbus_master_read_cs(master);
+   while (cs.brb && ct < t) {
+      msleep(SMBUS_BLOCK_READ_TIMEOUT_STEP);
+      ct += SMBUS_BLOCK_READ_TIMEOUT_STEP;
+      cs = smbus_master_read_cs(master);
+   }
+
+   if (ct == t) {
+      scd_warn("smbus response timeout(%d) cs=0x%x adapter=\"%s\"\n",
+               t, cs.reg, bus->adap.name);
+      return -EINVAL;
+   }
+
+   req.ti = 0;
+   for (i = 0; i < ss; ++i) {
+      resp = smbus_master_read_resp(master);
+      ret = smbus_check_resp(resp, req.ti);
+      if (ret)
+         return ret;
+      req.ti++;
+      if (i == 3)
+         ss += resp.d;
+
+      if (i >= 3) {
+         if (i - 3 >= data_size) {
+            scd_warn("smbus read failed (output too big) addr=0x%02x " \
+                     "reg=0x%02x data_size=0x%04x adapter=\"%s\"\n", addr,
+                     command, data_size, bus->adap.name);
+            return -EINVAL;
+         }
+         data->block[i - 3] = resp.d;
+      }
+   }
+
+   return 0;
+}
+
 static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags,
                              char read_write, u8 command, int size,
-                             union i2c_smbus_data *data)
+                             union i2c_smbus_data *data, int data_size)
 {
    struct scd_master *master = bus->master;
    const struct bus_params *params;
@@ -428,6 +587,7 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
    int ret = 0;
    u32 ss = 0;
    u32 data_offset = 0;
+   const char* fail_reason = "";
 
    params = get_bus_params(bus, addr);
 
@@ -456,6 +616,13 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
          ss = 5;
       }
       break;
+   case I2C_SMBUS_I2C_BLOCK_DATA_MSG:
+      if (read_write == I2C_SMBUS_WRITE) {
+         ss = 2 + data_size;
+      } else {
+         ss = 3 + data_size;
+      }
+      break;
    case I2C_SMBUS_I2C_BLOCK_DATA:
       data_offset = 1;
       if (read_write == I2C_SMBUS_WRITE) {
@@ -468,10 +635,20 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
       if (read_write == I2C_SMBUS_WRITE) {
          ss = 3 + data->block[0];
       } else {
-         ret = scd_smbus_do_impl(bus, addr, flags, I2C_SMBUS_READ, command,
-                                 I2C_SMBUS_BYTE_DATA, data);
-         if (ret) {
-            goto fail;
+         if (master->br_supported) {
+            ret = scd_smbus_block_read(bus, addr, command, data, data_size);
+            if (ret) {
+               fail_reason = "block read failed";
+               goto fail;
+            }
+            return 0;
+         } else {
+            ret = scd_smbus_do_impl(bus, addr, flags, I2C_SMBUS_READ, command,
+                                    I2C_SMBUS_BYTE_DATA, data, data_size);
+            if (ret) {
+               fail_reason = "cannot get size";
+               goto fail;
+            }
          }
          ss = 4 + data->block[0];
       }
@@ -522,6 +699,7 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
       resp = smbus_master_read_resp(master);
       ret = smbus_check_resp(resp, req.ti);
       if (ret) {
+         fail_reason = "bad response";
          goto fail;
       }
       req.ti++;
@@ -538,10 +716,20 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
             }
          } else {
             if (i >= 3) {
-               if (size == I2C_SMBUS_BLOCK_DATA) {
-                  data->block[i - 3] = resp.d;
-               } else {
+               if (size == I2C_SMBUS_I2C_BLOCK_DATA) {
+                  if (i - 2 >= data_size) {
+                     fail_reason = "buffer is too short";
+                     ret = -EINVAL;
+                     goto fail;
+                  }
                   data->block[i - 2] = resp.d;
+               } else {
+                  if (i - 3 >= data_size) {
+                     fail_reason = "buffer is too short";
+                     ret = -EINVAL;
+                     goto fail;
+                  }
+                  data->block[i - 3] = resp.d;
                }
             }
          }
@@ -551,53 +739,118 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
    return 0;
 
 fail:
-   scd_dbg("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x adapter=\"%s\"\n",
-           (read_write) ? "read" : "write", addr, command, size, bus->adap.name);
+   scd_dbg("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x data_size=0x%x " \
+           "adapter=\"%s\" (%s)\n", (read_write) ? "read" : "write", addr, command,
+           size, data_size, bus->adap.name, fail_reason);
    smbus_master_reset(master);
    return ret;
 }
 
 static s32 scd_smbus_do(struct scd_bus *bus, u16 addr, unsigned short flags,
                         char read_write, u8 command, int size,
-                        union i2c_smbus_data *data)
+                        union i2c_smbus_data *data, int data_size)
 {
    struct scd_master *master = bus->master;
    s32 ret;
 
    master_lock(master);
-   ret = scd_smbus_do_impl(bus, addr, flags, read_write, command, size, data);
+   ret = scd_smbus_do_impl(bus, addr, flags, read_write, command, size, data,
+                           data_size);
    master_unlock(master);
 
    return ret;
 }
 
-static s32 scd_smbus_access(struct i2c_adapter *adap, u16 addr,
-                            unsigned short flags, char read_write,
-                            u8 command, int size, union i2c_smbus_data *data)
+static s32 scd_smbus_access_impl(struct i2c_adapter *adap, u16 addr,
+                                 unsigned short flags, char read_write,
+                                 u8 command, int size, union i2c_smbus_data *data,
+                                 int data_size)
 {
    struct scd_bus *bus = i2c_get_adapdata(adap);
    struct scd_master *master = bus->master;
    int retry = 0;
    int ret;
 
-   scd_dbg("smbus %s do addr=0x%02x reg=0x%02x size=0x%02x adapter=\"%s\"\n",
-         (read_write) ? "read" : "write", addr, command, size, bus->adap.name);
+   scd_dbg("smbus %s do addr=0x%02x reg=0x%02x size=0x%02x data_size=0x%04x "
+           "adapter=\"%s\"\n", (read_write) ? "read" : "write", addr, command,
+           size, data_size, bus->adap.name);
    do {
-      ret = scd_smbus_do(bus, addr, flags, read_write, command, size, data);
+      ret = scd_smbus_do(bus, addr, flags, read_write, command, size, data,
+                         data_size);
       if (ret != -EIO)
          return ret;
       retry++;
       scd_dbg("smbus retrying... %d/%d", retry, master->max_retries);
    } while (retry < master->max_retries);
 
-   scd_warn("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x "
+   scd_warn("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x data_size=0x%04x "
             "adapter=\"%s\"\n", (read_write) ? "read" : "write",
-            addr, command, size, bus->adap.name);
+            addr, command, size, data_size, bus->adap.name);
 
    return -EIO;
 }
 
+static s32 scd_smbus_access(struct i2c_adapter *adap, u16 addr,
+                            unsigned short flags, char read_write,
+                            u8 command, int size, union i2c_smbus_data *data)
+{
+   return scd_smbus_access_impl(adap, addr, flags, read_write, command, size,
+                                data, I2C_SMBUS_BLOCK_MAX + 2);
+}
+
+static int scd_master_xfer_get_command(struct i2c_msg *msg) {
+   if ((msg->flags & I2C_M_RD) || (msg->len != 1)) {
+      scd_dbg("i2c rw: unsupported command.\n");
+      return -EINVAL;
+   }
+   return msg->buf[0];
+}
+
+static int scd_master_xfer(struct i2c_adapter *adap,
+                           struct i2c_msg *msgs,
+                           int num)
+{
+   struct scd_bus *bus = i2c_get_adapdata(adap);
+   int ret, command;
+   int read_write;
+   union i2c_smbus_data *data;
+   int len;
+   struct i2c_msg *msg;
+
+   if (num > 2) {
+      scd_err("i2c rw num=%d adapter=\"%s\" (unsupported request)\n",
+              num, bus->adap.name);
+      return -EINVAL;
+   }
+
+   if (num == 2) {
+      command = scd_master_xfer_get_command(&msgs[0]);
+      if (command < 0) {
+         return command;
+      }
+      data = (union i2c_smbus_data*)msgs[1].buf;
+      len = msgs[1].len;
+      msg = &msgs[1];
+   } else {
+      command = msgs[0].buf[0];
+      data = (union i2c_smbus_data*)&msgs[0].buf[1];
+      len = msgs[0].len - 1;
+      msg = &msgs[0];
+   }
+
+   scd_dbg("i2c rw num=%d adapter=\"%s\"\n", num, bus->adap.name);
+   read_write = (msg->flags & I2C_M_RD) ? I2C_SMBUS_READ : 0;
+   ret = scd_smbus_access_impl(adap, msg->addr, 0, read_write, command,
+                               I2C_SMBUS_I2C_BLOCK_DATA_MSG, data, len);
+   if (ret) {
+      scd_warn("i2c rw error=0x%x adapter=\"%s\"\n", ret, bus->adap.name);
+      return ret;
+   }
+   return num;
+}
+
 static struct i2c_algorithm scd_smbus_algorithm = {
+   .master_xfer   = scd_master_xfer,
    .smbus_xfer    = scd_smbus_access,
    .functionality = scd_smbus_func,
 };
@@ -722,6 +975,7 @@ static int scd_smbus_master_add(struct scd_context *ctx, u32 addr, u32 id,
                                 u32 bus_count)
 {
    struct scd_master *master;
+   union smbus_ctrl_status_reg cs;
    int err = 0;
    int i;
 
@@ -753,6 +1007,10 @@ static int scd_smbus_master_add(struct scd_context *ctx, u32 addr, u32 id,
    }
 
    smbus_master_reset(master);
+
+   cs = smbus_master_read_cs(master);
+   master->br_supported = (cs.ver >= 2);
+   scd_dbg("smbus 0x%x:0x%x version %d", id, addr, cs.ver);
 
    list_add_tail(&master->list, &ctx->master_list);
 
@@ -1037,6 +1295,198 @@ static int scd_xcvr_register(struct scd_xcvr *xcvr, const struct gpio_cfg *cfgs,
 }
 
 /*
+ * Sysfs handlers for fans
+ */
+
+static ssize_t scd_fan_pwm_show(struct device *dev, struct device_attribute *da,
+                                char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   u32 address = FAN_ADDR_3(group, speed, attr->index, pwm);
+   u32 reg = scd_read_register(group->ctx->pdev, address);
+
+   reg &= group->platform->mask_pwm;
+   return sprintf(buf, "%u\n", reg);
+}
+
+static ssize_t scd_fan_pwm_store(struct device *dev, struct device_attribute *da,
+                                 const char *buf, size_t count)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   u32 address = FAN_ADDR_3(group, speed, attr->index, pwm);
+   u8 val;
+
+   if (kstrtou8(buf, 0, &val))
+      return -EINVAL;
+
+   scd_write_register(group->ctx->pdev, address, val);
+   return count;
+}
+
+static ssize_t scd_fan_present_show(struct device *dev,
+                                    struct device_attribute *da,
+                                    char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 address = FAN_ADDR(group, present);
+   u32 reg = scd_read_register(group->ctx->pdev, address);
+
+   return sprintf(buf, "%u\n", !!(reg & (1 << fan->index)));
+}
+
+static u32 scd_fan_id_read(struct scd_fan_group *fan_group, u32 index)
+{
+   u32 address = FAN_ADDR_2(fan_group, id, index);
+   u32 reg = scd_read_register(fan_group->ctx->pdev, address);
+
+   reg &= fan_group->platform->mask_id;
+   return reg;
+}
+
+static ssize_t scd_fan_id_show(struct device *dev, struct device_attribute *da,
+                               char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 reg = scd_fan_id_read(group, fan->index);
+
+   return sprintf(buf, "%u\n", reg);
+}
+
+static ssize_t scd_fan_fault_show(struct device *dev, struct device_attribute *da,
+                                  char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 address = FAN_ADDR(group, ok);
+   u32 reg = scd_read_register(group->ctx->pdev, address);
+
+   return sprintf(buf, "%u\n", !(reg & (1 << fan->index)));
+}
+
+static ssize_t scd_fan_input_show(struct device *dev, struct device_attribute *da,
+                                  char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan_group *group = dev_get_drvdata(dev);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 address = FAN_ADDR_3(group, speed, attr->index, tach_outer);
+   u32 reg = scd_read_register(group->ctx->pdev, address);
+   u32 val = 0;
+
+   reg &= group->platform->mask_tach;
+   if (reg && fan->info->pulses)
+      val = fan->info->hz * 60 / reg / fan->info->pulses;
+   else
+      return -EDOM;
+
+   return sprintf(buf, "%u\n", val);
+}
+
+static u32 scd_fan_led_read(struct scd_fan *fan) {
+   struct scd_fan_group *group = fan->fan_group;
+   u32 addr_g = FAN_ADDR(group, green_led);
+   u32 addr_r = FAN_ADDR(group, red_led);
+   u32 reg_g = scd_read_register(group->ctx->pdev, addr_g);
+   u32 reg_r = scd_read_register(group->ctx->pdev, addr_r);
+   u32 val = 0;
+
+   if (reg_g & (1 << fan->index))
+      val += group->platform->mask_green_led;
+   if (reg_r & (1 << fan->index))
+      val += group->platform->mask_red_led;
+
+   return val;
+}
+
+void scd_fan_led_write(struct scd_fan *fan, u32 val)
+{
+   struct scd_fan_group *group = fan->fan_group;
+   u32 addr_g = FAN_ADDR(group, green_led);
+   u32 addr_r = FAN_ADDR(group, red_led);
+   u32 reg_g = scd_read_register(group->ctx->pdev, addr_g);
+   u32 reg_r = scd_read_register(group->ctx->pdev, addr_r);
+
+   if (val & group->platform->mask_green_led)
+      reg_g |= (1 << fan->index);
+   else
+      reg_g &= ~(1 << fan->index);
+
+   if (val & group->platform->mask_red_led)
+      reg_r |= (1 << fan->index);
+   else
+      reg_r &= ~(1 << fan->index);
+
+   scd_write_register(group->ctx->pdev, addr_g, reg_g);
+   scd_write_register(group->ctx->pdev, addr_r, reg_r);
+}
+
+static ssize_t scd_fan_led_show(struct device *dev, struct device_attribute *da,
+                                char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 val = scd_fan_led_read(fan);
+
+   return sprintf(buf, "%u\n", val);
+}
+
+static ssize_t scd_fan_led_store(struct device *dev, struct device_attribute *da,
+                                 const char *buf, size_t count)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+   u32 val;
+
+   if (kstrtou32(buf, 0, &val))
+      return -EINVAL;
+
+   scd_fan_led_write(fan, val);
+   return count;
+}
+
+static enum led_brightness fan_led_brightness_get(struct led_classdev *led_cdev)
+{
+   struct scd_fan *fan = container_of(led_cdev, struct scd_fan, led_cdev);
+
+   return scd_fan_led_read(fan);
+}
+
+static void fan_led_brightness_set(struct led_classdev *led_cdev,
+                                   enum led_brightness value)
+{
+   struct scd_fan *fan = container_of(led_cdev, struct scd_fan, led_cdev);
+
+   scd_fan_led_write(fan, value);
+}
+
+static ssize_t scd_fan_airflow_show(struct device *dev,
+                                    struct device_attribute *da,
+                                    char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+
+   return sprintf(buf, "%s\n", (fan->info->forward) ? "forward" : "reverse");
+}
+
+static ssize_t scd_fan_slot_show(struct device *dev,
+                                 struct device_attribute *da,
+                                 char *buf)
+{
+   struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+   struct scd_fan *fan = to_scd_fan_attr(attr)->fan;
+
+   return sprintf(buf, "%u\n", fan->index + 1);
+}
+
+/*
  * Must be called with the scd lock held.
  */
 static void scd_gpio_remove_all(struct scd_context *ctx)
@@ -1049,6 +1499,89 @@ static void scd_gpio_remove_all(struct scd_context *ctx)
       list_del(&gpio->list);
       kfree(gpio);
    }
+}
+
+static void scd_fan_group_unregister(struct scd_context *ctx,
+                                     struct scd_fan_group *fan_group)
+{
+   struct scd_fan *tmp_fan;
+   struct scd_fan *fan;
+
+   if (fan_group->hwmon_dev) {
+      hwmon_device_unregister(fan_group->hwmon_dev);
+      fan_group->hwmon_dev = NULL;
+      kfree(fan_group->group.attrs);
+   }
+
+   list_for_each_entry_safe(fan, tmp_fan, &fan_group->slot_list, list) {
+      if (!IS_ERR_OR_NULL(fan->led_cdev.dev)) {
+         led_classdev_unregister(&fan->led_cdev);
+      }
+
+      if (fan->attrs) {
+         kfree(fan->attrs);
+         fan->attrs = NULL;
+      }
+
+      list_del(&fan->list);
+      kfree(fan);
+   }
+}
+
+static void scd_fan_group_remove_all(struct scd_context *ctx)
+{
+   struct scd_fan_group *tmp_group;
+   struct scd_fan_group *group;
+
+   list_for_each_entry_safe(group, tmp_group, &ctx->fan_group_list, list) {
+      scd_fan_group_unregister(ctx, group);
+      list_del(&group->list);
+      kfree(group);
+   }
+}
+
+static int scd_fan_group_register(struct scd_context *ctx,
+                                  struct scd_fan_group *fan_group)
+{
+   struct device *hwmon_dev;
+   struct scd_fan *fan;
+   size_t i;
+   size_t attr = 0;
+   int err;
+
+   fan_group->group.attrs = kcalloc(fan_group->attr_count + 1,
+                                    sizeof(*fan_group->group.attrs), GFP_KERNEL);
+   if (!fan_group->group.attrs)
+      return -ENOMEM;
+
+   list_for_each_entry(fan, &fan_group->slot_list, list) {
+      for (i = 0; i < fan->attr_count; ++i) {
+         fan_group->group.attrs[attr++] = &fan->attrs[i].sensor_attr.dev_attr.attr;
+      }
+   }
+   fan_group->groups[0] = &fan_group->group;
+
+   hwmon_dev = hwmon_device_register_with_groups(&ctx->pdev->dev, fan_group->name,
+                                                 fan_group, fan_group->groups);
+   if (IS_ERR(hwmon_dev)) {
+      kfree(fan_group->group.attrs);
+      return PTR_ERR(hwmon_dev);
+   }
+
+   fan_group->hwmon_dev = hwmon_dev;
+
+   list_for_each_entry(fan, &fan_group->slot_list, list) {
+      fan->led_cdev.name = fan->led_name;
+      fan->led_cdev.brightness_set = fan_led_brightness_set;
+      fan->led_cdev.brightness_get = fan_led_brightness_get;
+      err = led_classdev_register(&ctx->pdev->dev, &fan->led_cdev);
+      if (err) {
+         scd_warn("failed to create sysfs entry of led class for %s", fan->led_name);
+      }
+      scd_fan_led_write(fan, FAN_LED_COLOR_GREEN(fan));
+   }
+
+   return 0;
 }
 
 static void scd_xcvr_remove_all(struct scd_context *ctx)
@@ -1205,6 +1738,22 @@ static int scd_xcvr_qsfp_add(struct scd_context *ctx, u32 addr, u32 id)
    return scd_xcvr_add(ctx, "qsfp", qsfp_gpios, ARRAY_SIZE(qsfp_gpios), addr, id);
 }
 
+static int scd_xcvr_osfp_add(struct scd_context *ctx, u32 addr, u32 id)
+{
+   static const struct gpio_cfg osfp_gpios[] = {
+      {0, true,  true,  false, "interrupt"},
+      {2, true,  true,  false, "present"},
+      {3, true,  false, true,  "interrupt_changed"},
+      {5, true,  false, true,  "present_changed"},
+      {6, false, false, false, "lp_mode"},
+      {7, false, false, false, "reset"},
+      {8, false, true,  false, "modsel"},
+   };
+
+   scd_dbg("osfp %u @ 0x%04x\n", id, addr);
+   return scd_xcvr_add(ctx, "osfp", osfp_gpios, ARRAY_SIZE(osfp_gpios), addr, id);
+}
+
 static int scd_gpio_add(struct scd_context *ctx, const char *name,
                         u32 addr, u32 bitpos, bool read_only, bool active_low)
 {
@@ -1253,8 +1802,137 @@ static int scd_reset_add(struct scd_context *ctx, const char *name,
       kfree(reset);
       return err;
    }
+   return 0;
+}
+
+#define SCD_FAN_ATTR_COUNT 8
+static void scd_fan_add_attrs(struct scd_fan *fan, size_t index) {
+   struct scd_fan_attribute *attrs = fan->attrs;
+
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "pwm", index, "" ,
+                S_IRUGO|S_IWGRP|S_IWUSR, scd_fan_pwm_show, scd_fan_pwm_store);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_id",
+                S_IRUGO, scd_fan_id_show, NULL);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_input",
+                S_IRUGO, scd_fan_input_show, NULL);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_fault",
+                S_IRUGO, scd_fan_fault_show, NULL);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_present",
+                S_IRUGO, scd_fan_present_show, NULL);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_led" ,
+                S_IRUGO|S_IWGRP|S_IWUSR, scd_fan_led_show, scd_fan_led_store);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_airflow",
+                S_IRUGO, scd_fan_airflow_show, NULL);
+   fan->attr_count++;
+   SCD_FAN_ATTR(attrs[fan->attr_count], fan, "fan", index, "_slot",
+                S_IRUGO, scd_fan_slot_show, NULL);
+   fan->attr_count++;
+}
+
+static int scd_fan_add(struct scd_fan_group *fan_group, u32 index) {
+   struct scd_fan *fan;
+   const struct fan_info *fan_info;
+   size_t i;
+   u32 fan_id = scd_fan_id_read(fan_group, index);
+
+   fan_info = fan_info_find(fan_group->platform->fan_infos,
+                            fan_group->platform->fan_info_count, fan_id);
+   if (!fan_info) {
+      scd_err("no infomation for fan%u with id=%u", index + 1, fan_id)
+      return -EINVAL;
+   } else if (!fan_info->present) {
+      scd_warn("fan%u with id=%u is not present", index + 1, fan_id)
+   }
+
+   fan = kzalloc(sizeof(*fan), GFP_KERNEL);
+   if (!fan)
+      return -ENOMEM;
+
+   fan->fan_group = fan_group;
+   fan->index = index;
+   fan->info = fan_info;
+   scnprintf(fan->led_name, LED_NAME_MAX_SZ, "fan%d", fan->index + 1);
+
+   fan->attrs = kcalloc(SCD_FAN_ATTR_COUNT * fan_info->fans,
+                        sizeof(*fan->attrs), GFP_KERNEL);
+   if (!fan->attrs) {
+      kfree(fan);
+      return -ENOMEM;
+   }
+
+   for (i = 0; i < fan->info->fans; ++i) {
+      scd_fan_add_attrs(fan, fan_group->attr_index_count++);
+   }
+   fan_group->attr_count += fan->attr_count;
+
+   list_add_tail(&fan->list, &fan_group->slot_list);
 
    return 0;
+}
+
+static int scd_fan_group_add(struct scd_context *ctx, u32 addr, u32 platform_id,
+                             u32 fan_count)
+{
+   struct scd_fan_group *fan_group;
+   const struct fan_platform *platform;
+   size_t i;
+   int err;
+   u32 reg;
+
+   platform = fan_platform_find(platform_id);
+   if (!platform) {
+      scd_warn("no known fan group for platform id=%u", platform_id);
+      return -EINVAL;
+   }
+
+   if (fan_count > platform->max_fan_count) {
+      scd_warn("the fan num argument is larger than %zu", platform->max_fan_count);
+      return -EINVAL;
+   }
+
+   reg = scd_read_register(ctx->pdev, addr + platform->platform_offset);
+   if ((reg & platform->mask_platform) != platform_id) {
+      scd_warn("fan group for platform id=%u does not match hardware", platform_id);
+      return -EINVAL;
+   }
+
+   fan_group = kzalloc(sizeof(*fan_group), GFP_KERNEL);
+   if (!fan_group) {
+      return -ENOMEM;
+   }
+
+   scnprintf(fan_group->name, FIELD_SIZEOF(typeof(*fan_group), name),
+             "scd_fan_p%u", platform_id);
+   fan_group->ctx = ctx;
+   fan_group->addr_base = addr;
+   fan_group->fan_count = fan_count;
+   fan_group->platform = platform;
+   INIT_LIST_HEAD(&fan_group->slot_list);
+
+   for (i = 0; i < fan_count; ++i) {
+      err = scd_fan_add(fan_group, i);
+      if (err)
+         goto fail;
+   }
+
+   err = scd_fan_group_register(ctx, fan_group);
+   if (err)
+      goto fail;
+
+   list_add_tail(&fan_group->list, &ctx->fan_group_list);
+
+   return 0;
+
+fail:
+   scd_fan_group_unregister(ctx, fan_group);
+   kfree(fan_group);
+   return err;
 }
 
 #define PARSE_INT_OR_RETURN(Buf, Tmp, Type, Ptr)        \
@@ -1354,7 +2032,8 @@ static ssize_t parse_new_object_led(struct scd_context *ctx,
 
 enum xcvr_type {
    XCVR_TYPE_SFP,
-   XCVR_TYPE_QSFP
+   XCVR_TYPE_QSFP,
+   XCVR_TYPE_OSFP,
 };
 
 static ssize_t parse_new_object_xcvr(struct scd_context *ctx, enum xcvr_type type,
@@ -1377,6 +2056,8 @@ static ssize_t parse_new_object_xcvr(struct scd_context *ctx, enum xcvr_type typ
       res = scd_xcvr_sfp_add(ctx, addr, id);
    else if (type == XCVR_TYPE_QSFP)
       res = scd_xcvr_qsfp_add(ctx, addr, id);
+   else if (type == XCVR_TYPE_OSFP)
+      res = scd_xcvr_osfp_add(ctx, addr, id);
    else
       res = -EINVAL;
 
@@ -1384,6 +2065,13 @@ static ssize_t parse_new_object_xcvr(struct scd_context *ctx, enum xcvr_type typ
       return res;
 
    return count;
+}
+
+// new_osfp <addr> <id>
+static ssize_t parse_new_object_osfp(struct scd_context *ctx,
+                                     char *buf, size_t count)
+{
+   return parse_new_object_xcvr(ctx, XCVR_TYPE_OSFP, buf, count);
 }
 
 // new_qsfp <addr> <id>
@@ -1426,6 +2114,31 @@ static ssize_t parse_new_object_reset(struct scd_context *ctx,
    return count;
 }
 
+// new_fan_group <addr> <platform> <fan_count>
+static ssize_t parse_new_object_fan_group(struct scd_context *ctx,
+                                          char *buf, size_t count)
+{
+   const char *tmp;
+   u32 addr;
+   u32 platform_id;
+   u32 fan_count;
+   int res;
+
+   if (!buf)
+      return -EINVAL;
+
+   PARSE_ADDR_OR_RETURN(&buf, tmp, u32, &addr, ctx->res_size);
+   PARSE_INT_OR_RETURN(&buf, tmp, u32, &platform_id);
+   PARSE_INT_OR_RETURN(&buf, tmp, u32, &fan_count);
+   PARSE_END_OR_RETURN(&buf, tmp);
+
+   res = scd_fan_group_add(ctx, addr, platform_id, fan_count);
+   if (res)
+      return res;
+
+   return count;
+}
+
 // new_gpio <addr> <name> <bitpos> <ro> <activeLow>
 static ssize_t parse_new_object_gpio(struct scd_context *ctx,
                                      char *buf, size_t count)
@@ -1461,12 +2174,14 @@ static struct {
    const char *name;
    new_object_parse_func func;
 } funcs[] = {
-   { "master", parse_new_object_master },
-   { "led",    parse_new_object_led },
-   { "qsfp",   parse_new_object_qsfp },
-   { "sfp",    parse_new_object_sfp },
-   { "reset",  parse_new_object_reset },
-   { "gpio",   parse_new_object_gpio },
+   { "master",    parse_new_object_master },
+   { "led",       parse_new_object_led },
+   { "fan_group", parse_new_object_fan_group},
+   { "osfp",      parse_new_object_osfp },
+   { "qsfp",      parse_new_object_qsfp },
+   { "sfp",       parse_new_object_sfp },
+   { "reset",     parse_new_object_reset },
+   { "gpio",      parse_new_object_gpio },
    { NULL, NULL }
 };
 
@@ -1689,6 +2404,7 @@ static int scd_ext_hwmon_probe(struct pci_dev *pdev, size_t mem_len)
    INIT_LIST_HEAD(&ctx->gpio_list);
    INIT_LIST_HEAD(&ctx->reset_list);
    INIT_LIST_HEAD(&ctx->xcvr_list);
+   INIT_LIST_HEAD(&ctx->fan_group_list);
 
    kobject_get(&pdev->dev.kobj);
 
@@ -1741,6 +2457,7 @@ static void scd_ext_hwmon_remove(struct pci_dev *pdev)
    scd_gpio_remove_all(ctx);
    scd_reset_remove_all(ctx);
    scd_xcvr_remove_all(ctx);
+   scd_fan_group_remove_all(ctx);
    scd_unlock(ctx);
 
    module_lock();

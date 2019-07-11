@@ -9,14 +9,17 @@ calls the function to perform the powercycle.
 from __future__ import print_function
 
 from arista.core.platform import getPlatform
+from arista.core.utils import klog
+from .sonic_utils import getInventory
 
-def reboot(platform=None):
+def reboot(inventory=None):
    print("Running powercycle script")
-   if not platform:
-      platform = getPlatform()
-   powerCycles = platform.getInventory().getPowerCycles()
+   if not inventory:
+      inventory = getInventory() 
+   powerCycles = inventory.getPowerCycles()
    if not powerCycles:
       print("No objects to perform powercycle with on this platform")
       return
+   klog("Restarting system", level=0)
    for powerCycle in powerCycles:
       powerCycle.powerCycle()

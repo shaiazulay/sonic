@@ -73,6 +73,12 @@
 #define FAN_PWM_BASE_ADDR 3
 #define FAN_PWM_ADDR_OFFSET 0x10
 
+#define FAN_MAX_PWM 255
+
+static bool safe_mode = true;
+module_param(safe_mode, bool, S_IRUSR | S_IWUSR);
+MODULE_PARM_DESC(safe_mode, "force fan speed to 100% during probe");
+
 struct raven_led {
    char name[LED_NAME_MAX_SZ];
    struct led_classdev cdev;
@@ -106,20 +112,34 @@ static ssize_t show_fan_present(struct device *dev, struct device_attribute *att
    return scnprintf(buf, 5, "%u\n", fan_present_val);
 }
 
-static ssize_t show_fan_id(struct device *dev, struct device_attribute *attr,
-                           char *buf)
+static u8 get_fan_id(struct device *dev, struct device_attribute *attr)
 {
    struct raven_pdata *pdata = dev_get_drvdata(dev->parent);
    struct sensor_device_attribute *sensor_attr = to_sensor_dev_attr(attr);
    u32 fan_id = sensor_attr->index - 1;
    int num_id;
-   u32 id_vals[NUM_FAN_ID_PINS];
    u8 *reg_id = pdata->gpio_base + FAN_ID_BASE_ADDR + FAN_ID_ADDR_OFFSET * fan_id;
+   u8 res = 0;
    for(num_id = 0; num_id < NUM_FAN_ID_PINS; num_id++) {
       reg_id += num_id;
-      id_vals[num_id] = (ioread8(reg_id) >> 7) & 0x1;
+      res |= ((ioread8(reg_id) >> 7) & 0x1) << num_id;
    }
-  return scnprintf(buf, 12, "%u %u %u\n", id_vals[2], id_vals[1], id_vals[0]);
+   return res;
+}
+
+static ssize_t show_fan_id(struct device *dev, struct device_attribute *attr,
+                           char *buf)
+{
+   u8 id = get_fan_id(dev, attr);
+   return scnprintf(buf, 12, "%u %u %u\n", (id >> 2) & 0x1, (id >> 1) & 0x1,
+                    id & 0x1);
+}
+
+static ssize_t show_fan_airflow(struct device *dev, struct device_attribute *attr,
+                                char *buf)
+{
+   u8 id = get_fan_id(dev, attr);
+   return sprintf(buf, "%s\n", (id & 0x4) ? "reverse" : "forward");
 }
 
 static int read_led(struct raven_pdata *pdata, int fan_id, u8 *value)
@@ -341,7 +361,9 @@ static SENSOR_DEVICE_ATTR(fan##_numfan##_present, S_IRUGO,                      
 static SENSOR_DEVICE_ATTR(fan##_numfan##_id, S_IRUGO,                               \
                           show_fan_id, NULL, _numfan);                              \
 static SENSOR_DEVICE_ATTR(fan##_numfan##_led, S_IRUGO|S_IWUSR|S_IWGRP,              \
-                          show_led, store_led, _numfan);
+                          show_led, store_led, _numfan);                            \
+static SENSOR_DEVICE_ATTR(fan##_numfan##_airflow, S_IRUGO,                          \
+                          show_fan_airflow, NULL, _numfan);
 
 FAN_DEVICE_ATTR(1);
 FAN_DEVICE_ATTR(2);
@@ -354,21 +376,25 @@ static struct attribute *fan_attrs[] = {
     &sensor_dev_attr_fan1_led.dev_attr.attr,
     &sensor_dev_attr_fan1_present.dev_attr.attr,
     &sensor_dev_attr_fan1_id.dev_attr.attr,
+    &sensor_dev_attr_fan1_airflow.dev_attr.attr,
     &sensor_dev_attr_fan2_input.dev_attr.attr,
     &sensor_dev_attr_pwm2.dev_attr.attr,
     &sensor_dev_attr_fan2_led.dev_attr.attr,
     &sensor_dev_attr_fan2_present.dev_attr.attr,
     &sensor_dev_attr_fan2_id.dev_attr.attr,
+    &sensor_dev_attr_fan2_airflow.dev_attr.attr,
     &sensor_dev_attr_fan3_input.dev_attr.attr,
     &sensor_dev_attr_pwm3.dev_attr.attr,
     &sensor_dev_attr_fan3_led.dev_attr.attr,
     &sensor_dev_attr_fan3_present.dev_attr.attr,
     &sensor_dev_attr_fan3_id.dev_attr.attr,
+    &sensor_dev_attr_fan3_airflow.dev_attr.attr,
     &sensor_dev_attr_fan4_input.dev_attr.attr,
     &sensor_dev_attr_pwm4.dev_attr.attr,
     &sensor_dev_attr_fan4_led.dev_attr.attr,
     &sensor_dev_attr_fan4_present.dev_attr.attr,
     &sensor_dev_attr_fan4_id.dev_attr.attr,
+    &sensor_dev_attr_fan4_airflow.dev_attr.attr,
     NULL,
 };
 
@@ -413,6 +439,11 @@ static void set_fan_init_state(struct device * dev)
 
       iowrite8(0x01, reg + FAN_DETECT_CTRL_BASE_ADDR + (FAN_DETECT_ADDR_OFFSET *
                num_fan));
+
+       if (safe_mode) {
+          iowrite8(FAN_MAX_PWM, reg + FAN_PWM_BASE_ADDR +
+                   (FAN_PWM_ADDR_OFFSET * num_fan));
+       }
    }
 }
 

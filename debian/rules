@@ -48,6 +48,8 @@ override_dh_clean:
 	$(RM) -r $(BASE_DIR)/*.egg-info $(BASE_DIR)/build
 
 override_dh_auto_test:
+	python2 setup.py test
+	python3 setup.py test
 	PYTHON=python2 PYTHONPATH=$(BASE_DIR) $(TEST_DIR)/all-platforms.sh
 	PYTHON=python3 PYTHONPATH=$(BASE_DIR) $(TEST_DIR)/all-platforms.sh
 

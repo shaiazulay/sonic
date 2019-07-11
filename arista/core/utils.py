@@ -1,4 +1,5 @@
 import fcntl
+import json
 import logging
 import mmap
 import os
@@ -7,6 +8,9 @@ import time
 from datetime import datetime
 from functools import wraps
 from struct import pack, unpack
+
+FLASH_MOUNT = '/host'
+TMPFS_MOUNT = '/run'
 
 class MmapResource(object):
    """Resource implementation for a directly-mapped memory region."""
@@ -121,6 +125,29 @@ class Retrying:
 
       return Iterator(self.interval, self.delay, self.maxAttempts)
 
+# Depreciate this object if we want to wait on access instead of waiting at start
+# and potentially failing
+class FileWaiter(object):
+   def __init__(self, waitFile=None, waitTimeout=None):
+      self.waitFile = waitFile
+      self.waitTimeout = float(waitTimeout) if waitTimeout else 1.0
+
+   def waitFileReady(self):
+      if not self.waitFile:
+         return False
+
+      logging.debug('Waiting file %s.', self.waitFile)
+
+      for r in Retrying(interval=self.waitTimeout):
+         if os.path.exists(self.waitFile):
+            return True
+         logging.debug('Waiting file %s attempt %d.', self.waitFile, r.attempt)
+
+      if not os.path.exists(self.waitFile):
+         logging.error('Waiting file %s failed.', self.waitFile)
+         return False
+      return True
+
 class FileLock:
    def __init__(self, lock_file, auto_release=False):
       self.f = open(lock_file, 'w')
@@ -162,6 +189,63 @@ class NoopObj(object):
       return self.noop(attr)
 
 CMDLINE_PATH = '/proc/cmdline'
+
+class StoredData(object):
+   def __init__(self, name, lifespan='temporary'):
+      self.name = name
+      self.lifespan = lifespan
+      self.path = os.path.join(TMPFS_MOUNT, name) if lifespan == 'temporary' \
+            else os.path.join(FLASH_MOUNT, name)
+
+   def exist(self):
+      return os.path.isfile(self.path)
+
+   def write(self, data, mode='a+'):
+      assert os.path.isdir(os.path.dirname(self.path)), \
+            'Base directory for %s file %s not found!' % (self.lifespan, self.name)
+      if not os.path.isfile(self.path):
+         logging.debug('Creating %s file %s', self.lifespan, self.name)
+      with open(self.path, mode) as tmpFile:
+         tmpFile.write(data)
+
+   def read(self):
+      assert os.path.isfile(self.path), \
+            'File %s of type %s not found!' % (self.name, self.lifespan)
+      with open(self.path, 'r') as tmpFile:
+         return tmpFile.read()
+
+   def clear(self):
+      if self.exist():
+         os.remove(self.path)
+
+class JsonStoredData(StoredData):
+   @staticmethod
+   def _createObj(data, dataType):
+      obj = dataType.__new__(dataType)
+      obj.__dict__.update(data)
+      return obj
+
+   def write(self, data, mode='a+'):
+      super(JsonStoredData, self).write(json.dumps(data, indent=3,
+                                                   separators=(',', ': ')), mode)
+
+   def read(self):
+      res = super(JsonStoredData, self).read()
+      if res:
+         return json.loads(res)
+      return {}
+
+   def readObj(self, dataType):
+      return self._createObj(self.read(), dataType)
+
+   def readList(self, dataType):
+      return [self._createObj(data, dataType) for data in self.read()]
+
+   def writeObj(self, data):
+      self.write(data.__dict__)
+
+   def writeList(self, data):
+      self.write([item.__dict__ for item in data])
 
 cmdlineDict = {}
 def getCmdlineDict():
@@ -225,6 +309,22 @@ def writeConfig(path, data):
             f.write(value)
       except IOError as e:
          logging.error('%s %s', path, e.strerror)
+
+# Hwmon directories that need to be navigated
+# Keeps trying to get path to show up, or search in searchPath
+def locateHwmonPath(searchPath, prefix, timeout=1.0):
+   for r in Retrying(interval=timeout):
+      for root, _, files in os.walk(os.path.join(searchPath, 'hwmon')):
+         for name in files:
+            if name.startswith(prefix):
+               path = root
+               logging.debug('got hwmon path for %s as %s', searchPath,
+                             path)
+               return path
+      logging.debug('Locate hwmon path attempt %d.', r.attempt)
+
+   logging.error('could not locate hwmon path for %s', searchPath)
+   return None
 
 def libraryInit():
    global simulation, debug, SMBus

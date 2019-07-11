@@ -1,12 +1,12 @@
 from ..core.platform import registerPlatform, Platform
-from ..core.driver import KernelDriver
 from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi, UcdMon
-from ..components.psu import ScdPmbusPsu
+from ..components.fan import RavenFanCpldComponent
+from ..components.psu import PmbusMixedPsuComponent
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
 
@@ -21,8 +21,6 @@ class Cloverdale(Platform):
 
       self.inventory.addPorts(qsfps=self.allQsfps)
 
-      self.addDriver(KernelDriver, 'raven-fan-driver', '/sys/class/hwmon/hwmon1')
-
       switchChip = SwitchChip(PciAddr(bus=0x02))
       self.addComponent(switchChip)
 
@@ -33,7 +31,10 @@ class Cloverdale(Platform):
 
       self.inventory.addPowerCycle(scd.createPowerCycle())
 
+      ravenFanComponent = RavenFanCpldComponent(waitFile='/sys/class/hwmon/hwmon1')
+
       scd.addComponents([
+         ravenFanComponent,
          I2cKernelComponent(scd.i2cAddr(0, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
          I2cKernelComponent(scd.i2cAddr(1, 0x48), 'lm73', '/sys/class/hwmon/hwmon3'),
 
@@ -49,29 +50,48 @@ class Cloverdale(Platform):
          }),
       ])
 
-      psu1Addr = scd.i2cAddr(3, 0x58)
-      psu1 = Ds460(psu1Addr, '/sys/class/hwmon/hwmon4',
-                   priority=Priority.BACKGROUND,
-                   waitTimeout=30.0)
-      psu2Addr = scd.i2cAddr(4, 0x58)
-      psu2 = Ds460(psu2Addr, '/sys/class/hwmon/hwmon5',
-                   priority=Priority.BACKGROUND,
-                   waitTimeout=30.0)
-      scd.addComponents([psu1, psu2])
-      scd.addBusTweak(psu1Addr, 3, 3, 3, 1)
-      scd.addBusTweak(psu2Addr, 3, 3, 3, 1)
+      for fanId in incrange(1, 4):
+         self.inventory.addFan(ravenFanComponent.createFan(fanId))
 
-      scd.addSmbusMasterRange(0x8000, 5)
-
-      scd.addLeds([
+      self.inventory.addLeds(scd.addLeds([
          (0x6050, 'status'),
          (0x6060, 'fan_status'),
          (0x6070, 'psu1'),
          (0x6080, 'psu2'),
          (0x6090, 'beacon'),
+      ]))
+
+      # PSU
+      psu1Addr = scd.i2cAddr(3, 0x58)
+      ds460Psu1 = Ds460(psu1Addr, '/sys/class/hwmon/hwmon4',
+                        priority=Priority.BACKGROUND,
+                        waitTimeout=30.0)
+      psu2Addr = scd.i2cAddr(4, 0x58)
+      ds460Psu2 = Ds460(psu2Addr, '/sys/class/hwmon/hwmon5',
+                        priority=Priority.BACKGROUND,
+                        waitTimeout=30.0)
+      scd.addComponents([ds460Psu1, ds460Psu2])
+      scd.addBusTweak(psu1Addr, 3, 3, 3, 1)
+      scd.addBusTweak(psu2Addr, 3, 3, 3, 1)
+
+      scd.addGpios([
+         NamedGpio(0x5000, 0, True, False, "psu1_present"),
+         NamedGpio(0x5000, 1, True, False, "psu2_present"),
       ])
-      self.inventory.addStatusLeds(['status', 'fan_status', 'psu1',
-         'psu2'])
+
+      psu1Component = PmbusMixedPsuComponent(presenceComponent=scd,
+                                             statusComponent=ds460Psu1)
+      psu2Component = PmbusMixedPsuComponent(presenceComponent=scd,
+                                             statusComponent=ds460Psu2)
+
+      self.addComponents([psu1Component, psu2Component])
+
+      self.inventory.addPsus([
+         psu1Component.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
+         psu2Component.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
+      ])
+
+      scd.addSmbusMasterRange(0x8000, 5)
 
       self.inventory.addResets(scd.addResets([
          ResetGpio(0x4000, 0, False, 'switch_chip_reset'),
@@ -81,28 +101,19 @@ class Cloverdale(Platform):
          ResetGpio(0x4000, 5, False, 'phy4_reset'),
       ]))
 
-      scd.addGpios([
-         NamedGpio(0x5000, 0, True, False, "psu1_present"),
-         NamedGpio(0x5000, 1, True, False, "psu2_present"),
-      ])
-      self.inventory.addPsus([
-         ScdPmbusPsu(scd.createPsu(1, statusGpios=None), psu1),
-         ScdPmbusPsu(scd.createPsu(2, statusGpios=None), psu2),
-      ])
-
       addr = 0x6100
       for xcvrId in self.qsfp40gAutoRange:
+         leds = []
          for laneId in incrange(1, 4):
             name = "qsfp%d_%d" % (xcvrId, laneId)
-            scd.addLed(addr, name)
-            self.inventory.addXcvrLed(xcvrId, name)
+            leds.append(scd.addLed(addr, name))
             addr += 0x10
+         self.inventory.addLedGroup("qsfp%d" % xcvrId, leds)
 
       addr = 0x6720
       for xcvrId in self.qsfp40gOnlyRange:
          name = "qsfp%d" % xcvrId
-         scd.addLed(addr, name)
-         self.inventory.addXcvrLed(xcvrId, name)
+         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
          addr += 0x30 if xcvrId % 2 else 0x50
 
       intrRegs = [
@@ -114,8 +125,10 @@ class Cloverdale(Platform):
       bus = 8
       for xcvrId in self.allQsfps:
          intr = intrRegs[1].getInterruptBit(xcvrId - 1)
-         self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
+         name = 'qsfp%d' % xcvrId
+         self.inventory.addInterrupt(name, intr)
+         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                            leds=self.inventory.getLedGroup(name))
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1

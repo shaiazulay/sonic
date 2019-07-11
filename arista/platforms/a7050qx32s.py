@@ -1,12 +1,12 @@
 from ..core.platform import registerPlatform, Platform
-from ..core.driver import KernelDriver
 from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, UcdGpi
-from ..components.psu import PmbusPsuComponent, ScdPmbusPsu
+from ..components.fan import CrowFanCpldComponent
+from ..components.psu import PmbusMixedPsuComponent, PmbusPsuComponent
 from ..components.scd import Scd
 from ..components.ds125br import Ds125Br
 
@@ -22,8 +22,6 @@ class Clearlake(Platform):
 
       self.inventory.addPorts(sfps=self.sfpRange, qsfps=self.allQsfps)
 
-      self.addDriver(KernelDriver, 'crow-fan-driver', '/sys/class/hwmon/hwmon1')
-
       switchChip = SwitchChip(PciAddr(bus=0x01))
       self.addComponent(switchChip)
 
@@ -34,13 +32,19 @@ class Clearlake(Platform):
 
       self.inventory.addPowerCycle(scd.createPowerCycle())
 
+      crowFanCpldAddr = scd.i2cAddr(1, 0x60)
+      crowFanComponent = CrowFanCpldComponent(addr=crowFanCpldAddr,
+                                              waitFile='/sys/class/hwmon/hwmon4')
+
+      for fanId in incrange(1, 4):
+         self.inventory.addFan(crowFanComponent.createFan(fanId))
+
       scd.addComponents([
          I2cKernelComponent(scd.i2cAddr(0, 0x4c), 'max6658',
                             '/sys/class/hwmon/hwmon2'),
          I2cKernelComponent(scd.i2cAddr(1, 0x4c), 'max6658',
                             '/sys/class/hwmon/hwmon3'),
-         I2cKernelComponent(scd.i2cAddr(1, 0x60), 'crow_cpld',
-                            '/sys/class/hwmon/hwmon4'),
+         crowFanComponent,
          Ucd90120A(scd.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
          I2cKernelComponent(scd.i2cAddr(3, 0x58), 'pmbus',
                             priority=Priority.BACKGROUND),
@@ -56,53 +60,58 @@ class Clearlake(Platform):
 
       scd.addSmbusMasterRange(0x8000, 6)
 
-      scd.addLeds([
+      self.inventory.addLeds(scd.addLeds([
          (0x6050, 'status'),
          (0x6060, 'fan_status'),
          (0x6070, 'psu1'),
          (0x6080, 'psu2'),
          (0x6090, 'beacon'),
-      ])
-      self.inventory.addStatusLeds(['status', 'fan_status', 'psu1',
-         'psu2'])
+      ]))
 
       self.inventory.addReset(scd.addReset(ResetGpio(0x4000, 0, False, 'switch_chip_reset')))
 
-      psu1 = PmbusPsuComponent(scd.i2cAddr(3, 0x58), '/sys/class/hwmon/hwmon5',
-                               priority=Priority.BACKGROUND)
-      psu2 = PmbusPsuComponent(scd.i2cAddr(4, 0x58), '/sys/class/hwmon/hwmon6',
-                               priority=Priority.BACKGROUND)
-      scd.addComponents([psu1, psu2])
+      pmbusPsu1 = PmbusPsuComponent(scd.i2cAddr(3, 0x58), '/sys/class/hwmon/hwmon5',
+                                    priority=Priority.BACKGROUND)
+      pmbusPsu2 = PmbusPsuComponent(scd.i2cAddr(4, 0x58), '/sys/class/hwmon/hwmon6',
+                                    priority=Priority.BACKGROUND)
+      scd.addComponents([pmbusPsu1, pmbusPsu2])
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
          NamedGpio(0x6940, 0, False, False, "mux"), # FIXME: oldSetup order/name
       ])
+
+      psu1Component = PmbusMixedPsuComponent(presenceComponent=scd,
+                                             statusComponent=pmbusPsu1)
+      psu2Component = PmbusMixedPsuComponent(presenceComponent=scd,
+                                             statusComponent=pmbusPsu2)
+
+      self.addComponents([psu1Component, psu2Component])
+
       self.inventory.addPsus([
-         ScdPmbusPsu(scd.createPsu(1, statusGpios=None), psu1),
-         ScdPmbusPsu(scd.createPsu(2, statusGpios=None), psu2),
+         psu1Component.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
+         psu2Component.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
       ])
 
       addr = 0x6100
       for xcvrId in self.qsfp40gAutoRange:
+         leds = []
          for laneId in incrange(1, 4):
             name = "qsfp%d_%d" % (xcvrId, laneId)
-            scd.addLed(addr, name)
-            self.inventory.addXcvrLed(xcvrId, name)
+            leds.append(scd.addLed(addr, name))
             addr += 0x10
+         self.inventory.addLedGroup("qsfp%d" % xcvrId, leds)
 
       addr = 0x6720
       for xcvrId in self.qsfp40gOnlyRange:
          name = "qsfp%d" % xcvrId
-         scd.addLed(addr, name)
-         self.inventory.addXcvrLed(xcvrId, name)
+         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
          addr += 0x30 if xcvrId % 2 else 0x50
 
       addr = 0x6900
       for xcvrId in self.sfpRange:
          name = "sfp%d" % xcvrId
-         scd.addLed(addr, name)
-         self.inventory.addXcvrLed(xcvrId, name)
+         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
          addr += 0x10
 
       intrRegs = [
@@ -114,8 +123,10 @@ class Clearlake(Platform):
       bus = 8
       for xcvrId in self.allQsfps:
          intr = intrRegs[1].getInterruptBit(xcvrId - 5)
-         self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
+         name = 'qsfp%d' % xcvrId
+         self.inventory.addInterrupt(name, intr)
+         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                            leds=self.inventory.getLedGroup(name))
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1
@@ -123,7 +134,8 @@ class Clearlake(Platform):
       addr = 0x5210
       bus = 40
       for xcvrId in sorted(self.sfpRange):
-         xcvr = scd.addSfp(addr, xcvrId, bus)
+         xcvr = scd.addSfp(addr, xcvrId, bus,
+                           leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1

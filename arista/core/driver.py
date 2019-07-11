@@ -6,7 +6,7 @@ import subprocess
 
 from collections import OrderedDict
 
-from .utils import Retrying, inDebug, inSimulation
+from .utils import FileWaiter, inDebug, inSimulation
 
 def modprobe(name, args=None):
    logging.debug('loading module %s', name)
@@ -60,8 +60,8 @@ def i2cBusFromName(name, idx=0, force=False):
    return None
 
 class Driver(object):
-   def __init__(self, component):
-      self.component = component
+   def __init__(self, **kwargs):
+      self.__dict__.update(kwargs)
 
    def setup(self):
       pass
@@ -88,37 +88,23 @@ class Driver(object):
       spacer = ' ' * (depth * 3)
       print('%s%s%s' % (spacer, prefix, self))
 
+   def __str__(self):
+      kwargs = ['%s=%s' % (k, v) for k, v in self.__dict__.items()]
+      return '%s(%s)' % (self.__class__.__name__, ', '.join(kwargs))
+
 class KernelDriver(Driver):
-   # TODO: handle multiple kernel modules
-   def __init__(self, component, module,
-                waitFile=None, waitTimeout=None,
-                args=None):
-      super(KernelDriver, self).__init__(component)
-      self.component = component
-      self.module = module
+   def __init__(self, waitFile=None, waitTimeout=None, args=None, **kwargs):
       self.args = args if args is not None else []
-      self.waitFile = waitFile
-      self.waitTimeout = float(waitTimeout) if waitTimeout else 1.0
+      self.fileWaiter = FileWaiter(waitFile, waitTimeout)
+      self.module = self.driverName = kwargs.get('module')
+      super(KernelDriver, self).__init__(**kwargs)
 
-   def waitFileReady(self):
-      if not self.waitFile:
-         return
-
-      logging.debug('Starting driver. Waiting file %s.', self.waitFile)
-
-      for r in Retrying(interval=self.waitTimeout):
-         if os.path.exists(self.waitFile):
-            break
-         logging.debug('Starting driver. Waiting file %s attempt %d.',
-                       self.waitFile, r.attempt)
-
-      if not os.path.exists(self.waitFile):
-         logging.error('Starting driver. Waiting file %s failed.',
-                       self.waitFile)
+   def __str__(self):
+      return '%s(name=%s)' % (self.__class__.__name__, self.driverName)
 
    def setup(self):
       modprobe(self.module, self.args)
-      self.waitFileReady()
+      self.fileWaiter.waitFileReady()
 
    def clean(self):
       if self.loaded():
@@ -131,9 +117,3 @@ class KernelDriver(Driver):
 
    def loaded(self):
       return isModuleLoaded(self.module)
-
-   def getSysfsPath(self):
-      raise NotImplementedError
-
-   def __str__(self):
-      return '%s(%s)' % (self.__class__.__name__, self.module)

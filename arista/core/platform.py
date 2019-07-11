@@ -1,16 +1,13 @@
 from __future__ import print_function
 
 import logging
-import subprocess
 import os
-import sys
 
-from collections import OrderedDict, namedtuple, defaultdict
-
-from .inventory import Inventory
+from .exception import UnknownPlatformError
+from .fixed import FixedSystem
 from .component import Component, Priority
-from .utils import simulateWith
-from .driver import modprobe, rmmod, KernelDriver
+from .utils import simulateWith, getCmdlineDict
+from .driver import modprobe, KernelDriver
 
 from . import prefdl
 
@@ -18,6 +15,7 @@ platforms = {}
 syseeprom = None
 
 host_prefdl_path = '/host/.system-prefdl'
+host_prefdl_path_bin = '/host/.system-prefdl-bin'
 fmted_prefdl_path = '/etc/sonic/.syseeprom'
 
 def formatPrefdlData(data):
@@ -39,26 +37,12 @@ def formatPrefdlData(data):
 
 def writeFormattedPrefdl(pfdl, f):
    fdata = formatPrefdlData(pfdl.data())
-   with open(f, 'w+') as fp:
+   with open(f, 'w+', 0) as fp:
       for k, v in fdata.items():
          fp.write("%s: %s\n" % (k, v))
 
-def readPrefdl():
-   if os.path.exists(fmted_prefdl_path):
-      with open(fmted_prefdl_path) as fp:
-         logging.debug('reading system eeprom from %s', fmted_prefdl_path)
-         return prefdl.PreFdlFromFile(fp)
-
-   if os.path.exists(host_prefdl_path):
-      with open(host_prefdl_path) as fp:
-         logging.debug('reading system eeprom from %s', host_prefdl_path)
-         pfdl = prefdl.PreFdlFromFile(fp)
-      writeFormattedPrefdl(pfdl, fmted_prefdl_path)
-      with open(fmted_prefdl_path) as fp:
-         return prefdl.PreFdlFromFile(fp)
-
-   modprobe('eeprom')
-   for addr in ['1-0052']:
+def readPrefdlEeprom(*addrs):
+   for addr in addrs:
       eeprompath = os.path.join('/sys/bus/i2c/drivers/eeprom', addr, 'eeprom')
       if not os.path.exists(eeprompath):
          continue
@@ -71,7 +55,34 @@ def readPrefdl():
       except Exception as e:
          logging.warn('could not obtain prefdl from %s', eeprompath)
          logging.warn('error seen: %s', e)
+
    raise RuntimeError("Could not find valid system eeprom")
+
+def readPrefdl():
+   if os.path.isfile(fmted_prefdl_path) and \
+      os.path.getsize(fmted_prefdl_path) > 0:
+      with open(fmted_prefdl_path) as fp:
+         logging.debug('reading system eeprom from %s', fmted_prefdl_path)
+         return prefdl.PreFdlFromFile(fp)
+
+   if os.path.exists(host_prefdl_path_bin):
+      with open(host_prefdl_path_bin) as fp:
+         logging.debug('reading bin system eeprom from %s',
+                       host_prefdl_path_bin)
+         pfdl = prefdl.decode(fp)
+         writeFormattedPrefdl(pfdl, fmted_prefdl_path)
+         return pfdl
+
+   if os.path.exists(host_prefdl_path):
+      with open(host_prefdl_path) as fp:
+         logging.debug('reading system eeprom from %s', host_prefdl_path)
+         pfdl = prefdl.PreFdlFromFile(fp)
+      writeFormattedPrefdl(pfdl, fmted_prefdl_path)
+      with open(fmted_prefdl_path) as fp:
+         return prefdl.PreFdlFromFile(fp)
+
+   modprobe('eeprom')
+   return readPrefdlEeprom('1-0052')
 
 def getPrefdlDataSim():
    logging.debug('bypass prefdl reading by returning default values')
@@ -88,13 +99,42 @@ def getSysEeprom():
       assert 'SKU' in syseeprom
    return syseeprom
 
+def readSku():
+   return getSysEeprom().get('SKU')
+
+def readSid():
+   return getCmdlineDict().get('sid')
+
+def readPlatformName():
+   return getCmdlineDict().get('platform')
+
 def detectPlatform():
-   return getSysEeprom()['SKU']
+   sku = readSku()
+   platformCls = platforms.get(sku)
+   if platformCls is not None:
+      return platformCls
+
+   sid = readSid()
+   platformCls = platforms.get(sid)
+   if platformCls is not None:
+      return platformCls
+
+   name = readPlatformName()
+   platformCls = platforms.get(name)
+   if platformCls is not None:
+      return platformCls
+
+   raise UnknownPlatformError(sku, sid, name, platforms)
 
 def getPlatform(name=None):
    if name is None:
-      name = detectPlatform()
-   platform = platforms[name]()
+      platformCls = detectPlatform()
+   else:
+      platformCls = platforms.get(name)
+      if platformCls is None:
+         raise UnknownPlatformError(name, platforms)
+
+   platform = platformCls()
    platform.refresh()
    return platform
 
@@ -112,16 +152,5 @@ def registerPlatform(skus):
       return cls
    return wrapper
 
-class Platform(Component):
-   def __init__(self):
-      super(Platform, self).__init__()
-      self.addDriver(KernelDriver, 'eeprom')
-      self.addDriver(KernelDriver, 'i2c-dev')
-      self.inventory = Inventory()
-
-   def setup(self, priority=Priority.DEFAULT):
-      super(Platform, self).setup()
-      super(Platform, self).finish(priority)
-
-   def getInventory(self):
-      return self.inventory
+# XXX: This is here for legacy reasons
+Platform = FixedSystem

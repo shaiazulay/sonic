@@ -1,19 +1,16 @@
 from collections import defaultdict
-import logging
-
-from .utils import simulateWith
 
 class Xcvr(object):
 
    SFP = 0
    QSFP = 1
+   OSFP = 2
 
    ADDR = 0x50
 
-   def __init__(self, portNum, xcvrType, addr):
-      self.portNum = portNum
-      self.xcvrType = xcvrType
-      self.addr = addr
+   @classmethod
+   def typeStr(cls, typeIndex):
+      return ['sfp', 'qsfp', 'osfp'][typeIndex]
 
    def getPresence(self):
       raise NotImplementedError()
@@ -37,6 +34,9 @@ class Fan(object):
    def setSpeed(self, speed):
       raise NotImplementedError()
 
+   def getDirection(self):
+      raise NotImplementedError()
+
 class Psu(object):
    def getPresence(self):
       raise NotImplementedError()
@@ -45,27 +45,12 @@ class Psu(object):
       raise NotImplementedError()
 
 class Watchdog(object):
-   def armSim(self, timeout):
-      logging.info("watchdog arm")
-      return True
-
-   @simulateWith(armSim)
    def arm(self, timeout):
       raise NotImplementedError()
 
-   def stopSim(self):
-      logging.info("watchdog stop")
-      return True
-
-   @simulateWith(stopSim)
    def stop(self):
       raise NotImplementedError()
 
-   def statusSim(self):
-      logging.info("watchdog status")
-      return { "enabled": True, "timeout": 300 }
-
-   @simulateWith(statusSim)
    def status(self):
       raise NotImplementedError()
 
@@ -74,11 +59,11 @@ class PowerCycle(object):
       raise NotImplementedError()
 
 class ReloadCause(object):
-   def reason(self):
+   def getTime(self):
       raise NotImplementedError()
 
-   def __str__(self):
-      return self.reason()
+   def getCause(self):
+      raise NotImplementedError()
 
 class Interrupt(object):
    def set(self):
@@ -103,17 +88,43 @@ class Reset(object):
    def getName(self):
       raise NotImplementedError()
 
+class Phy(object):
+   def getReset(self):
+      raise NotImplementedError()
+
+class Led(object):
+   def getColor(self):
+      raise NotImplementedError()
+
+   def setColor(self, color):
+      raise NotImplementedError()
+
+   def getName(self):
+      raise NotImplementedError()
+
+   def isStatusLed(self):
+      raise NotImplementedError()
+
+class Slot(object):
+   def getPresence(self):
+      raise NotImplementedError()
+
 class Inventory(object):
    def __init__(self):
       self.sfpRange = []
       self.qsfpRange = []
+      self.osfpRange = []
       self.allXcvrsRange = []
 
       self.portStart = None
       self.portEnd = None
 
+      self.leds = {}
+      self.ledGroups = {}
+
       self.xcvrs = {}
 
+      # These two are deprecated
       self.xcvrLeds = defaultdict(list)
       self.statusLeds = []
 
@@ -129,24 +140,31 @@ class Inventory(object):
 
       self.resets = {}
 
+      self.phys = []
+
+      self.slots = []
+
    def freeze(self):
       # XXX: compute the range and some basic information from the various
       #      collections present in the inventory
       # XXX: try to avoid that actually
       pass
 
-   def addPorts(self, sfps=None, qsfps=None):
+   def addPorts(self, sfps=None, qsfps=None, osfps=None):
       if sfps:
          self.sfpRange = sfps
       if qsfps:
          self.qsfpRange = qsfps
+      if osfps:
+         self.osfpRange = osfps
 
-      self.allXcvrsRange = sorted(self.sfpRange + self.qsfpRange)
+      self.allXcvrsRange = sorted(self.sfpRange + self.qsfpRange +
+                                  self.osfpRange)
       self.portStart = self.allXcvrsRange[0]
       self.portEnd = self.allXcvrsRange[-1]
 
    def addXcvr(self, xcvr):
-      self.xcvrs[xcvr.portNum] = xcvr
+      self.xcvrs[xcvr.xcvrId] = xcvr
       xcvrReset = xcvr.getReset()
       if xcvrReset is not None:
          self.resets[xcvrReset.getName()] = xcvrReset
@@ -165,17 +183,47 @@ class Inventory(object):
    def getPortToI2cAdapterMapping(self):
       return { xcvrId : xcvr.addr.bus for xcvrId, xcvr in self.xcvrs.items() }
 
+   # Deprecated
    def addXcvrLed(self, xcvrId, name):
       self.xcvrLeds[xcvrId].append(name)
 
+   # Deprecated
    def addStatusLed(self, name):
       self.statusLeds.append(name)
 
+   # Deprecated
    def addStatusLeds(self, names):
       self.statusLeds.extend(names)
 
+   def addLed(self, led):
+      self.leds[led.getName()] = led
+
+   def addLedGroup(self, name, leds):
+      self.ledGroups[name] = leds
+      for led in leds:
+         self.addLed(led)
+
+   def addLeds(self, leds):
+      for led in leds:
+         self.addLed(led)
+
+   def getLed(self, name):
+      return self.leds[name]
+
+   def getLedGroup(self, name):
+      return self.ledGroups[name]
+
+   def getLeds(self):
+      return self.leds
+
+   def getLedGroups(self):
+      return self.ledGroups
+
    def addPsus(self, psus):
       self.psus = psus
+
+   def getPsus(self):
+      return self.psus
 
    def getPsu(self, index):
       return self.psus[index]
@@ -183,11 +231,17 @@ class Inventory(object):
    def getNumPsus(self):
       return len(self.psus)
 
+   def addFan(self, fan):
+      self.fans.append(fan)
+
    def addFans(self, fans):
-      self.fans = fans
+      self.fans.extend(fans)
 
    def getFan(self, index):
       return self.fans[index]
+
+   def getFans(self):
+      return self.fans
 
    def getNumFans(self):
       return len(self.fans)
@@ -221,3 +275,15 @@ class Inventory(object):
 
    def getResets(self):
       return self.resets
+
+   def addPhy(self, phy):
+      self.phys.append(phy)
+
+   def getPhys(self):
+      return self.phys
+
+   def addSlot(self, slot):
+      self.slots.append(slot)
+
+   def getSlots(self):
+      return self.slots

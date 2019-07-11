@@ -18,6 +18,7 @@ ExecStartPre=-/bin/bash -c ' \
     fi'
 
 ExecStart=/usr/bin/arista --syslog -l /var/log/arista.log setup --reset --background
+ExecStartPost=-/usr/bin/arista --syslog -l /var/log/arista.log reboot-cause
 ExecStop=/usr/bin/arista --syslog -l /var/log/arista.log clean
 
 [Install]

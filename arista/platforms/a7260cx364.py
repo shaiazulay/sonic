@@ -1,11 +1,13 @@
 from ..core.platform import registerPlatform, Platform
 from ..core.driver import KernelDriver
 from ..core.utils import incrange
-from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
+from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi
+from ..components.fan import LAFanCpldComponent
+from ..components.rook import RookLedComponent
 from ..components.scd import Scd
 
 @registerPlatform('DCS-7260CX3-64')
@@ -18,7 +20,6 @@ class Gardena(Platform):
 
       self.inventory.addPorts(qsfps=self.qsfpRange, sfps=self.sfpRange)
 
-      self.addDriver(KernelDriver, 'rook-fan-cpld')
       self.addDriver(KernelDriver, 'rook-led-driver')
 
       switchChip = SwitchChip(PciAddr(bus=0x07))
@@ -54,24 +55,37 @@ class Gardena(Platform):
          NamedGpio(0x5000, 10, True, False, "psu1_ac_status"),
          NamedGpio(0x5000, 11, True, False, "psu2_ac_status"),
       ])
+
+      ledComponent = RookLedComponent(baseName='rook_leds-88', scd=scd)
+
+      self.addComponent(ledComponent)
+
+      self.inventory.addLeds([
+         ledComponent.createLed(colors=['blue'], name='beacon'),
+         ledComponent.createLed(colors=['green', 'red'], name='fan_status'),
+         ledComponent.createLed(colors=['green', 'red'], name='psu1_status'),
+         ledComponent.createLed(colors=['green', 'red'], name='psu2_status'),
+         ledComponent.createLed(colors=['green', 'red'], name='status'),
+      ])
+
       self.inventory.addPsus([
-         scd.createPsu(1),
-         scd.createPsu(2),
+         scd.createPsu(1, led=self.inventory.getLed('psu1_status')),
+         scd.createPsu(2, led=self.inventory.getLed('psu2_status')),
       ])
 
       addr = 0x6100
       for xcvrId in self.qsfpRange:
+         leds = []
          for laneId in incrange(1, 4):
             name = "qsfp%d_%d" % (xcvrId, laneId)
-            scd.addLed(addr, name)
-            self.inventory.addXcvrLed(xcvrId, name)
+            leds.append(scd.addLed(addr, name))
             addr += 0x10
+         self.inventory.addLedGroup("qsfp%d" % xcvrId, leds)
 
       addr = 0x7100
       for xcvrId in self.sfpRange:
          name = "sfp%d" % xcvrId
-         scd.addLed(addr, name)
-         self.inventory.addXcvrLed(xcvrId, name)
+         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
          addr += 0x10
 
       intrRegs = [
@@ -84,8 +98,10 @@ class Gardena(Platform):
       bus = 8
       for xcvrId in sorted(self.qsfpRange):
          intr = intrRegs[xcvrId // 33 + 1].getInterruptBit((xcvrId - 1) % 32)
-         self.inventory.addInterrupt('qsfp%d' % xcvrId, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr)
+         name = 'qsfp%d' % xcvrId
+         self.inventory.addInterrupt(name, intr)
+         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                            leds=self.inventory.getLedGroup(name))
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1
@@ -93,13 +109,21 @@ class Gardena(Platform):
       addr = 0xA410
       bus = 6
       for xcvrId in sorted(self.sfpRange):
-         xcvr = scd.addSfp(addr, xcvrId, bus)
+         xcvr = scd.addSfp(addr, xcvrId, bus,
+                           leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1
 
       cpld = Scd(PciAddr(bus=0xff, device=0x0b, func=3), newDriver=True)
       self.addComponent(cpld)
+
+      laFanCpldAddr = cpld.i2cAddr(12, 0x60)
+      laFanComponent = LAFanCpldComponent(addr=laFanCpldAddr,
+                                          waitFile='/sys/class/hwmon/hwmon4')
+
+      for fanId in incrange(1, 4):
+         self.inventory.addFan(laFanComponent.createFan(fanId))
 
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.addComponents([
@@ -112,10 +136,10 @@ class Gardena(Platform):
             'watchdog': UcdGpi(3),
             'overtemp': UcdGpi(4),
          }),
-         I2cKernelComponent(cpld.i2cAddr(12, 0x60), 'rook_cpld',
-                            '/sys/class/hwmon/hwmon4'),
+         laFanComponent,
          I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
-         I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73'),
+         I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73',
+                            '/sys/class/hwmon/hwmon5')
       ])
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())

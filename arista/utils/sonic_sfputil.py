@@ -1,8 +1,7 @@
 import select
 import time
 
-from ..core import platform as core_platform
-from .. import platforms
+from .sonic_utils import getInventory
 
 try:
     from sonic_sfp.sfputilbase import SfpUtilBase
@@ -11,12 +10,9 @@ except ImportError as e:
 
 
 def getSfpUtil():
-    platform = core_platform.getPlatform()
-    inventory = platform.getInventory()
+    inventory = getInventory()
 
-    class SfpUtil(SfpUtilBase):
-        """Platform-specific SfpUtil class"""
-
+    class SfpUtilCommon(SfpUtilBase):
         @property
         def port_start(self):
             return inventory.portStart
@@ -24,6 +20,10 @@ def getSfpUtil():
         @property
         def port_end(self):
             return inventory.portEnd
+
+        @property
+        def osfp_ports(self):
+            return inventory.osfpRange
 
         @property
         def qsfp_ports(self):
@@ -47,6 +47,8 @@ def getSfpUtil():
         def __init__(self):
             SfpUtilBase.__init__(self)
 
+    class SfpUtilNative(SfpUtilCommon):
+        """Native Sonic SfpUtil class"""
         def get_presence(self, port_num):
             if not self._is_valid_port(port_num):
                 return False
@@ -115,7 +117,7 @@ def getSfpUtil():
                   pollRet = dict(pollRet)
                   for xcvr, openFile in openFiles:
                      if openFile.fileno() in pollRet:
-                        ret[str(xcvr.portNum)] = '1' if xcvr.getPresence() else '0'
+                        ret[str(xcvr.xcvrId)] = '1' if xcvr.getPresence() else '0'
                   return True, ret
             finally:
                for _, openFile in openFiles:
@@ -124,4 +126,4 @@ def getSfpUtil():
 
             return False, {}
 
-    return SfpUtil
+    return SfpUtilNative
