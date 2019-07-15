@@ -1,7 +1,7 @@
 [Unit]
 Description=Arista kernel modules init
 After=local-fs.target
-Before=opennsl-modules.service pmon.service
+Before=opennsl-modules.service pmon.service process-reboot-cause.service
 ConditionKernelCommandLine=Aboot
 
 [Service]

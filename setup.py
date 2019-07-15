@@ -17,6 +17,7 @@ setup(
       'arista.platforms',
       'arista.utils',
       'arista.utils.sonic_platform',
+      'sonic_platform',
    ],
    test_suite='tests',
 )
