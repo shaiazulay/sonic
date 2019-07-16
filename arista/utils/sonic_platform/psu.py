@@ -13,6 +13,9 @@ class Psu(PsuBase):
    def __init__(self, psu):
       self._psu = psu
 
+   def get_name(self):
+      return self._psu.getName()
+
    def set_status_led(self, color):
       try:
          self._psu.getLed().setColor(color)
@@ -29,10 +32,13 @@ class Psu(PsuBase):
       return True
 
    def get_status(self):
-      return self.get_status_led(self.STATUS_LED_COLOR_GREEN)
+      return self._psu.getStatus()
 
    def get_presence(self):
-      return self.get_status()
+      return self._psu.getPresence()
 
    def get_powergood_status(self):
       return self.get_status()
+
+   def get_interrupt_file(self):
+      return None

@@ -18,6 +18,7 @@ class Config(object):
          cls.instance_.lock_scd_conf = True
          cls.instance_.init_irq = True
          cls.instance_.reboot_cause_file = 'last_reboot_cause'
+         cls.instance_.persistent_presence_check = False
          cls.instance_._parseConfig()
          cls.instance_._parseCmdline()
       return cls.instance_

@@ -133,6 +133,7 @@ class MockTest(unittest.TestCase):
             assert isinstance(xcvr.addr, I2cAddr)
             assert xcvr.xcvrType in [Xcvr.SFP, Xcvr.QSFP, Xcvr.OSFP]
             assert isinstance(xcvr.xcvrId, int)
+            assert isinstance(xcvr.getName(), str)
             assert isinstance(xcvr.getPresence(), bool)
             assert isinstance(xcvr.getLowPowerMode(), bool)
             xcvr.setLowPowerMode(0)
@@ -169,6 +170,7 @@ class MockTest(unittest.TestCase):
          for psu in inventory.getPsus():
             assert isinstance(psu, Psu)
             assert isinstance(psu.psuId, int)
+            assert isinstance(psu.getName(), str)
             assert isinstance(psu.getPresence(), bool)
             assert isinstance(psu.getStatus(), bool)
 
@@ -180,6 +182,7 @@ class MockTest(unittest.TestCase):
             assert isinstance(fan.driver, Driver)
             assert isinstance(fan.fanId, int)
             assert isinstance(fan.led, LedImpl)
+            assert isinstance(fan.getName(), str)
             assert isinstance(fan.getSpeed(), int)
             assert (not fan.getSpeed() < 0) or (not fan.getSpeed() > 100)
             fan.setSpeed(100)
