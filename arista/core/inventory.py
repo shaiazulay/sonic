@@ -12,6 +12,9 @@ class Xcvr(object):
    def typeStr(cls, typeIndex):
       return ['sfp', 'qsfp', 'osfp'][typeIndex]
 
+   def getName(self):
+      raise NotImplementedError()
+
    def getPresence(self):
       raise NotImplementedError()
 
@@ -28,6 +31,9 @@ class Xcvr(object):
       raise NotImplementedError()
 
 class Fan(object):
+   def getName(self):
+      raise NotImplementedError()
+
    def getSpeed(self):
       raise NotImplementedError()
 
@@ -38,6 +44,9 @@ class Fan(object):
       raise NotImplementedError()
 
 class Psu(object):
+   def getName(self):
+      raise NotImplementedError()
+
    def getPresence(self):
       raise NotImplementedError()
 

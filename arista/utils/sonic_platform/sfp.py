@@ -12,3 +12,21 @@ class Sfp(SfpBase):
 
    def __init__(self, sfp):
       self._sfp = sfp
+
+   def get_name(self):
+      return self._sfp.getName()
+
+   def get_presence(self):
+      return self._sfp.getPresence()
+
+   def clear_interrupt(self):
+      intr = self._sfp.getInterruptLine()
+      if not intr:
+         return False
+      self.get_presence()
+      intr.clear()
+      return True
+
+   def get_interrupt_file(self):
+      intr = self._sfp.getInterruptLine()
+      return intr.getFile()

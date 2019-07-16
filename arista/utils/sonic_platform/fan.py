@@ -18,6 +18,9 @@ class Fan(FanBase):
    def __init__(self, fan):
       self._fan = fan
 
+   def get_name(self):
+      return self._fan.getName()
+
    def get_direction(self):
       return self.fanDirectionConversion[self._fan.getDirection()]
 
@@ -40,3 +43,6 @@ class Fan(FanBase):
 
    def get_presence(self):
       return self.get_status()
+
+   def get_interrupt_file(self):
+      return None
