@@ -20,8 +20,14 @@
 
 /* Fan info is for each fan slot */
 enum fan_info_type {
-   FAN_7011H_F = 0b00111,
-   NOT_PRESENT = 0b11111,
+   FAN_7011H_F = 0b000111,
+   FAN_7011S_F = 0b001101,
+   FAN_7011M_F = 0b001110,
+   NOT_PRESENT_40 = 0b011111,
+   FAN_7011H_R = 0b010111,
+   FAN_7011S_R = 0b011101,
+   FAN_7011M_R = 0b011110,
+   NOT_PRESENT_80 = 0b111111,
 };
 
 struct fan_info {
@@ -46,14 +52,68 @@ const static struct fan_info p3_fan_infos[] = {
       .present = true,
    },
    {
-      .id = NOT_PRESENT,
+      .id = FAN_7011S_F,
+      .hz = 100000,
+      .fans = 2,
+      .rotors = 1,
+      .pulses = 2,
+      .forward = true,
+      .present = true,
+   },
+   {
+      .id = FAN_7011M_F,
+      .hz = 100000,
+      .fans = 2,
+      .rotors = 1,
+      .pulses = 2,
+      .forward = true,
+      .present = true,
+   },
+   {
+      .id = FAN_7011H_R,
+      .hz = 100000,
+      .fans = 2,
+      .rotors = 2,
+      .pulses = 2,
+      .forward = false,
+      .present = true,
+   },
+   {
+      .id = FAN_7011S_R,
+      .hz = 100000,
+      .fans = 2,
+      .rotors = 1,
+      .pulses = 2,
+      .forward = false,
+      .present = true,
+   },
+   {
+      .id = FAN_7011M_R,
+      .hz = 100000,
+      .fans = 2,
+      .rotors = 1,
+      .pulses = 2,
+      .forward = false,
+      .present = true,
+   },
+   {
+      .id = NOT_PRESENT_40,
       .hz = 100000,
       .fans = 1,
       .rotors = 1,
       .pulses = 2,
       .forward = true,
       .present = false,
-   }
+   },
+   {
+      .id = NOT_PRESENT_80,
+      .hz = 100000,
+      .fans = 1,
+      .rotors = 1,
+      .pulses = 2,
+      .forward = true,
+      .present = false,
+   },
 };
 
 /* For each fan platform, there are multiple fan slots */
