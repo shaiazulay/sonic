@@ -195,7 +195,8 @@ def doReboot(args, platform):
 def doRebootCause(args, platform):
    if utils.inSimulation():
       return
-   updateReloadCausesHistory(platform.getReloadCauses(clear=True))
+   with utils.FileLock(lock_file):
+      updateReloadCausesHistory(platform.getReloadCauses(clear=True))
    if args.history:
       causes = getReloadCauseHistory()
    else:
