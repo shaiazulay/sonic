@@ -1,7 +1,7 @@
 [Unit]
 Description=Arista kernel modules init
 After=local-fs.target
-Before=opennsl-modules.service pmon.service process-reboot-cause.service
+Before=opennsl-modules.service pmon.service
 ConditionKernelCommandLine=Aboot
 
 [Service]
@@ -18,7 +18,6 @@ ExecStartPre=-/bin/bash -c ' \
     fi'
 
 ExecStart=/usr/bin/arista --syslog -l /var/log/arista.log setup --reset --background
-ExecStartPost=-/usr/bin/arista --syslog -l /var/log/arista.log reboot-cause
 ExecStop=/usr/bin/arista --syslog -l /var/log/arista.log clean
 
 [Install]
