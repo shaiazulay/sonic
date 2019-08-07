@@ -42,8 +42,8 @@ class Cloverdale(Platform):
          # transaction is done at the same moment of the poweroff, the handling of
          # the DPM is disabled. If you want rail information use it at your own risk
          # The current implementation will just read the firmware information once.
-         Ucd90120A(scd.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
-         Ucd90160(scd.i2cAddr(5, 0x4e), priority=Priority.BACKGROUND, causes={
+         Ucd90120A(scd.i2cAddr(1, 0x4e, t=3)),
+         Ucd90160(scd.i2cAddr(5, 0x4e, t=3), causes={
             'reboot': UcdGpi(2),
             'watchdog': UcdGpi(3),
             'powerloss': UcdMon(13),
@@ -62,33 +62,27 @@ class Cloverdale(Platform):
       ]))
 
       # PSU
-      psu1Addr = scd.i2cAddr(3, 0x58)
-      ds460Psu1 = Ds460(psu1Addr, '/sys/class/hwmon/hwmon4',
-                        priority=Priority.BACKGROUND,
-                        waitTimeout=30.0)
-      psu2Addr = scd.i2cAddr(4, 0x58)
-      ds460Psu2 = Ds460(psu2Addr, '/sys/class/hwmon/hwmon5',
-                        priority=Priority.BACKGROUND,
-                        waitTimeout=30.0)
+      psu1Addr = scd.i2cAddr(3, 0x58, t=3, datr=3, datw=3, ed=0)
+      ds460Psu1 = Ds460(psu1Addr, '/sys/class/hwmon/hwmon4')
+      psu2Addr = scd.i2cAddr(4, 0x58, t=3, datr=3, datw=3, ed=0)
+      ds460Psu2 = Ds460(psu2Addr, '/sys/class/hwmon/hwmon5')
       scd.addComponents([ds460Psu1, ds460Psu2])
-      scd.addBusTweak(psu1Addr, 3, 3, 3, 1)
-      scd.addBusTweak(psu2Addr, 3, 3, 3, 1)
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
       ])
 
-      psu1Component = PmbusMixedPsuComponent(presenceComponent=scd,
-                                             statusComponent=ds460Psu1)
-      psu2Component = PmbusMixedPsuComponent(presenceComponent=scd,
-                                             statusComponent=ds460Psu2)
+      psu1 = PmbusMixedPsuComponent(presenceComponent=scd,
+                                    statusComponent=ds460Psu1)
+      psu2 = PmbusMixedPsuComponent(presenceComponent=scd,
+                                    statusComponent=ds460Psu2)
 
-      self.addComponents([psu1Component, psu2Component])
+      self.addComponents([psu1, psu2])
 
       self.inventory.addPsus([
-         psu1Component.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
-         psu2Component.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
+         psu1.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
+         psu2.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
       ])
 
       scd.addSmbusMasterRange(0x8000, 5)

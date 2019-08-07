@@ -1,13 +1,12 @@
 from ..core.platform import registerPlatform, Platform
 from ..core.utils import incrange
 from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
-from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.cpld import CrowCpld
 from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.fan import CrowFanCpldComponent
-from ..components.psu import UpperlakeMixedPsuComponent
+from ..components.psu import UpperlakeMixedPsuComponent, PmbusPsu
 from ..components.scd import Scd
 
 @registerPlatform(['DCS-7060CX-32S', 'DCS-7060CX-32S-ES'])
@@ -41,12 +40,10 @@ class Upperlake(Platform):
          I2cKernelComponent(scd.i2cAddr(1, 0x4c), 'max6658',
                             '/sys/class/hwmon/hwmon3'),
          crowFanComponent,
-         Ucd90120A(scd.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
-         I2cKernelComponent(scd.i2cAddr(3, 0x58), 'pmbus',
-                            priority=Priority.BACKGROUND),
-         I2cKernelComponent(scd.i2cAddr(4, 0x58), 'pmbus',
-                            priority=Priority.BACKGROUND),
-         Ucd90120A(scd.i2cAddr(5, 0x4e), priority=Priority.BACKGROUND, causes={
+         Ucd90120A(scd.i2cAddr(1, 0x4e, t=3)),
+         PmbusPsu(scd.i2cAddr(3, 0x58, t=3, datr=2, datw=3)),
+         PmbusPsu(scd.i2cAddr(4, 0x58, t=3, datr=2, datw=3)),
+         Ucd90120A(scd.i2cAddr(5, 0x4e, t=3), causes={
             'reboot': UcdGpi(1),
             'watchdog': UcdGpi(2),
             'overtemp': UcdGpi(4),

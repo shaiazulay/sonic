@@ -6,7 +6,7 @@ from ..core.component import Priority
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.fan import CrowFanCpldComponent
-from ..components.psu import PmbusMixedPsuComponent, PmbusPsuComponent
+from ..components.psu import PmbusMixedPsuComponent, PmbusPsu
 from ..components.scd import Scd
 from ..components.ds125br import Ds125Br
 
@@ -45,17 +45,13 @@ class Clearlake(Platform):
          I2cKernelComponent(scd.i2cAddr(1, 0x4c), 'max6658',
                             '/sys/class/hwmon/hwmon3'),
          crowFanComponent,
-         Ucd90120A(scd.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
-         I2cKernelComponent(scd.i2cAddr(3, 0x58), 'pmbus',
-                            priority=Priority.BACKGROUND),
-         I2cKernelComponent(scd.i2cAddr(4, 0x58), 'pmbus',
-                            priority=Priority.BACKGROUND),
-         Ucd90120A(scd.i2cAddr(5, 0x4e), priority=Priority.BACKGROUND, causes={
+         Ucd90120A(scd.i2cAddr(1, 0x4e, t=3)),
+         Ucd90120A(scd.i2cAddr(5, 0x4e, t=3), causes={
             'reboot': UcdGpi(2),
             'watchdog': UcdGpi(3),
             'powerloss': UcdGpi(7),
          }),
-         Ds125Br(scd.i2cAddr(6, 0xff)),
+         Ds125Br(scd.i2cAddr(6, 0xff), priority=Priority.BACKGROUND),
       ])
 
       scd.addSmbusMasterRange(0x8000, 6)
@@ -68,12 +64,13 @@ class Clearlake(Platform):
          (0x6090, 'beacon'),
       ]))
 
-      self.inventory.addReset(scd.addReset(ResetGpio(0x4000, 0, False, 'switch_chip_reset')))
+      self.inventory.addReset(
+         scd.addReset(ResetGpio(0x4000, 0, False, 'switch_chip_reset')))
 
-      pmbusPsu1 = PmbusPsuComponent(scd.i2cAddr(3, 0x58), '/sys/class/hwmon/hwmon5',
-                                    priority=Priority.BACKGROUND)
-      pmbusPsu2 = PmbusPsuComponent(scd.i2cAddr(4, 0x58), '/sys/class/hwmon/hwmon6',
-                                    priority=Priority.BACKGROUND)
+      pmbusPsu1 = PmbusPsu(scd.i2cAddr(3, 0x58, t=3, datr=3, datw=3),
+                           '/sys/class/hwmon/hwmon5')
+      pmbusPsu2 = PmbusPsu(scd.i2cAddr(4, 0x58, t=3, datr=3, datw=3),
+                           '/sys/class/hwmon/hwmon6')
       scd.addComponents([pmbusPsu1, pmbusPsu2])
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
@@ -81,16 +78,16 @@ class Clearlake(Platform):
          NamedGpio(0x6940, 0, False, False, "mux"), # FIXME: oldSetup order/name
       ])
 
-      psu1Component = PmbusMixedPsuComponent(presenceComponent=scd,
-                                             statusComponent=pmbusPsu1)
-      psu2Component = PmbusMixedPsuComponent(presenceComponent=scd,
-                                             statusComponent=pmbusPsu2)
+      psu1 = PmbusMixedPsuComponent(presenceComponent=scd,
+                                    statusComponent=pmbusPsu1)
+      psu2 = PmbusMixedPsuComponent(presenceComponent=scd,
+                                    statusComponent=pmbusPsu2)
 
-      self.addComponents([psu1Component, psu2Component])
+      self.addComponents([psu1, psu2])
 
       self.inventory.addPsus([
-         psu1Component.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
-         psu2Component.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
+         psu1.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
+         psu2.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
       ])
 
       addr = 0x6100

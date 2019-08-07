@@ -280,13 +280,15 @@ class Scd(PciComponent):
          drv = self.drivers['scd']
          if not drv.loaded():
             # This codepath is unlikely to be used
-            drv.setup()            
+            drv.setup()
             FileWaiter(path, 5).waitFileReady()
          self.mmapReady = True
       return MmapResource(path)
 
-   def i2cAddr(self, bus, addr):
-      return ScdI2cAddr(self, bus, addr)
+   def i2cAddr(self, bus, addr, t=1, datr=3, datw=3, ed=0):
+      addr = ScdI2cAddr(self, bus, addr)
+      self.tweaks.append(Scd.BusTweak(addr, t, datr, datw, ed))
+      return addr
 
    def getSmbus(self, bus):
       return ScdSmbus(self, bus)
@@ -294,9 +296,8 @@ class Scd(PciComponent):
    def getInterrupts(self):
       return self.interrupts
 
-   def addBusTweak(self, addr, t=1, datr=1, datw=3, ed=0):
-      addr = self.i2cAddr(addr.bus, addr.address)
-      self.tweaks.append(Scd.BusTweak(addr, t, datr, datw, ed))
+   def addBusTweak(self, addr, t=1, datr=3, datw=3, ed=0):
+      self.i2cAddr(addr.bus, addr.address, t=t, datr=datr, datw=datw, ed=ed )
 
    def addSmbusMaster(self, addr, mid, bus=8):
       self.masters[addr] = {
@@ -336,7 +337,7 @@ class Scd(PciComponent):
       self.gpios += gpios
 
    def _addXcvr(self, xcvrId, xcvrType, bus, interruptLine, leds=None):
-      addr = self.i2cAddr(bus, Xcvr.ADDR)
+      addr = self.i2cAddr(bus, Xcvr.ADDR, t=1, datr=0, datw=3, ed=0)
       reset = None
       if xcvrType != Xcvr.SFP:
          reset = ResetImpl(name='%s%s' % (Xcvr.typeStr(xcvrType), xcvrId),
@@ -347,7 +348,6 @@ class Scd(PciComponent):
                       reset=reset, leds=leds)
       self.addComponent(I2cComponent(addr=addr,
                            drivers=[I2cKernelDriver(name='sff8436', addr=addr)]))
-      self.addBusTweak(addr)
       self.xcvrs.append(xcvr)
       return xcvr
 
