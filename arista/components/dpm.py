@@ -5,6 +5,7 @@ import logging
 from collections import namedtuple
 
 from ..core.cause import datetimeToStr, ReloadCauseEntry
+from ..core.component import Priority
 from ..core.config import Config
 from ..core.utils import JsonStoredData, inSimulation
 
@@ -40,11 +41,13 @@ class Ucd(I2cComponent):
    faultTimeBase = datetime.datetime(1970, 1, 1)
    daysOffset = 0
 
-   def __init__(self, addr, drivers=None, causes=None, **kwargs):
+   def __init__(self, addr, drivers=None, causes=None, priority=Priority.BACKGROUND,
+                **kwargs):
       drivers = drivers or [UcdI2cDevDriver(addr=addr, registers=self.Registers)]
       self.causes = causes or {}
       self.oldestTime = datetime.datetime(1970, 1, 1)
-      super(Ucd, self).__init__(addr=addr, drivers=drivers, **kwargs)
+      super(Ucd, self).__init__(addr=addr, drivers=drivers, priority=priority,
+                                **kwargs)
 
    def __str__(self):
       return '%s()' % self.__class__.__name__

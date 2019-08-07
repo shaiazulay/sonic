@@ -1,8 +1,9 @@
 from ..accessors.psu import MixedPsuImpl
 
-from ..core.component import Component
+from ..core.component import Component, Priority
 from ..core.inventory import Psu
 
+from ..drivers.i2c import I2cKernelDriver
 from ..drivers.pmbus import PmbusDriver
 
 from .common import I2cComponent
@@ -42,11 +43,15 @@ class ScdPmbusPsu(Psu):
    def getStatus(self):
       return self.pmbus_.getStatus()
 
-class PmbusPsuComponent(I2cComponent):
-   def __init__(self, addr, hwmonDir, drivers=None, **kwargs):
+class PmbusPsu(I2cComponent):
+   def __init__(self, addr, hwmonDir=None, name='pmbus', drivers=None,
+                waitTimeout=5.0, priority=Priority.BACKGROUND, **kwargs):
       sensors = ['curr1', 'curr2', 'curr3', 'in1', 'in2']
       if not drivers:
-         drivers = [PmbusDriver(addr=addr, hwmonDir=hwmonDir, sensors=sensors)]
-      super(PmbusPsuComponent, self).__init__(addr=addr, name="pmbus",
-                                              waitFile=hwmonDir, drivers=drivers,
-                                              **kwargs)
+         drivers = [I2cKernelDriver(name=name, addr=addr, waitFile=hwmonDir,
+                                    waitTimeout=waitTimeout)]
+         if hwmonDir is not None:
+            drivers.append(PmbusDriver(addr=addr, hwmonDir=hwmonDir,
+                                       sensors=sensors))
+      super(PmbusPsu, self).__init__(addr=addr, name="pmbus", drivers=drivers,
+                                     waitFile=hwmonDir, priority=priority, **kwargs)

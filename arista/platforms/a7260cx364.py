@@ -2,11 +2,11 @@ from ..core.platform import registerPlatform, Platform
 from ..core.driver import KernelDriver
 from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
-from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi
 from ..components.fan import LAFanCpldComponent
+from ..components.psu import PmbusPsu
 from ..components.rook import RookLedComponent
 from ..components.scd import Scd
 
@@ -33,10 +33,8 @@ class Gardena(Platform):
       scd.addComponents([
          I2cKernelComponent(scd.i2cAddr(0, 0x4c), 'max6658',
                             '/sys/class/hwmon/hwmon2'),
-         I2cKernelComponent(scd.i2cAddr(2, 0x58), 'pmbus',
-                            priority=Priority.BACKGROUND),
-         I2cKernelComponent(scd.i2cAddr(3, 0x58), 'pmbus',
-                            priority=Priority.BACKGROUND),
+         PmbusPsu(scd.i2cAddr(2, 0x58, t=3, datr=2, datw=3)),
+         PmbusPsu(scd.i2cAddr(3, 0x58, t=3, datr=2, datw=3)),
       ])
 
       scd.addSmbusMasterRange(0x8000, 8, 0x80)
@@ -129,8 +127,8 @@ class Gardena(Platform):
       cpld.addComponents([
          I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
                             '/sys/class/hwmon/hwmon3'),
-         Ucd90160(cpld.i2cAddr(1, 0x4e), priority=Priority.BACKGROUND),
-         Ucd90120A(cpld.i2cAddr(10, 0x34), priority=Priority.BACKGROUND, causes={
+         Ucd90160(cpld.i2cAddr(1, 0x4e, t=3)),
+         Ucd90120A(cpld.i2cAddr(10, 0x34, t=3), causes={
             'powerloss': UcdGpi(1),
             'reboot': UcdGpi(2),
             'watchdog': UcdGpi(3),

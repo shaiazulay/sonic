@@ -1,4 +1,3 @@
-from ..core.component import Priority
 from ..core.driver import KernelDriver
 from ..core.platform import registerPlatform, Platform
 from ..core.types import NamedGpio, PciAddr, ResetGpio
@@ -7,6 +6,7 @@ from ..core.utils import incrange
 from ..components.common import I2cKernelComponent, SwitchChip
 from ..components.dpm import Ucd90320, UcdGpi
 from ..components.fan import TehamaFanCpldComponent
+from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
 @registerPlatform('DCS-7060PX4-32')
@@ -32,10 +32,8 @@ class BlackhawkO(Platform):
       scd.addComponents([
          I2cKernelComponent(scd.i2cAddr(8, 0x4d), 'max6581',
                             '/sys/class/hwmon/hwmon2'),
-         I2cKernelComponent(scd.i2cAddr(11, 0x58), 'pmbus',
-                            priority=Priority.BACKGROUND),
-         I2cKernelComponent(scd.i2cAddr(12, 0x58), 'pmbus',
-                            priority=Priority.BACKGROUND),
+         PmbusPsu(scd.i2cAddr(11, 0x58, t=3, datr=2, datw=3)),
+         PmbusPsu(scd.i2cAddr(12, 0x58, t=3, datr=2, datw=3)),
       ])
 
       scd.addSmbusMasterRange(0x8000, 8, 0x80)
@@ -122,7 +120,7 @@ class BlackhawkO(Platform):
       cpld.addComponents([
          I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
                             '/sys/class/hwmon/hwmon3'),
-         Ucd90320(cpld.i2cAddr(10, 0x11), priority=Priority.BACKGROUND, causes={
+         Ucd90320(cpld.i2cAddr(10, 0x11, t=3), causes={
             'overtemp': UcdGpi(1),
             'powerloss': UcdGpi(3),
             'watchdog': UcdGpi(5),
