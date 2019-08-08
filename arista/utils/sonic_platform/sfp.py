@@ -29,4 +29,6 @@ class Sfp(SfpBase):
 
    def get_interrupt_file(self):
       intr = self._sfp.getInterruptLine()
-      return intr.getFile()
+      if intr:
+         return intr.getFile()
+      return None
