@@ -2276,26 +2276,27 @@ static ssize_t new_object(struct device *dev, struct device_attribute *attr,
    return res;
 }
 
-static DEVICE_ATTR(new_object, S_IRUGO|S_IWUSR|S_IWGRP, 0, new_object);
+static DEVICE_ATTR(new_object, S_IWUSR|S_IWGRP, 0, new_object);
 
-static struct scd_bus *find_scd_bus(struct scd_context *ctx, u16 bus) {
+static struct scd_bus *scd_find_bus(struct scd_context *ctx, u16 bus_nr) {
    struct scd_master *master;
-   struct scd_bus *scd_bus;
+   struct scd_bus *bus;
 
    list_for_each_entry(master, &ctx->master_list, list) {
-      list_for_each_entry(scd_bus, &master->bus_list, list) {
-         if (scd_bus->adap.nr != bus)
+      list_for_each_entry(bus, &master->bus_list, list) {
+         if (bus->adap.nr != bus_nr)
             continue;
-         return scd_bus;
+         return bus;
       }
    }
+
    return NULL;
 }
 
-static ssize_t set_bus_params(struct scd_context *ctx, u16 bus,
-                              struct bus_params *params) {
+static ssize_t scd_set_bus_params(struct scd_context *ctx, u16 bus,
+                                  struct bus_params *params) {
    struct bus_params *p;
-   struct scd_bus *scd_bus = find_scd_bus(ctx, bus);
+   struct scd_bus *scd_bus = scd_find_bus(ctx, bus);
 
    if (!scd_bus) {
       scd_err("Cannot find bus %d to add tweak\n", bus);
@@ -2351,7 +2352,7 @@ static ssize_t parse_smbus_tweak(struct scd_context *ctx, const char *buf,
    PARSE_INT_OR_RETURN(&ptr, tmp, u8, &params.datw);
    PARSE_INT_OR_RETURN(&ptr, tmp, u8, &params.ed);
 
-   err = set_bus_params(ctx, bus, &params);
+   err = scd_set_bus_params(ctx, bus, &params);
    if (err == 0)
       return count;
    return err;
@@ -2373,7 +2374,74 @@ static ssize_t smbus_tweaks(struct device *dev, struct device_attribute *attr,
    return res;
 }
 
-static DEVICE_ATTR(smbus_tweaks, S_IRUGO|S_IWUSR|S_IWGRP, 0, smbus_tweaks);
+static ssize_t scd_dump_smbus_tweaks(struct scd_context *ctx, char *buf, size_t max)
+{
+   const struct scd_master *master;
+   const struct scd_bus *bus;
+   const struct bus_params *params;
+   ssize_t count = 0;
+
+   list_for_each_entry(master, &ctx->master_list, list) {
+      list_for_each_entry(bus, &master->bus_list, list) {
+         list_for_each_entry(params, &bus->params, list) {
+            count += scnprintf(buf + count, max - count,
+                  "%d/%d/%02x: adap=%d t=%d datr=%d datw=%d ed=%d\n",
+                  master->id, bus->id, params->addr, bus->adap.nr,
+                  params->t, params->datr, params->datw, params->ed);
+            if (count == max) {
+               return count;
+            }
+         }
+      }
+   }
+
+   return count;
+}
+
+static ssize_t show_smbus_tweaks(struct device *dev, struct device_attribute *attr,
+                                 char *buf)
+{
+   struct scd_context *ctx = get_context_for_dev(dev);
+   ssize_t count;
+
+   if (!ctx) {
+      return -ENODEV;
+   }
+
+   scd_lock(ctx);
+   count = scd_dump_smbus_tweaks(ctx, buf, PAGE_SIZE);
+   scd_unlock(ctx);
+
+   return count;
+}
+
+static DEVICE_ATTR(smbus_tweaks, S_IRUSR|S_IRGRP|S_IWUSR|S_IWGRP,
+                   show_smbus_tweaks, smbus_tweaks);
+
+static int scd_create_sysfs_files(struct scd_context *ctx) {
+   int err;
+
+   err = sysfs_create_file(&ctx->pdev->dev.kobj, &dev_attr_new_object.attr);
+   if (err) {
+      dev_err(&ctx->pdev->dev, "could not create %s attribute: %d",
+              dev_attr_new_object.attr.name, err);
+      goto fail_new_object;
+   }
+
+   err = sysfs_create_file(&ctx->pdev->dev.kobj, &dev_attr_smbus_tweaks.attr);
+   if (err) {
+      dev_err(&ctx->pdev->dev, "could not create %s attribute for smbus tweak: %d",
+              dev_attr_smbus_tweaks.attr.name, err);
+      goto fail_smbus_tweaks;
+   }
+
+   return 0;
+
+fail_smbus_tweaks:
+   sysfs_remove_file(&ctx->pdev->dev.kobj, &dev_attr_new_object.attr);
+fail_new_object:
+   return err;
+}
 
 static int scd_ext_hwmon_probe(struct pci_dev *pdev, size_t mem_len)
 {
@@ -2412,18 +2480,8 @@ static int scd_ext_hwmon_probe(struct pci_dev *pdev, size_t mem_len)
    list_add_tail(&ctx->list, &scd_list);
    module_unlock();
 
-   err = sysfs_create_file(&pdev->dev.kobj, &dev_attr_new_object.attr);
+   err = scd_create_sysfs_files(ctx);
    if (err) {
-      pr_err("could not create %s attribute: %d",
-             dev_attr_new_object.attr.name, err);
-      goto fail_sysfs;
-   }
-
-   err = sysfs_create_file(&pdev->dev.kobj, &dev_attr_smbus_tweaks.attr);
-   if (err) {
-      pr_err("could not create %s attribute for smbus tweak: %d",
-             dev_attr_smbus_tweaks.attr.name, err);
-      sysfs_remove_file(&pdev->dev.kobj, &dev_attr_new_object.attr);
       goto fail_sysfs;
    }
 
