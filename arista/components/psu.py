@@ -45,7 +45,7 @@ class ScdPmbusPsu(Psu):
 
 class PmbusPsu(I2cComponent):
    def __init__(self, addr, hwmonDir=None, name='pmbus', drivers=None,
-                waitTimeout=5.0, priority=Priority.BACKGROUND, **kwargs):
+                waitTimeout=25.0, priority=Priority.BACKGROUND, **kwargs):
       sensors = ['curr1', 'curr2', 'curr3', 'in1', 'in2']
       if not drivers:
          drivers = [I2cKernelDriver(name=name, addr=addr, waitFile=hwmonDir,
