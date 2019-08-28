@@ -120,6 +120,12 @@ class FanSysfsDriver(SysfsDriver):
                self.addr.getSysfsPath(), 'pwm%s' % fan.fanId)
       return self.read('fan%s_airflow' % fan.fanId)
 
+   def getFanPresence(self, fan):
+      if not self.sysfsPath:
+         self.sysfsPath = utils.locateHwmonPath(
+               self.addr.getSysfsPath(), 'pwm%s' % fan.fanId)
+      return bool(int(self.read('fan%s_present' % fan.fanId)))
+
 class LedSysfsDriver(SysfsDriver):
    def __init__(self, colorDict=None, **kwargs):
       self.colorDict = colorDict or {

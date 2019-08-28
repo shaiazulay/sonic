@@ -16,6 +16,9 @@ class FanImpl(Fan):
    def setSpeed(self, speed):
       return self.driver.setFanSpeed(self, speed)
 
+   def getPresence(self):
+      return self.driver.getFanPresence(self)
+
    def getDirection(self):
       return self.driver.getFanDirection(self)
 
