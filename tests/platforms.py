@@ -183,6 +183,7 @@ class MockTest(unittest.TestCase):
             assert isinstance(fan.fanId, int)
             assert isinstance(fan.led, LedImpl)
             assert isinstance(fan.getPresence(), bool)
+            assert isinstance(fan.getStatus(), bool)
             assert isinstance(fan.getName(), str)
             assert isinstance(fan.getSpeed(), int)
             assert (not fan.getSpeed() < 0) or (not fan.getSpeed() > 100)
