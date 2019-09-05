@@ -19,6 +19,9 @@ class FanImpl(Fan):
    def getPresence(self):
       return self.driver.getFanPresence(self)
 
+   def getStatus(self):
+      return self.driver.getFanStatus(self)
+
    def getDirection(self):
       return self.driver.getFanDirection(self)
 

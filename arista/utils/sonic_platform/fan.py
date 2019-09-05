@@ -38,7 +38,7 @@ class Fan(FanBase):
          return False
 
    def get_status(self):
-      return self.get_presence()
+      return self._fan.getStatus()
 
    def get_presence(self):
       return self._fan.getPresence()
