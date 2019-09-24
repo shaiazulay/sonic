@@ -30,7 +30,7 @@ class Smartsville(Platform):
       scdFanComponent = ScdFanComponent(waitFile='/sys/class/hwmon/hwmon2')
 
       for fanId in incrange(1, 6):
-         self.inventory.addFan(scdFanComponent.createFan(fanId))
+         self.inventory.addFan(scdFanComponent.createFan(fanId, ledId=(fanId-1)/2+1))
 
       scd.addComponents([
          scdFanComponent,

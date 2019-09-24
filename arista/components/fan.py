@@ -89,8 +89,9 @@ class ScdFanComponent(PciComponent):
       super(ScdFanComponent, self).__init__(drivers=drivers, **kwargs)
 
    def createFan(self, fanId, driver='FanSysfsDriver', ledDriver='LedSysfsDriver',
-                 **kwargs):
+                 ledId=None, **kwargs):
       logging.debug('creating scd fan %s', fanId)
       driver = self.drivers[driver]
-      led = LedImpl(name='fan%s' % fanId, driver=self.drivers[ledDriver])
+      ledId = ledId or fanId
+      led = LedImpl(name='fan%s' % ledId, driver=self.drivers[ledDriver])
       return FanImpl(fanId=fanId, driver=driver, led=led, **kwargs)
