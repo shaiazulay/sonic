@@ -44,7 +44,7 @@
 #define RESET_CLEAR_OFFSET 0x10
 
 #define MASTER_DEFAULT_BUS_COUNT 8
-#define MASTER_DEFAULT_MAX_RETRIES 3
+#define MASTER_DEFAULT_MAX_RETRIES 6
 
 #define MAX_CONFIG_LINE_SIZE 100
 
@@ -319,7 +319,8 @@ union smbus_request_reg {
 union smbus_ctrl_status_reg {
    u32 reg;
    struct {
-      u32 reserved1:13;
+      u32 fs:10;
+      u32 reserved1:3;
       u32 foe:1;
       u32 reserved2:12;
       u32 brb:1;
@@ -402,21 +403,19 @@ static union smbus_ctrl_status_reg smbus_master_read_cs(struct scd_master *maste
 
 static union smbus_response_reg smbus_master_read_resp(struct scd_master *master)
 {
+   union smbus_ctrl_status_reg cs;
    union smbus_response_reg resp;
-   u32 retries = 10;
+   u32 retries = 20;
+
+   cs = smbus_master_read_cs(master);
+   while (!cs.fs && --retries) {
+      msleep(10);
+      cs = smbus_master_read_cs(master);
+   }
+   if (!cs.fs)
+      scd_dbg("smbus response: fifo still empty after retries");
 
    resp.reg = scd_read_register(master->ctx->pdev, master->resp);
-
-   while (resp.fe && --retries) {
-      msleep(10);
-      resp.reg = scd_read_register(master->ctx->pdev, master->resp);
-   }
-
-   if (resp.fe) {
-      scd_dbg("smbus response: fifo still empty after retries");
-      resp.reg = 0xffffffff;
-   }
-
    return resp;
 }
 
@@ -425,7 +424,7 @@ static s32 smbus_check_resp(union smbus_response_reg resp, u32 tid)
    const char *error;
    int error_ret = -EIO;
 
-   if (resp.reg == 0xffffffff) {
+   if (resp.fe) {
       error = "fe";
       goto fail;
    }
@@ -475,9 +474,10 @@ static void smbus_master_reset(struct scd_master *master)
    cs.reset = 1;
    cs.foe = 1;
    smbus_master_write_cs(master, cs);
-   mdelay(10);
+   mdelay(50);
    cs.reset = 0;
    smbus_master_write_cs(master, cs);
+   mdelay(50);
 }
 
 static const struct bus_params *get_bus_params(struct scd_bus *bus, u16 addr) {
