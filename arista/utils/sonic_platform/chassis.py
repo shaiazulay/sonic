@@ -91,8 +91,6 @@ class Chassis(ChassisBase):
             presence_dict[component_type][component.get_name()] = \
                (component, component.get_presence())
 
-      for component in self._component_list:
-         process_component('component', component)
       for fan in self._fan_list:
          process_component('fan', fan)
       for module in self._module_list:
