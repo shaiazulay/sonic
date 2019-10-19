@@ -59,7 +59,7 @@ class Chassis(ChassisBase):
       return self.get_serial()
 
    def get_reboot_cause(self):
-      unknown = (ChassisBase.REBOOT_CAUSE_HARDWARE_OTHER, 'unknown cause')
+      unknown = (ChassisBase.REBOOT_CAUSE_NON_HARDWARE, None)
       causes = cause.getReloadCause()
       for item in causes:
          reason = item.getCause()
