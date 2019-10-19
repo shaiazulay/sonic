@@ -4,7 +4,6 @@ from ..core.types import PciAddr, NamedGpio, ResetGpio
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90160, Ucd90320, UcdGpi
-from ..components.fan import ScdFanComponent
 from ..components.phy import Babbage
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
@@ -27,13 +26,7 @@ class Smartsville(Platform):
 
       self.inventory.addWatchdog(scd.createWatchdog())
 
-      scdFanComponent = ScdFanComponent(waitFile='/sys/class/hwmon/hwmon2')
-
-      for fanId in incrange(1, 6):
-         self.inventory.addFan(scdFanComponent.createFan(fanId, ledId=(fanId-1)/2+1))
-
       scd.addComponents([
-         scdFanComponent,
          I2cKernelComponent(scd.i2cAddr(0, 0x48), 'tmp468',
                             '/sys/class/hwmon/hwmon3'),
          PmbusPsu(scd.i2cAddr(6, 0x58, t=3, datr=3, datw=3)),

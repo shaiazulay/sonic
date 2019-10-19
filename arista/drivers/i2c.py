@@ -79,11 +79,5 @@ class I2cKernelFanDriver(I2cKernelDriver):
    def setFanSpeed(self, fan, speed):
       return self.sysfsDriver.setFanSpeed(fan, speed)
 
-   def getFanPresence(self, fan):
-      return self.sysfsDriver.getFanPresence(fan)
-
-   def getFanStatus(self, fan):
-      return self.sysfsDriver.getFanStatus(fan)
-
    def getFanDirection(self, fan):
       return self.sysfsDriver.getFanDirection(fan)

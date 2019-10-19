@@ -38,10 +38,11 @@ class Fan(FanBase):
          return False
 
    def get_status(self):
-      return self._fan.getStatus()
+      led = self._fan.getLed()
+      return led.getColor() == self.STATUS_LED_COLOR_GREEN
 
    def get_presence(self):
-      return self._fan.getPresence()
+      return self.get_status()
 
    def get_interrupt_file(self):
       return None

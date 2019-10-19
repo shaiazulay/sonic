@@ -96,39 +96,29 @@ class FanSysfsDriver(SysfsDriver):
       super(FanSysfsDriver, self).setup()
       self.fileWaiter.waitFileReady()
 
-   def computeSysfsPath(self, fanId):
-      if not self.sysfsPath:
-         self.sysfsPath = utils.locateHwmonPath(
-               self.addr.getSysfsPath(), 'pwm%s' % fanId)
-
    # Fan speeds are a percentage
    def getFanSpeed(self, fan):
-      self.computeSysfsPath(fan.fanId)
+      if not self.sysfsPath:
+         self.sysfsPath = utils.locateHwmonPath(
+               self.addr.getSysfsPath(), 'pwm%s' % fan.fanId)
       return int(float(self.read('pwm%s' % fan.fanId)) / self.maxPwm * 100)
 
    def setFanSpeed(self, fan, speed):
-      self.computeSysfsPath(fan.fanId)
       if not int(speed) in range(101):
          logging.error('invalid speed setting %s for fan %s', speed, fan.fanId)
          return None
+      if not self.sysfsPath:
+         self.sysfsPath = utils.locateHwmonPath(
+               self.addr.getSysfsPath(), 'pwm%s' % fan.fanId)
       logging.debug('setting fan %s speed to %s', fan.fanId, speed)
       return self.write('pwm%s' % fan.fanId,
                         str(int(int(speed) * 0.01 * self.maxPwm)))
 
    def getFanDirection(self, fan):
-      self.computeSysfsPath(fan.fanId)
+      if not self.sysfsPath:
+         self.sysfsPath = utils.locateHwmonPath(
+               self.addr.getSysfsPath(), 'pwm%s' % fan.fanId)
       return self.read('fan%s_airflow' % fan.fanId)
-
-   def getFanPresence(self, fan):
-      self.computeSysfsPath(fan.fanId)
-      return bool(int(self.read('fan%s_present' % fan.fanId)))
-
-   def getFanStatus(self, fan):
-      self.computeSysfsPath(fan.fanId)
-      try:
-         return not bool(int(self.read('fan%s_fault' % fan.fanId)))
-      except IOError:
-         return self.getFanPresence(fan)
 
 class LedSysfsDriver(SysfsDriver):
    def __init__(self, colorDict=None, **kwargs):
