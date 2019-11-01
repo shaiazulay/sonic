@@ -50,6 +50,10 @@
 
 #define SMBUS_BLOCK_READ_TIMEOUT_STEP 1
 
+#define FAIL_REASON_MAX_SZ 50
+#define SET_FAIL_REASON(fail_reason, ...) \
+   snprintf(fail_reason, FAIL_REASON_MAX_SZ, ##__VA_ARGS__)
+
 struct scd_context {
    struct pci_dev *pdev;
    size_t res_size;
@@ -419,7 +423,8 @@ static union smbus_response_reg smbus_master_read_resp(struct scd_master *master
    return resp;
 }
 
-static s32 smbus_check_resp(union smbus_response_reg resp, u32 tid)
+static s32 smbus_check_resp(union smbus_response_reg resp, u32 tid,
+                            char *fail_reason)
 {
    const char *error;
    int error_ret = -EIO;
@@ -457,6 +462,8 @@ static s32 smbus_check_resp(union smbus_response_reg resp, u32 tid)
 
 fail:
    scd_dbg("smbus response: %s error. reg=0x%08x", error, resp.reg);
+   if (fail_reason != NULL)
+      SET_FAIL_REASON(fail_reason, "bad response: %s", error);
    return error_ret;
 }
 
@@ -554,7 +561,7 @@ static s32 scd_smbus_block_read(struct scd_bus *bus, u16 addr, u8 command,
    req.ti = 0;
    for (i = 0; i < ss; ++i) {
       resp = smbus_master_read_resp(master);
-      ret = smbus_check_resp(resp, req.ti);
+      ret = smbus_check_resp(resp, req.ti, NULL);
       if (ret)
          return ret;
       req.ti++;
@@ -577,7 +584,8 @@ static s32 scd_smbus_block_read(struct scd_bus *bus, u16 addr, u8 command,
 
 static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags,
                              char read_write, u8 command, int size,
-                             union i2c_smbus_data *data, int data_size)
+                             union i2c_smbus_data *data, int data_size,
+                             char *fail_reason)
 {
    struct scd_master *master = bus->master;
    const struct bus_params *params;
@@ -587,7 +595,7 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
    int ret = 0;
    u32 ss = 0;
    u32 data_offset = 0;
-   const char* fail_reason = "";
+   char _fail_reason[FAIL_REASON_MAX_SZ] = {0};
 
    params = get_bus_params(bus, addr);
 
@@ -638,15 +646,16 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
          if (master->br_supported) {
             ret = scd_smbus_block_read(bus, addr, command, data, data_size);
             if (ret) {
-               fail_reason = "block read failed";
+               SET_FAIL_REASON(fail_reason, "block read failed");
                goto fail;
             }
             return 0;
          } else {
             ret = scd_smbus_do_impl(bus, addr, flags, I2C_SMBUS_READ, command,
-                                    I2C_SMBUS_BYTE_DATA, data, data_size);
+                                    I2C_SMBUS_BYTE_DATA, data, data_size,
+                                    _fail_reason);
             if (ret) {
-               fail_reason = "cannot get size";
+               SET_FAIL_REASON(fail_reason, "block size: %s", _fail_reason);
                goto fail;
             }
          }
@@ -697,9 +706,8 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
    req.ti = 0;
    for (i = 0; i < ss; i++) {
       resp = smbus_master_read_resp(master);
-      ret = smbus_check_resp(resp, req.ti);
+      ret = smbus_check_resp(resp, req.ti, fail_reason);
       if (ret) {
-         fail_reason = "bad response";
          goto fail;
       }
       req.ti++;
@@ -718,14 +726,14 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
             if (i >= 3) {
                if (size == I2C_SMBUS_I2C_BLOCK_DATA) {
                   if (i - 2 >= data_size) {
-                     fail_reason = "buffer is too short";
+                     SET_FAIL_REASON(fail_reason, "buffer too short");
                      ret = -EINVAL;
                      goto fail;
                   }
                   data->block[i - 2] = resp.d;
                } else {
                   if (i - 3 >= data_size) {
-                     fail_reason = "buffer is too short";
+                     SET_FAIL_REASON(fail_reason, "buffer too short");
                      ret = -EINVAL;
                      goto fail;
                   }
@@ -739,23 +747,24 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
    return 0;
 
 fail:
-   scd_dbg("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x data_size=0x%x " \
-           "adapter=\"%s\" (%s)\n", (read_write) ? "read" : "write", addr, command,
-           size, data_size, bus->adap.name, fail_reason);
+   scd_dbg("smbus_do_impl %s failed addr=0x%02x reg=0x%02x size=0x%02x "
+           "data_size=0x%x adapter=\"%s\" (%s)\n", (read_write) ? "read" : "write",
+           addr, command, size, data_size, bus->adap.name, fail_reason);
    smbus_master_reset(master);
    return ret;
 }
 
 static s32 scd_smbus_do(struct scd_bus *bus, u16 addr, unsigned short flags,
                         char read_write, u8 command, int size,
-                        union i2c_smbus_data *data, int data_size)
+                        union i2c_smbus_data *data, int data_size,
+                        char *fail_reason)
 {
    struct scd_master *master = bus->master;
    s32 ret;
 
    master_lock(master);
    ret = scd_smbus_do_impl(bus, addr, flags, read_write, command, size, data,
-                           data_size);
+                           data_size, fail_reason);
    master_unlock(master);
 
    return ret;
@@ -770,13 +779,14 @@ static s32 scd_smbus_access_impl(struct i2c_adapter *adap, u16 addr,
    struct scd_master *master = bus->master;
    int retry = 0;
    int ret;
+   char fail_reason[FAIL_REASON_MAX_SZ] = {0};
 
    scd_dbg("smbus %s do addr=0x%02x reg=0x%02x size=0x%02x data_size=0x%04x "
            "adapter=\"%s\"\n", (read_write) ? "read" : "write", addr, command,
            size, data_size, bus->adap.name);
    do {
       ret = scd_smbus_do(bus, addr, flags, read_write, command, size, data,
-                         data_size);
+                         data_size, fail_reason);
       if (ret != -EIO)
          return ret;
       retry++;
@@ -784,8 +794,8 @@ static s32 scd_smbus_access_impl(struct i2c_adapter *adap, u16 addr,
    } while (retry < master->max_retries);
 
    scd_warn("smbus %s failed addr=0x%02x reg=0x%02x size=0x%02x data_size=0x%04x "
-            "adapter=\"%s\"\n", (read_write) ? "read" : "write",
-            addr, command, size, data_size, bus->adap.name);
+            "adapter=\"%s\" (%s)\n", (read_write) ? "read" : "write",
+            addr, command, size, data_size, bus->adap.name, fail_reason);
 
    return -EIO;
 }
