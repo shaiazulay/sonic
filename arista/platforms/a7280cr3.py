@@ -153,3 +153,11 @@ class SmartsvilleBK(Smartsville):
 @registerPlatform(['DCS-7280CR3-32D4', 'DCS-7280CR3-32D4-M'])
 class SmartsvilleDD(Smartsville):
    pass
+
+@registerPlatform(['DCS-7280CR3K-32D4'])
+class SmartsvilleDDBK(Smartsville):
+   pass
+
+@registerPlatform(['DCS-7280CR3MK-32P4'])
+class SmartsvilleBkMs(Smartsville):
+   pass
