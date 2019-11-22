@@ -81,8 +81,8 @@ class ScdKernelDriver(PciKernelDriver):
       scd = self.scd
       data = []
 
-      for addr, info in scd.masters.items():
-         data += ["master %#x %d %d" % (addr, info['id'], info['bus'])]
+      for addr, info in scd.smbusMasters.items():
+         data += ["smbus_master %#x %d %d" % (addr, info['id'], info['bus'])]
 
       for addr, platform, num in scd.fanGroups:
          data += ["fan_group %#x %u %u" % (addr, platform, num)]

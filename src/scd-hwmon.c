@@ -66,12 +66,12 @@ struct scd_context {
    struct list_head gpio_list;
    struct list_head reset_list;
    struct list_head led_list;
-   struct list_head master_list;
+   struct list_head smbus_master_list;
    struct list_head xcvr_list;
    struct list_head fan_group_list;
 };
 
-struct scd_master {
+struct scd_smbus_master {
    struct scd_context *ctx;
    struct list_head list;
 
@@ -95,15 +95,15 @@ struct bus_params {
    u8 ed;
 };
 
-const struct bus_params default_bus_params = {
+const struct bus_params default_smbus_params = {
    .t = 1,
    .datw = 3,
    .datr = 3,
    .ed = 0,
 };
 
-struct scd_bus {
-   struct scd_master *master;
+struct scd_smbus {
+   struct scd_smbus_master *master;
    struct list_head list;
 
    u32 id;
@@ -364,12 +364,12 @@ static void module_unlock(void)
    mutex_unlock(&scd_hwmon_mutex);
 }
 
-static void master_lock(struct scd_master *master)
+static void smbus_master_lock(struct scd_smbus_master *master)
 {
    mutex_lock(&master->mutex);
 }
 
-static void master_unlock(struct scd_master *master)
+static void smbus_master_unlock(struct scd_smbus_master *master)
 {
    mutex_unlock(&master->mutex);
 }
@@ -385,27 +385,27 @@ static void scd_unlock(struct scd_context *ctx)
 }
 
 /* SMBus functions */
-static void smbus_master_write_req(struct scd_master *master,
+static void smbus_master_write_req(struct scd_smbus_master *master,
                                    union smbus_request_reg req)
 {
    u32 addr = (u32)master->req;
    scd_write_register(master->ctx->pdev, addr, req.reg);
 }
 
-static void smbus_master_write_cs(struct scd_master *master,
+static void smbus_master_write_cs(struct scd_smbus_master *master,
                                   union smbus_ctrl_status_reg cs)
 {
    scd_write_register(master->ctx->pdev, master->cs, cs.reg);
 }
 
-static union smbus_ctrl_status_reg smbus_master_read_cs(struct scd_master *master)
+static union smbus_ctrl_status_reg smbus_master_read_cs(struct scd_smbus_master *master)
 {
    union smbus_ctrl_status_reg cs;
    cs.reg = scd_read_register(master->ctx->pdev, master->cs);
    return cs;
 }
 
-static union smbus_response_reg smbus_master_read_resp(struct scd_master *master)
+static union smbus_response_reg smbus_master_read_resp(struct scd_smbus_master *master)
 {
    union smbus_ctrl_status_reg cs;
    union smbus_response_reg resp;
@@ -474,7 +474,7 @@ static u32 scd_smbus_func(struct i2c_adapter *adapter)
       I2C_FUNC_SMBUS_I2C_BLOCK | I2C_FUNC_SMBUS_BLOCK_DATA | I2C_FUNC_I2C;
 }
 
-static void smbus_master_reset(struct scd_master *master)
+static void smbus_master_reset(struct scd_smbus_master *master)
 {
    union smbus_ctrl_status_reg cs;
    cs = smbus_master_read_cs(master);
@@ -487,8 +487,8 @@ static void smbus_master_reset(struct scd_master *master)
    mdelay(50);
 }
 
-static const struct bus_params *get_bus_params(struct scd_bus *bus, u16 addr) {
-   const struct bus_params *params = &default_bus_params;
+static const struct bus_params *get_smbus_params(struct scd_smbus *bus, u16 addr) {
+   const struct bus_params *params = &default_smbus_params;
    struct bus_params *params_tmp;
 
    list_for_each_entry(params_tmp, &bus->params, list) {
@@ -501,10 +501,10 @@ static const struct bus_params *get_bus_params(struct scd_bus *bus, u16 addr) {
    return params;
 }
 
-static s32 scd_smbus_block_read(struct scd_bus *bus, u16 addr, u8 command,
+static s32 scd_smbus_block_read(struct scd_smbus *bus, u16 addr, u8 command,
                                 union i2c_smbus_data *data, int data_size)
 {
-   struct scd_master *master = bus->master;
+   struct scd_smbus_master *master = bus->master;
    const struct bus_params *params;
    int i, t, ct;
    union smbus_request_reg req;
@@ -513,7 +513,7 @@ static s32 scd_smbus_block_read(struct scd_bus *bus, u16 addr, u8 command,
    int ret = 0;
    u32 ss = 3;
 
-   params = get_bus_params(bus, addr);
+   params = get_smbus_params(bus, addr);
 
    req.reg = 0;
    req.bs = bus->id;
@@ -582,12 +582,12 @@ static s32 scd_smbus_block_read(struct scd_bus *bus, u16 addr, u8 command,
    return 0;
 }
 
-static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags,
+static s32 scd_smbus_do_impl(struct scd_smbus *bus, u16 addr, unsigned short flags,
                              char read_write, u8 command, int size,
                              union i2c_smbus_data *data, int data_size,
                              char *fail_reason)
 {
-   struct scd_master *master = bus->master;
+   struct scd_smbus_master *master = bus->master;
    const struct bus_params *params;
    int i;
    union smbus_request_reg req;
@@ -597,7 +597,7 @@ static s32 scd_smbus_do_impl(struct scd_bus *bus, u16 addr, unsigned short flags
    u32 data_offset = 0;
    char _fail_reason[FAIL_REASON_MAX_SZ] = {0};
 
-   params = get_bus_params(bus, addr);
+   params = get_smbus_params(bus, addr);
 
    req.reg = 0;
    req.bs = bus->id;
@@ -754,18 +754,18 @@ fail:
    return ret;
 }
 
-static s32 scd_smbus_do(struct scd_bus *bus, u16 addr, unsigned short flags,
+static s32 scd_smbus_do(struct scd_smbus *bus, u16 addr, unsigned short flags,
                         char read_write, u8 command, int size,
                         union i2c_smbus_data *data, int data_size,
                         char *fail_reason)
 {
-   struct scd_master *master = bus->master;
+   struct scd_smbus_master *master = bus->master;
    s32 ret;
 
-   master_lock(master);
+   smbus_master_lock(master);
    ret = scd_smbus_do_impl(bus, addr, flags, read_write, command, size, data,
                            data_size, fail_reason);
-   master_unlock(master);
+   smbus_master_unlock(master);
 
    return ret;
 }
@@ -775,8 +775,8 @@ static s32 scd_smbus_access_impl(struct i2c_adapter *adap, u16 addr,
                                  u8 command, int size, union i2c_smbus_data *data,
                                  int data_size)
 {
-   struct scd_bus *bus = i2c_get_adapdata(adap);
-   struct scd_master *master = bus->master;
+   struct scd_smbus *bus = i2c_get_adapdata(adap);
+   struct scd_smbus_master *master = bus->master;
    int retry = 0;
    int ret;
    char fail_reason[FAIL_REASON_MAX_SZ] = {0};
@@ -808,7 +808,7 @@ static s32 scd_smbus_access(struct i2c_adapter *adap, u16 addr,
                                 data, I2C_SMBUS_BLOCK_MAX + 2);
 }
 
-static int scd_master_xfer_get_command(struct i2c_msg *msg) {
+static int scd_smbus_master_xfer_get_command(struct i2c_msg *msg) {
    if ((msg->flags & I2C_M_RD) || (msg->len != 1)) {
       scd_dbg("i2c rw: unsupported command.\n");
       return -EINVAL;
@@ -816,11 +816,11 @@ static int scd_master_xfer_get_command(struct i2c_msg *msg) {
    return msg->buf[0];
 }
 
-static int scd_master_xfer(struct i2c_adapter *adap,
+static int scd_smbus_master_xfer(struct i2c_adapter *adap,
                            struct i2c_msg *msgs,
                            int num)
 {
-   struct scd_bus *bus = i2c_get_adapdata(adap);
+   struct scd_smbus *bus = i2c_get_adapdata(adap);
    int ret, command;
    int read_write;
    union i2c_smbus_data *data;
@@ -834,7 +834,7 @@ static int scd_master_xfer(struct i2c_adapter *adap,
    }
 
    if (num == 2) {
-      command = scd_master_xfer_get_command(&msgs[0]);
+      command = scd_smbus_master_xfer_get_command(&msgs[0]);
       if (command < 0) {
          return command;
       }
@@ -860,7 +860,7 @@ static int scd_master_xfer(struct i2c_adapter *adap,
 }
 
 static struct i2c_algorithm scd_smbus_algorithm = {
-   .master_xfer   = scd_master_xfer,
+   .master_xfer   = scd_smbus_master_xfer,
    .smbus_xfer    = scd_smbus_access,
    .functionality = scd_smbus_func,
 };
@@ -899,9 +899,9 @@ static struct scd_context *get_context_for_dev(struct device *dev)
    return NULL;
 }
 
-static int scd_smbus_bus_add(struct scd_master *master, int id)
+static int scd_smbus_bus_add(struct scd_smbus_master *master, int id)
 {
-   struct scd_bus *bus;
+   struct scd_smbus *bus;
    int err;
 
    bus = kzalloc(sizeof(*bus), GFP_KERNEL);
@@ -927,9 +927,9 @@ static int scd_smbus_bus_add(struct scd_master *master, int id)
       return err;
    }
 
-   master_lock(master);
+   smbus_master_lock(master);
    list_add_tail(&bus->list, &master->bus_list);
-   master_unlock(master);
+   smbus_master_unlock(master);
 
    return 0;
 }
@@ -937,14 +937,14 @@ static int scd_smbus_bus_add(struct scd_master *master, int id)
 /*
  * Must be called with the scd lock held.
  */
-static void scd_smbus_master_remove(struct scd_master *master)
+static void scd_smbus_master_remove(struct scd_smbus_master *master)
 {
-   struct scd_bus *bus;
-   struct scd_bus *tmp_bus;
+   struct scd_smbus *bus;
+   struct scd_smbus *tmp_bus;
    struct bus_params *params;
    struct bus_params *tmp_params;
 
-   /* Remove all i2c_adapter first to make sure the scd_bus and scd_master are
+   /* Remove all i2c_adapter first to make sure the scd_smbus and scd_smbus_master are
     * unused when removing them.
     */
    list_for_each_entry(bus, &master->bus_list, list) {
@@ -973,10 +973,10 @@ static void scd_smbus_master_remove(struct scd_master *master)
  */
 static void scd_smbus_remove_all(struct scd_context *ctx)
 {
-   struct scd_master *master;
-   struct scd_master *tmp_master;
+   struct scd_smbus_master *master;
+   struct scd_smbus_master *tmp_master;
 
-   list_for_each_entry_safe(master, tmp_master, &ctx->master_list, list) {
+   list_for_each_entry_safe(master, tmp_master, &ctx->smbus_master_list, list) {
       scd_smbus_master_remove(master);
    }
 }
@@ -984,12 +984,12 @@ static void scd_smbus_remove_all(struct scd_context *ctx)
 static int scd_smbus_master_add(struct scd_context *ctx, u32 addr, u32 id,
                                 u32 bus_count)
 {
-   struct scd_master *master;
+   struct scd_smbus_master *master;
    union smbus_ctrl_status_reg cs;
    int err = 0;
    int i;
 
-   list_for_each_entry(master, &ctx->master_list, list) {
+   list_for_each_entry(master, &ctx->smbus_master_list, list) {
       if (master->id == id) {
          return -EEXIST;
       }
@@ -1022,7 +1022,7 @@ static int scd_smbus_master_add(struct scd_context *ctx, u32 addr, u32 id,
    master->br_supported = (cs.ver >= 2);
    scd_dbg("smbus 0x%x:0x%x version %d", id, addr, cs.ver);
 
-   list_add_tail(&master->list, &ctx->master_list);
+   list_add_tail(&master->list, &ctx->smbus_master_list);
 
    return 0;
 
@@ -1984,9 +1984,9 @@ fail:
    } while(0)
 
 
-// new_master <addr> <accel_id> <bus_count:8>
-static ssize_t parse_new_object_master(struct scd_context *ctx,
-                                       char *buf, size_t count)
+// new_smbus_master <addr> <accel_id> <bus_count:8>
+static ssize_t parse_new_object_smbus_master(struct scd_context *ctx,
+                                             char *buf, size_t count)
 {
    u32 id;
    u32 addr;
@@ -2184,14 +2184,14 @@ static struct {
    const char *name;
    new_object_parse_func func;
 } funcs[] = {
-   { "master",    parse_new_object_master },
-   { "led",       parse_new_object_led },
-   { "fan_group", parse_new_object_fan_group},
-   { "osfp",      parse_new_object_osfp },
-   { "qsfp",      parse_new_object_qsfp },
-   { "sfp",       parse_new_object_sfp },
-   { "reset",     parse_new_object_reset },
-   { "gpio",      parse_new_object_gpio },
+   { "fan_group",       parse_new_object_fan_group},
+   { "gpio",            parse_new_object_gpio },
+   { "led",             parse_new_object_led },
+   { "osfp",            parse_new_object_osfp },
+   { "qsfp",            parse_new_object_qsfp },
+   { "reset",           parse_new_object_reset },
+   { "sfp",             parse_new_object_sfp },
+   { "smbus_master",    parse_new_object_smbus_master },
    { NULL, NULL }
 };
 
@@ -2288,11 +2288,12 @@ static ssize_t new_object(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR(new_object, S_IWUSR|S_IWGRP, 0, new_object);
 
-static struct scd_bus *scd_find_bus(struct scd_context *ctx, u16 bus_nr) {
-   struct scd_master *master;
-   struct scd_bus *bus;
+static struct scd_smbus *scd_find_smbus(struct scd_context *ctx, u16 bus_nr)
+{
+   struct scd_smbus_master *master;
+   struct scd_smbus *bus;
 
-   list_for_each_entry(master, &ctx->master_list, list) {
+   list_for_each_entry(master, &ctx->smbus_master_list, list) {
       list_for_each_entry(bus, &master->bus_list, list) {
          if (bus->adap.nr != bus_nr)
             continue;
@@ -2303,17 +2304,18 @@ static struct scd_bus *scd_find_bus(struct scd_context *ctx, u16 bus_nr) {
    return NULL;
 }
 
-static ssize_t scd_set_bus_params(struct scd_context *ctx, u16 bus,
-                                  struct bus_params *params) {
+static ssize_t scd_set_smbus_params(struct scd_context *ctx, u16 bus,
+                                    struct bus_params *params)
+{
    struct bus_params *p;
-   struct scd_bus *scd_bus = scd_find_bus(ctx, bus);
+   struct scd_smbus *scd_smbus = scd_find_smbus(ctx, bus);
 
-   if (!scd_bus) {
+   if (!scd_smbus) {
       scd_err("Cannot find bus %d to add tweak\n", bus);
       return -EINVAL;
    }
 
-   list_for_each_entry(p, &scd_bus->params, list) {
+   list_for_each_entry(p, &scd_smbus->params, list) {
       if (p->addr == params->addr) {
          p->t = params->t;
          p->datw = params->datw;
@@ -2333,7 +2335,7 @@ static ssize_t scd_set_bus_params(struct scd_context *ctx, u16 bus,
    p->datw = params->datw;
    p->datr = params->datr;
    p->ed = params->ed;
-   list_add_tail(&p->list, &scd_bus->params);
+   list_add_tail(&p->list, &scd_smbus->params);
    return 0;
 }
 
@@ -2362,7 +2364,7 @@ static ssize_t parse_smbus_tweak(struct scd_context *ctx, const char *buf,
    PARSE_INT_OR_RETURN(&ptr, tmp, u8, &params.datw);
    PARSE_INT_OR_RETURN(&ptr, tmp, u8, &params.ed);
 
-   err = scd_set_bus_params(ctx, bus, &params);
+   err = scd_set_smbus_params(ctx, bus, &params);
    if (err == 0)
       return count;
    return err;
@@ -2386,12 +2388,12 @@ static ssize_t smbus_tweaks(struct device *dev, struct device_attribute *attr,
 
 static ssize_t scd_dump_smbus_tweaks(struct scd_context *ctx, char *buf, size_t max)
 {
-   const struct scd_master *master;
-   const struct scd_bus *bus;
+   const struct scd_smbus_master *master;
+   const struct scd_smbus *bus;
    const struct bus_params *params;
    ssize_t count = 0;
 
-   list_for_each_entry(master, &ctx->master_list, list) {
+   list_for_each_entry(master, &ctx->smbus_master_list, list) {
       list_for_each_entry(bus, &master->bus_list, list) {
          list_for_each_entry(params, &bus->params, list) {
             count += scnprintf(buf + count, max - count,
@@ -2478,7 +2480,7 @@ static int scd_ext_hwmon_probe(struct pci_dev *pdev, size_t mem_len)
    ctx->res_size = mem_len;
 
    INIT_LIST_HEAD(&ctx->led_list);
-   INIT_LIST_HEAD(&ctx->master_list);
+   INIT_LIST_HEAD(&ctx->smbus_master_list);
    INIT_LIST_HEAD(&ctx->gpio_list);
    INIT_LIST_HEAD(&ctx->reset_list);
    INIT_LIST_HEAD(&ctx->xcvr_list);

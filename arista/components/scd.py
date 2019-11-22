@@ -231,7 +231,7 @@ class Scd(PciComponent):
                             PsuSysfsDriver(sysfsPath=self.pciSysfs),
                             ResetSysfsDriver(sysfsPath=self.pciSysfs),
                             XcvrSysfsDriver(sysfsPath=self.pciSysfs)]
-      self.masters = OrderedDict()
+      self.smbusMasters = OrderedDict()
       self.mmapReady = False
       self.interrupts = []
       self.fanGroups = []
@@ -300,7 +300,7 @@ class Scd(PciComponent):
       self.i2cAddr(addr.bus, addr.address, t=t, datr=datr, datw=datw, ed=ed )
 
    def addSmbusMaster(self, addr, mid, bus=8):
-      self.masters[addr] = {
+      self.smbusMasters[addr] = {
          'id': mid,
          'bus': bus,
       }
