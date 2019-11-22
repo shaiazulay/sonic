@@ -27,10 +27,14 @@
 #include <linux/i2c.h>
 #include <linux/pci.h>
 #include <linux/stat.h>
+#include <linux/mii.h>
+#include <linux/netdevice.h>
+#include <linux/phy.h>
 
 #include "scd.h"
-#include "scd-hwmon.h"
 #include "scd-fan.h"
+#include "scd-hwmon.h"
+#include "scd-mdio.h"
 
 #define SCD_MODULE_NAME "scd-hwmon"
 
@@ -67,6 +71,7 @@ struct scd_context {
    struct list_head reset_list;
    struct list_head led_list;
    struct list_head smbus_master_list;
+   struct list_head mdio_master_list;
    struct list_head xcvr_list;
    struct list_head fan_group_list;
 };
@@ -370,6 +375,16 @@ static void smbus_master_lock(struct scd_smbus_master *master)
 }
 
 static void smbus_master_unlock(struct scd_smbus_master *master)
+{
+   mutex_unlock(&master->mutex);
+}
+
+static void mdio_master_lock(struct scd_mdio_master *master)
+{
+   mutex_lock(&master->mutex);
+}
+
+static void mdio_master_unlock(struct scd_mdio_master *master)
 {
    mutex_unlock(&master->mutex);
 }
@@ -883,13 +898,24 @@ static struct scd_context *get_context_for_pdev(struct pci_dev *pdev)
    return NULL;
 }
 
+static inline struct device *get_scd_dev(struct scd_context *ctx)
+{
+   return &ctx->pdev->dev;
+}
+
+
+static inline struct kobject *get_scd_kobj(struct scd_context *ctx)
+{
+   return &ctx->pdev->dev.kobj;
+}
+
 static struct scd_context *get_context_for_dev(struct device *dev)
 {
    struct scd_context *ctx;
 
    module_lock();
    list_for_each_entry(ctx, &scd_list, list) {
-      if (&ctx->pdev->dev == dev) {
+      if (get_scd_dev(ctx) == dev) {
          module_unlock();
          return ctx;
       }
@@ -915,7 +941,7 @@ static int scd_smbus_bus_add(struct scd_smbus_master *master, int id)
    bus->adap.owner = THIS_MODULE;
    bus->adap.class = 0;
    bus->adap.algo = &scd_smbus_algorithm;
-   bus->adap.dev.parent = &master->ctx->pdev->dev;
+   bus->adap.dev.parent = get_scd_dev(master->ctx);
    scnprintf(bus->adap.name,
              sizeof(bus->adap.name),
              "SCD %s SMBus master %d bus %d", pci_name(master->ctx->pdev),
@@ -1031,6 +1057,468 @@ fail_bus:
    return err;
 }
 
+/* MDIO bus functions */
+static union mdio_ctrl_status_reg mdio_master_read_cs(struct scd_mdio_master *master)
+{
+   union mdio_ctrl_status_reg cs;
+
+   cs.reg = scd_read_register(master->ctx->pdev, master->cs);
+   return cs;
+}
+
+static void mdio_master_write_cs(struct scd_mdio_master *master,
+                                 union mdio_ctrl_status_reg cs)
+{
+   scd_write_register(master->ctx->pdev, master->cs, cs.reg);
+}
+
+static union mdio_ctrl_status_reg get_default_mdio_cs(struct scd_mdio_master *master)
+{
+   union mdio_ctrl_status_reg cs = {0};
+
+   cs.sp = master->speed;
+   return cs;
+}
+
+static void mdio_master_reset(struct scd_mdio_master *master)
+{
+   union mdio_ctrl_status_reg cs = get_default_mdio_cs(master);
+
+   cs.reset = 1;
+   mdio_master_write_cs(master, cs);
+   msleep(MDIO_RESET_DELAY);
+
+   cs.reset = 0;
+   mdio_master_write_cs(master, cs);
+   msleep(MDIO_RESET_DELAY);
+}
+
+static void mdio_master_reset_interrupt(struct scd_mdio_master *master)
+{
+   union mdio_ctrl_status_reg cs = get_default_mdio_cs(master);
+
+   cs.fe = 1;
+   mdio_master_write_cs(master, cs);
+}
+
+static int mdio_master_wait_response(struct scd_mdio_master *master)
+{
+   union mdio_ctrl_status_reg cs;
+   unsigned long delay = MDIO_WAIT_INITIAL;
+
+   while (!MDIO_WAIT_END(delay)) {
+      cs = mdio_master_read_cs(master);
+      if (cs.res_count == 1) {
+         return 0;
+      } else if (cs.res_count == 0) {
+         if (delay < MDIO_WAIT_MAX_UDELAY)
+            udelay(delay);
+         else
+            msleep(delay / 1000);
+
+         delay = MDIO_WAIT_NEXT(delay);
+      } else {
+         scd_warn("mdio wait_resp failed on master %d", master->id);
+         return -EOPNOTSUPP;
+      }
+   }
+
+   scd_warn("mdio wait_resp timeout on master %d", master->id);
+
+   return -EAGAIN;
+}
+
+u8 mdio_master_get_req_id(struct scd_mdio_master *master)
+{
+   return master->req_id++;
+}
+
+static s32 scd_mdio_bus_request(struct scd_mdio_bus *mdio_bus,
+                                enum mdio_operation op, int clause,
+                                int prtad, int devad, u16 data)
+{
+   struct scd_mdio_master *master = mdio_bus->master;
+   union mdio_request_lo_reg req_lo = {0};
+   union mdio_request_hi_reg req_hi = {0};
+   union mdio_response_reg resp = {0};
+   int err;
+
+   mdio_master_reset_interrupt(master);
+
+   req_lo.bs = mdio_bus->id;
+   req_lo.t = clause;
+   req_lo.op = op;
+   req_lo.dt = devad;
+   req_lo.pa = prtad;
+   req_lo.d = data;
+   scd_write_register(master->ctx->pdev, master->req_lo, req_lo.reg);
+
+   req_hi.ri = mdio_master_get_req_id(master);
+   scd_write_register(master->ctx->pdev, master->req_hi, req_hi.reg);
+
+   err = mdio_master_wait_response(master);
+   if (err)
+      return err;
+
+   mdio_master_reset_interrupt(master);
+
+   resp.reg = scd_read_register(master->ctx->pdev, master->resp);
+   if (resp.ts != 1 || resp.fe == 1) {
+      scd_warn("mdio bus request failed in reading resp")
+      return -EIO;
+   }
+
+   if (op == SCD_MDIO_READ)
+      return resp.d;
+
+   return 0;
+}
+
+static s32 scd_mii_bus_do(struct mii_bus *mii_bus, int addr, int op, int regnum, u16 val)
+{
+   struct scd_mdio_bus *mdio_bus = mii_bus->priv;
+   int prtad = addr >> 5;
+   int devad = addr & 0x1f;
+   int clause = (addr & MDIO_PHY_ID_C45) ? 1 : 0;
+   int err;
+
+   scd_dbg("mii_bus_do, op: %d, master: %d, bus: %d, clause %d, prtad: %d, "
+           "devad: %d, regnum: %04x, value: %04x", op, mdio_bus->master->id,
+           mdio_bus->id, clause, prtad, devad, regnum, val);
+
+   mdio_master_lock(mdio_bus->master);
+
+   err = scd_mdio_bus_request(mdio_bus, SCD_MDIO_SET, clause, prtad, devad, regnum);
+   if (err)
+      goto final;
+
+   err = scd_mdio_bus_request(mdio_bus, op, clause, prtad, devad, val);
+
+final:
+   mdio_master_unlock(mdio_bus->master);
+   return err;
+}
+
+static s32 scd_mii_bus_read(struct mii_bus *mii_bus, int addr, int regnum)
+{
+   return scd_mii_bus_do(mii_bus, addr, SCD_MDIO_READ, regnum, 0);
+}
+
+static s32 scd_mii_bus_write(struct mii_bus *mii_bus, int addr, int regnum,
+                             u16 val)
+{
+   return scd_mii_bus_do(mii_bus, addr, SCD_MDIO_WRITE, regnum, val);
+}
+
+static int scd_mdio_mii_id(int prtad, int devad, int mode)
+{
+   int dev_id = (prtad << 5) | devad;
+
+   if (mode & MDIO_SUPPORTS_C45)
+      dev_id |= MDIO_PHY_ID_C45;
+
+   return dev_id;
+}
+
+static int scd_mdio_read(struct net_device *netdev, int prtad, int devad, u16 addr)
+{
+   struct scd_mdio_device *mdio_dev = netdev_priv(netdev);
+   int dev_id = scd_mdio_mii_id(prtad, devad, mdio_dev->mode_support);
+
+   scd_dbg("scd_mdio_read, dev_id: %04x, prtad: %d, devad: %d, addr: %04x", dev_id,
+           prtad, devad, addr);
+   return mdiobus_read(mdio_dev->mdio_bus->mii_bus, dev_id, addr);
+}
+
+static int scd_mdio_write(struct net_device *netdev, int prtad, int devad, u16 addr,
+                          u16 value)
+{
+   struct scd_mdio_device *mdio_dev = netdev_priv(netdev);
+   int dev_id = scd_mdio_mii_id(prtad, devad, mdio_dev->mode_support);
+
+   scd_dbg("scd_mdio_write, dev_id: %04x, prtad: %d, devad: %d, addr: %04x, "
+           "value: %04x", dev_id, prtad, devad, addr, value);
+   return mdiobus_write(mdio_dev->mdio_bus->mii_bus, dev_id, addr, value);
+}
+
+static ssize_t mdio_id_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+   struct mdio_device *mdio_dev = to_mdio_device(dev);
+   struct scd_mdio_bus *bus = (struct scd_mdio_bus*)mdio_dev->bus->priv;
+   return sprintf(buf, "mdio%d_%d_%d\n", bus->master->id, bus->id, mdio_dev->addr);
+}
+static DEVICE_ATTR_RO(mdio_id);
+
+static struct attribute *scd_mdio_dev_attrs[] = {
+   &dev_attr_mdio_id.attr,
+   NULL,
+};
+ATTRIBUTE_GROUPS(scd_mdio_dev);
+
+static struct device_type mdio_bus_gearbox_type = {
+   .name = "scd-mdio",
+   .groups = scd_mdio_dev_groups,
+};
+
+static int gearbox_ioctl(struct net_device *netdev, struct ifreq *req, int cmd)
+{
+   struct scd_mdio_device *mdio_dev = netdev_priv(netdev);
+
+   return mdio_mii_ioctl(&mdio_dev->mdio_if, if_mii(req), cmd);
+}
+
+static const struct net_device_ops gearbox_netdev_ops = {
+   .ndo_do_ioctl = gearbox_ioctl,
+};
+
+static void gearbox_setup(struct net_device *dev)
+{
+   dev->netdev_ops = &gearbox_netdev_ops;
+}
+
+static int __scd_mdio_device_add(struct scd_mdio_bus *bus, u16 dev_id, u16 prtad,
+                                 u16 devad, u16 clause)
+{
+   char name[IFNAMSIZ];
+   struct net_device *net_dev;
+   struct mdio_device *mdio_dev = NULL;
+   struct scd_mdio_device *scd_mdio_dev;
+   int err;
+
+   scnprintf(name, sizeof(name), "mdio%d_%d_%d", bus->master->id, bus->id, dev_id);
+   net_dev = alloc_netdev(sizeof(*scd_mdio_dev), name,
+                          NET_NAME_UNKNOWN, gearbox_setup);
+   if (!net_dev) {
+      return -ENOMEM;
+   }
+
+   scd_mdio_dev = netdev_priv(net_dev);
+   scd_mdio_dev->net_dev = net_dev;
+   scd_mdio_dev->mdio_bus = bus;
+   scd_mdio_dev->mode_support = clause;
+   scd_mdio_dev->mdio_if.prtad = scd_mdio_mii_id(prtad, devad, clause);
+   scd_mdio_dev->mdio_if.mode_support = clause;
+   scd_mdio_dev->mdio_if.dev = net_dev;
+   scd_mdio_dev->mdio_if.mdio_read = scd_mdio_read;
+   scd_mdio_dev->mdio_if.mdio_write = scd_mdio_write;
+   scd_mdio_dev->id = dev_id;
+
+   err = register_netdev(net_dev);
+   if (err) {
+      goto fail_register_netdev;
+   }
+
+   mdio_dev = mdio_device_create(bus->mii_bus, dev_id);
+   if (IS_ERR(mdio_dev)) {
+      err = PTR_ERR(mdio_dev);
+      goto fail_create_mdio;
+   }
+   mdio_dev->dev.type = &mdio_bus_gearbox_type;
+   err = mdio_device_register(mdio_dev);
+   if (err) {
+      goto fail_register_mdio;
+   }
+   scd_mdio_dev->mdio_dev = mdio_dev;
+
+   list_add_tail(&scd_mdio_dev->list, &bus->device_list);
+   scd_dbg("mdio device %s prtad %d devad %d clause %d", name, prtad, devad, clause);
+
+   return 0;
+
+fail_register_mdio:
+   mdio_device_free(mdio_dev);
+fail_create_mdio:
+   unregister_netdev(net_dev);
+fail_register_netdev:
+   free_netdev(net_dev);
+
+   return err;
+}
+
+static struct scd_mdio_bus *scd_find_mdio_bus(struct scd_context *ctx, u16 master_id,
+                                              u16 bus_id)
+{
+   struct scd_mdio_master *master;
+   struct scd_mdio_bus *bus;
+
+   list_for_each_entry(master, &ctx->mdio_master_list, list) {
+      if (master->id != master_id)
+         continue;
+      list_for_each_entry(bus, &master->bus_list, list) {
+         if (bus->id == bus_id)
+            return bus;
+      }
+   }
+
+   return NULL;
+}
+
+static int scd_mdio_device_add(struct scd_context *ctx, u16 master_id, u16 bus_id,
+                               u16 dev_id, u16 prtad, u16 devad, u16 clause)
+{
+   struct scd_mdio_bus *bus;
+   struct scd_mdio_device *device;
+
+   bus = scd_find_mdio_bus(ctx, master_id, bus_id);
+   if (!bus) {
+      scd_warn("failed to find mdio bus %u:%u\n", master_id, bus_id);
+      return -EEXIST;
+   }
+
+   list_for_each_entry(device, &bus->device_list, list) {
+      if (device->id == dev_id) {
+         scd_warn("existing mdio device %u on bus %u:%u\n", dev_id, master_id,
+                  bus_id);
+         return -EEXIST;
+      }
+   }
+
+   return __scd_mdio_device_add(bus, dev_id, prtad, devad, clause);
+}
+
+static int scd_mdio_bus_add(struct scd_mdio_master *master, int id)
+{
+   struct scd_mdio_bus *scd_mdio_bus;
+   struct mii_bus *mii_bus;
+   int err = -ENODEV;
+
+   scd_mdio_bus = kzalloc(sizeof(*scd_mdio_bus), GFP_KERNEL);
+   if (!scd_mdio_bus) {
+      return -ENOMEM;
+   }
+
+   scd_mdio_bus->master = master;
+   scd_mdio_bus->id = id;
+   INIT_LIST_HEAD(&scd_mdio_bus->device_list);
+
+   mii_bus = mdiobus_alloc();
+   if (!mii_bus) {
+      kfree(scd_mdio_bus);
+      return -ENOMEM;
+   }
+   mii_bus->read = scd_mii_bus_read;
+   mii_bus->write = scd_mii_bus_write;
+   mii_bus->name = "scd-mdio";
+   mii_bus->priv = scd_mdio_bus;
+   mii_bus->parent = get_scd_dev(master->ctx);
+   mii_bus->phy_mask = GENMASK(31, 0);
+   scnprintf(mii_bus->id, MII_BUS_ID_SIZE,
+             "scd-%s-mdio-%02x:%02x", pci_name(master->ctx->pdev),
+             master->id, id);
+
+   err = mdiobus_register(mii_bus);
+   if (err) {
+      goto fail;
+   }
+
+   scd_mdio_bus->mii_bus = mii_bus;
+   mdio_master_lock(master);
+   list_add_tail(&scd_mdio_bus->list, &master->bus_list);
+   mdio_master_unlock(master);
+
+   return 0;
+
+fail:
+   mdiobus_free(scd_mdio_bus->mii_bus);
+   kfree(scd_mdio_bus);
+   return err;
+}
+
+static void scd_mdio_device_remove(struct scd_mdio_device *device)
+{
+   struct net_device *net_dev = device->net_dev;
+
+   mdio_device_remove(device->mdio_dev);
+   mdio_device_free(device->mdio_dev);
+   unregister_netdev(net_dev);
+   free_netdev(net_dev);
+}
+
+static void scd_mdio_master_remove(struct scd_mdio_master *master)
+{
+   struct scd_mdio_bus *bus;
+   struct scd_mdio_bus *tmp_bus;
+   struct scd_mdio_device *device;
+   struct scd_mdio_device *tmp_device;
+
+   mdio_master_reset(master);
+
+   list_for_each_entry_safe(bus, tmp_bus, &master->bus_list, list) {
+      list_for_each_entry_safe(device, tmp_device, &bus->device_list, list) {
+         list_del(&device->list);
+         scd_mdio_device_remove(device);
+      }
+      list_del(&bus->list);
+      if (bus->mii_bus) {
+         mdiobus_unregister(bus->mii_bus);
+         mdiobus_free(bus->mii_bus);
+      }
+      kfree(bus);
+   }
+   list_del(&master->list);
+
+   mutex_destroy(&master->mutex);
+   kfree(master);
+}
+
+static void scd_mdio_remove_all(struct scd_context *ctx)
+{
+   struct scd_mdio_master *master;
+   struct scd_mdio_master *tmp_master;
+
+   list_for_each_entry_safe(master, tmp_master, &ctx->mdio_master_list, list) {
+      scd_mdio_master_remove(master);
+   }
+}
+
+static int scd_mdio_master_add(struct scd_context *ctx, u32 addr, u16 id,
+                               u16 bus_count, u16 speed)
+{
+   struct scd_mdio_master *master;
+   int err = 0;
+   int i;
+
+   list_for_each_entry(master, &ctx->mdio_master_list, list) {
+      if (master->id == id) {
+         return -EEXIST;
+      }
+   }
+
+   master = kzalloc(sizeof(*master), GFP_KERNEL);
+   if (!master) {
+      return -ENOMEM;
+   }
+
+   master->ctx = ctx;
+   mutex_init(&master->mutex);
+   master->id = id;
+   master->req_lo = addr + MDIO_REQUEST_LO_OFFSET;
+   master->req_hi = addr + MDIO_REQUEST_HI_OFFSET;
+   master->cs = addr + MDIO_CONTROL_STATUS_OFFSET;
+   master->resp = addr + MDIO_RESPONSE_OFFSET;
+   master->speed = speed;
+   INIT_LIST_HEAD(&master->bus_list);
+
+   for (i = 0; i < bus_count; ++i) {
+      err = scd_mdio_bus_add(master, i);
+      if (err) {
+         goto fail_bus;
+      }
+   }
+
+   mdio_master_reset(master);
+
+   list_add_tail(&master->list, &ctx->mdio_master_list);
+   scd_dbg("mdio master 0x%x:0x%x bus_count %d speed %d ", id, addr,
+           bus_count, speed);
+
+   return 0;
+
+fail_bus:
+   scd_mdio_master_remove(master);
+   return err;
+}
+
 static void led_brightness_set(struct led_classdev *led_cdev,
                                enum led_brightness value)
 {
@@ -1112,7 +1600,7 @@ static int scd_led_add(struct scd_context *ctx, const char *name, u32 addr)
    led->cdev.name = led->name;
    led->cdev.brightness_set = led_brightness_set;
 
-   ret = led_classdev_register(&ctx->pdev->dev, &led->cdev);
+   ret = led_classdev_register(get_scd_dev(ctx), &led->cdev);
    if (ret) {
       kfree(led);
       return ret;
@@ -1234,7 +1722,7 @@ static ssize_t attribute_xcvr_set(struct device *dev,
 
 static void scd_gpio_unregister(struct scd_context *ctx, struct scd_gpio *gpio)
 {
-   sysfs_remove_file(&ctx->pdev->dev.kobj, &gpio->attr.dev_attr.attr);
+   sysfs_remove_file(get_scd_kobj(ctx), &gpio->attr.dev_attr.attr);
 }
 
 static void scd_xcvr_unregister(struct scd_context *ctx, struct scd_xcvr *xcvr)
@@ -1243,7 +1731,7 @@ static void scd_xcvr_unregister(struct scd_context *ctx, struct scd_xcvr *xcvr)
 
    for (i = 0; i < XCVR_ATTR_MAX_COUNT; i++) {
       if (xcvr->attr[i].xcvr) {
-         sysfs_remove_file(&ctx->pdev->dev.kobj, &xcvr->attr[i].dev_attr.attr);
+         sysfs_remove_file(get_scd_kobj(ctx), &xcvr->attr[i].dev_attr.attr);
       }
    }
 }
@@ -1252,7 +1740,7 @@ static int scd_gpio_register(struct scd_context *ctx, struct scd_gpio *gpio)
 {
    int res;
 
-   res = sysfs_create_file(&ctx->pdev->dev.kobj, &gpio->attr.dev_attr.attr);
+   res = sysfs_create_file(get_scd_kobj(ctx), &gpio->attr.dev_attr.attr);
    if (res) {
       pr_err("could not create %s attribute for gpio: %d",
              gpio->attr.dev_attr.attr.name, res);
@@ -1292,7 +1780,7 @@ static int scd_xcvr_register(struct scd_xcvr *xcvr, const struct gpio_cfg *cfgs,
          SCD_RW_XCVR_ATTR(xcvr->attr[gpio.bitpos], name, name_size, xcvr,
                           gpio.bitpos, gpio.active_low, gpio.clear_on_read);
       }
-      res = sysfs_create_file(&xcvr->ctx->pdev->dev.kobj,
+      res = sysfs_create_file(get_scd_kobj(xcvr->ctx),
                               &xcvr->attr[gpio.bitpos].dev_attr.attr);
       if (res) {
          pr_err("could not create %s attribute for xcvr: %d",
@@ -1571,7 +2059,7 @@ static int scd_fan_group_register(struct scd_context *ctx,
    }
    fan_group->groups[0] = &fan_group->group;
 
-   hwmon_dev = hwmon_device_register_with_groups(&ctx->pdev->dev, fan_group->name,
+   hwmon_dev = hwmon_device_register_with_groups(get_scd_dev(ctx), fan_group->name,
                                                  fan_group, fan_group->groups);
    if (IS_ERR(hwmon_dev)) {
       kfree(fan_group->group.attrs);
@@ -1584,7 +2072,7 @@ static int scd_fan_group_register(struct scd_context *ctx,
       fan->led_cdev.name = fan->led_name;
       fan->led_cdev.brightness_set = fan_led_brightness_set;
       fan->led_cdev.brightness_get = fan_led_brightness_get;
-      err = led_classdev_register(&ctx->pdev->dev, &fan->led_cdev);
+      err = led_classdev_register(get_scd_dev(ctx), &fan->led_cdev);
       if (err) {
          scd_warn("failed to create sysfs entry of led class for %s", fan->led_name);
       }
@@ -1644,14 +2132,14 @@ static ssize_t attribute_reset_set(struct device *dev,
 
 static void scd_reset_unregister(struct scd_context *ctx, struct scd_reset *reset)
 {
-   sysfs_remove_file(&ctx->pdev->dev.kobj, &reset->attr.dev_attr.attr);
+   sysfs_remove_file(get_scd_kobj(ctx), &reset->attr.dev_attr.attr);
 }
 
 static int scd_reset_register(struct scd_context *ctx, struct scd_reset *reset)
 {
    int res;
 
-   res = sysfs_create_file(&ctx->pdev->dev.kobj, &reset->attr.dev_attr.attr);
+   res = sysfs_create_file(get_scd_kobj(ctx), &reset->attr.dev_attr.attr);
    if (res) {
       pr_err("could not create %s attribute for reset: %d",
              reset->attr.dev_attr.attr.name, res);
@@ -2016,6 +2504,64 @@ static ssize_t parse_new_object_smbus_master(struct scd_context *ctx,
    return count;
 }
 
+// new_mdio_device <master> <bus> <id> <portAddr> <devAddr> <clause>
+static ssize_t parse_new_object_mdio_device(struct scd_context *ctx,
+                                            char *buf, size_t count)
+{
+   u16 master;
+   u16 bus;
+   u16 id;
+   u16 prtad;
+   u16 devad;
+   u16 clause;
+   const char *tmp;
+   int res;
+
+   if (!buf)
+      return -EINVAL;
+
+   PARSE_INT_OR_RETURN(&buf, tmp, u16, &master);
+   PARSE_INT_OR_RETURN(&buf, tmp, u16, &bus);
+   PARSE_INT_OR_RETURN(&buf, tmp, u16, &id);
+   PARSE_INT_OR_RETURN(&buf, tmp, u16, &prtad);
+   PARSE_INT_OR_RETURN(&buf, tmp, u16, &devad);
+   PARSE_INT_OR_RETURN(&buf, tmp, u16, &clause);
+   PARSE_END_OR_RETURN(&buf, tmp);
+
+   res = scd_mdio_device_add(ctx, master, bus, id, prtad, devad, clause);
+   if (res)
+      return res;
+
+   return count;
+}
+
+// new_mdio_master <addr> <id> <bus_count> <speed>
+static ssize_t parse_new_object_mdio_master(struct scd_context *ctx,
+                                            char *buf, size_t count)
+{
+   u32 addr;
+   u16 id;
+   u16 bus_count;
+   u16 bus_speed;
+   const char *tmp;
+   int res;
+
+   if (!buf)
+      return -EINVAL;
+
+   PARSE_ADDR_OR_RETURN(&buf, tmp, u32, &addr, ctx->res_size);
+   PARSE_INT_OR_RETURN(&buf, tmp, u16, &id);
+   PARSE_INT_OR_RETURN(&buf, tmp, u16, &bus_count);
+   PARSE_INT_OR_RETURN(&buf, tmp, u16, &bus_speed);
+   PARSE_END_OR_RETURN(&buf, tmp);
+
+   res = scd_mdio_master_add(ctx, addr, id, bus_count, bus_speed);
+   if (res)
+      return res;
+
+   return count;
+}
+
 // new_led <addr> <name>
 static ssize_t parse_new_object_led(struct scd_context *ctx,
                                     char *buf, size_t count)
@@ -2187,6 +2733,8 @@ static struct {
    { "fan_group",       parse_new_object_fan_group},
    { "gpio",            parse_new_object_gpio },
    { "led",             parse_new_object_led },
+   { "mdio_device",     parse_new_object_mdio_device },
+   { "mdio_master",     parse_new_object_mdio_master },
    { "osfp",            parse_new_object_osfp },
    { "qsfp",            parse_new_object_qsfp },
    { "reset",           parse_new_object_reset },
@@ -2433,16 +2981,16 @@ static DEVICE_ATTR(smbus_tweaks, S_IRUSR|S_IRGRP|S_IWUSR|S_IWGRP,
 static int scd_create_sysfs_files(struct scd_context *ctx) {
    int err;
 
-   err = sysfs_create_file(&ctx->pdev->dev.kobj, &dev_attr_new_object.attr);
+   err = sysfs_create_file(get_scd_kobj(ctx), &dev_attr_new_object.attr);
    if (err) {
-      dev_err(&ctx->pdev->dev, "could not create %s attribute: %d",
+      dev_err(get_scd_dev(ctx), "could not create %s attribute: %d",
               dev_attr_new_object.attr.name, err);
       goto fail_new_object;
    }
 
-   err = sysfs_create_file(&ctx->pdev->dev.kobj, &dev_attr_smbus_tweaks.attr);
+   err = sysfs_create_file(get_scd_kobj(ctx), &dev_attr_smbus_tweaks.attr);
    if (err) {
-      dev_err(&ctx->pdev->dev, "could not create %s attribute for smbus tweak: %d",
+      dev_err(get_scd_dev(ctx), "could not create %s attribute for smbus tweak: %d",
               dev_attr_smbus_tweaks.attr.name, err);
       goto fail_smbus_tweaks;
    }
@@ -2450,7 +2998,7 @@ static int scd_create_sysfs_files(struct scd_context *ctx) {
    return 0;
 
 fail_smbus_tweaks:
-   sysfs_remove_file(&ctx->pdev->dev.kobj, &dev_attr_new_object.attr);
+   sysfs_remove_file(get_scd_kobj(ctx), &dev_attr_new_object.attr);
 fail_new_object:
    return err;
 }
@@ -2481,6 +3029,7 @@ static int scd_ext_hwmon_probe(struct pci_dev *pdev, size_t mem_len)
 
    INIT_LIST_HEAD(&ctx->led_list);
    INIT_LIST_HEAD(&ctx->smbus_master_list);
+   INIT_LIST_HEAD(&ctx->mdio_master_list);
    INIT_LIST_HEAD(&ctx->gpio_list);
    INIT_LIST_HEAD(&ctx->reset_list);
    INIT_LIST_HEAD(&ctx->xcvr_list);
@@ -2523,6 +3072,7 @@ static void scd_ext_hwmon_remove(struct pci_dev *pdev)
 
    scd_lock(ctx);
    scd_smbus_remove_all(ctx);
+   scd_mdio_remove_all(ctx);
    scd_led_remove_all(ctx);
    scd_gpio_remove_all(ctx);
    scd_reset_remove_all(ctx);
