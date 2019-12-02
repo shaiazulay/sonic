@@ -118,13 +118,14 @@ class Smartsville(Platform):
 
       scd.addMdioMasterRange(0x9000, 8)
 
-      for i in range( 0, 8 ):
+      for i in range(0, 8):
          phyId = i + 1
-         reset = scd.addReset( ResetGpio( 0x4000, 3 + i, False, 'phy%d_reset' %
-                               phyId ) )
-         self.inventory.addReset( reset )
-         phy = Babbage( phyId, reset=reset, mdio=scd.addMdio( i, 0 ) )
-         self.inventory.addPhy( phy )
+         reset = scd.addReset(ResetGpio(0x4000, 3 + i, False,
+                                        'phy%d_reset' % phyId))
+         self.inventory.addReset(reset)
+         mdios = [scd.addMdio(i, 0), scd.addMdio(i, 1)]
+         phy = Babbage(phyId, mdios, reset=reset)
+         self.inventory.addPhy(phy)
 
       cpld = Scd(PciAddr(bus=0x00, device=0x09, func=0))
       self.addComponent(cpld)

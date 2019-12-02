@@ -84,6 +84,15 @@ class ScdKernelDriver(PciKernelDriver):
       for addr, info in scd.smbusMasters.items():
          data += ["smbus_master %#x %d %d" % (addr, info['id'], info['bus'])]
 
+      for addr, info in scd.mdioMasters.items():
+         data += ["mdio_master %#x %d %d %d" % (addr, info['id'], info['bus'],
+                                                info['speed'])]
+
+      for mdio in scd.mdios:
+         data += ["mdio_device %d %d %d %d %d %d" % \
+                  (mdio.master, mdio.bus, mdio.id, mdio.portAddr, mdio.deviceAddr, \
+                   mdio.clause)]
+
       for addr, platform, num in scd.fanGroups:
          data += ["fan_group %#x %u %u" % (addr, platform, num)]
 

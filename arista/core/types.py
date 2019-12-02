@@ -45,3 +45,13 @@ class PciAddr(SysfsPath):
 
    def getSysfsPath(self):
       return os.path.join('/sys/bus/pci/devices', str(self))
+
+class MdioClause:
+   C22 = 1
+   C45 = 2
+
+class MdioSpeed:
+   S20 = 0
+   S2_5 = 1
+   S5 = 2
+   S10 = 3

@@ -13,7 +13,7 @@ from ..accessors.xcvr import XcvrImpl
 from ..core.config import Config
 from ..core.driver import KernelDriver
 from ..core.inventory import Interrupt, PowerCycle, Watchdog, Xcvr, Reset
-from ..core.types import I2cAddr
+from ..core.types import I2cAddr, MdioClause, MdioSpeed
 from ..core.utils import FileWaiter, MmapResource, simulateWith, writeConfig
 
 from ..drivers.i2c import I2cKernelDriver
@@ -206,10 +206,14 @@ class ScdInterruptRegister(object):
       return ScdInterrupt(self, bit) if Config().init_irq else None
 
 class ScdMdio(object):
-   def __init__(self, scd, addr, bus, name):
+   def __init__(self, scd, master, bus, devIdx, port, device, clause, name):
       self.scd = scd
-      self.addr = addr
+      self.master = master
       self.bus = bus
+      self.id = devIdx
+      self.portAddr = port
+      self.deviceAddr = device
+      self.clause = clause
       self.name = name
 
 class ScdSmbus(object):
@@ -369,20 +373,28 @@ class Scd(PciComponent):
       return PsuImpl(psuId=psuId, driver=self.drivers[driver],
                      statusGpio=statusGpios, led=led, **kwargs)
 
-   def addMdioMaster(self, addr, mid, bus=1):
+   def addMdioMaster(self, addr, masterId, busCount=1, speed=MdioSpeed.S2_5):
       self.mdioMasters[addr] = {
-         'id': mid,
-         'bus': bus,
+         'id': masterId,
+         'bus': busCount,
+         'speed': speed,
+         'devCount': [0] * busCount,
       }
 
-   def addMdioMasterRange(self, base, count, spacing=0x40, bus=1):
-      addrs = range(base, base + (count + 1) * spacing, spacing)
+   def addMdioMasterRange(self, base, count, spacing=0x40, busCount=1):
+      addrs = range(base, base + count * spacing, spacing)
       for i, addr in enumerate(addrs, 0):
-         self.addMdioMaster(addr, i, bus)
+         self.addMdioMaster(addr, i, busCount)
 
-   def addMdio(self, master, bus, name=None):
-      addr = [ k for k, v in self.mdioMasters.items() if v['id'] == master ][ 0 ]
-      mdio = ScdMdio(self, addr, bus, name)
+   def addMdio(self, master, portAddr, bus=0, devAddr=1, clause=MdioClause.C45):
+      addrs = [k for k, v in self.mdioMasters.items() if v['id'] == master]
+      assert len(addrs) == 1, 'Mdio bus cannot be determined'
+      assert bus < self.mdioMasters[addrs[0]]['bus'], 'Bus number is too large'
+
+      devIndex = self.mdioMasters[addrs[0]]['devCount'][bus]
+      self.mdioMasters[addrs[0]]['devCount'][bus] += 1
+      name = "mdio{}_{}_{}".format(master, bus, devIndex)
+      mdio = ScdMdio(self, master, bus, devIndex, portAddr, devAddr, clause, name)
       self.mdios.append(mdio)
       return mdio
 
