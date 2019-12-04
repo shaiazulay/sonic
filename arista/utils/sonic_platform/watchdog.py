@@ -8,7 +8,17 @@ except ImportError as e:
    raise ImportError("%s - required module not found" % e)
 
 class Watchdog(WatchdogBase):
-   """Platform-specific watchdog class"""
+   """
+   Platform-specific watchdog class for interfacing with a hardware watchdog module
+
+   Unimplemented methods:
+   - get_name
+   - get_presence
+   - get_model
+   - get_serial
+   - get_status
+   - get_remaining_time
+   """
 
    def __init__(self, watchdog):
       self._watchdog = watchdog

@@ -8,7 +8,16 @@ except ImportError as e:
    raise ImportError("%s - required module not found" % e)
 
 class Psu(PsuBase):
-   """Platform-specific PSU class"""
+   """
+   Platform-specific PSU class
+
+   Unimplemented methods:
+   - get_model
+   - get_serial
+   - get_voltage
+   - get_current
+   - get_power
+   """
 
    def __init__(self, psu):
       self._psu = psu

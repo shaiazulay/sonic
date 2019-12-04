@@ -8,7 +8,14 @@ except ImportError as e:
    raise ImportError("%s - required module not found" % e)
 
 class Fan(FanBase):
-   """Platform-specific Fan class"""
+   """
+   Platform-specific Fan class
+
+   Unimplemented methods:
+   - get_model
+   - get_serial
+   - get_speed_tolerance
+   """
 
    fanDirectionConversion = {
       'forward': FanBase.FAN_DIRECTION_INTAKE,
@@ -16,6 +23,7 @@ class Fan(FanBase):
    }
 
    def __init__(self, fan):
+      self._target_speed = None
       self._fan = fan
 
    def get_name(self):
@@ -27,7 +35,14 @@ class Fan(FanBase):
    def get_speed(self):
       return self._fan.getSpeed()
 
+   def get_target_speed(self):
+      if self._target_speed is not None:
+         return self._target_speed
+      # Fallback, no target speed set
+      return self.get_speed()
+
    def set_speed(self, speed):
+      self._target_speed = speed
       return self._fan.setSpeed(speed)
 
    def set_status_led(self, color):
@@ -36,6 +51,9 @@ class Fan(FanBase):
          return True
       except (IOError, OSError, ValueError):
          return False
+
+   def get_status_led(self):
+      return self._fan.getLed().getColor()
 
    def get_status(self):
       return self._fan.getStatus()

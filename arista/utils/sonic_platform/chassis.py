@@ -30,33 +30,40 @@ class Chassis(ChassisBase):
    POLL_INTERVAL = 1000.
 
    def __init__(self, inventory):
+      ChassisBase.__init__(self)
       self._prefdl = readPrefdl()
       self._inventory = inventory
-      self._fan_list = []
       for fan in self._inventory.getFans():
          self._fan_list.append(Fan(fan))
-      self._psu_list = []
       for psu in self._inventory.getPsus():
          self._psu_list.append(Psu(psu))
-      self._sfp_list = []
       for sfp in self._inventory.getXcvrs().values():
          self._sfp_list.append(Sfp(sfp))
       self._watchdog = Watchdog(self._inventory.getWatchdog())
 
       self._interrupt_dict, self._presence_dict = \
          self._get_interrupts_for_components()
-      ChassisBase.__init__(self)
+
+   def get_presence(self):
+      return True
+
+   def get_model(self):
+      return self._prefdl.getField("SKU")
 
    def get_base_mac(self):
-      mac = self._prefdl.getField("MAC")
-      return mac
+      return self._prefdl.getField("MAC")
 
    def get_serial(self):
-      serial = self._prefdl.getField("SerialNumber")
-      return serial
+      return self._prefdl.getField("SerialNumber")
 
    def get_serial_number(self):
       return self.get_serial()
+
+   def get_system_eeprom_info(self):
+      return self._prefdl.data()
+
+   def get_status(self):
+      return True
 
    def get_reboot_cause(self):
       unknown = (ChassisBase.REBOOT_CAUSE_NON_HARDWARE, None)
