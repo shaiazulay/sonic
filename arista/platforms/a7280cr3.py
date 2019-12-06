@@ -27,13 +27,7 @@ class Smartsville(Platform):
 
       self.inventory.addWatchdog(scd.createWatchdog())
 
-      scdFanComponent = ScdFanComponent(waitFile='/sys/class/hwmon/hwmon2')
-
-      for fanId in incrange(1, 6):
-         self.inventory.addFan(scdFanComponent.createFan(fanId, ledId=(fanId-1)/2+1))
-
       scd.addComponents([
-         scdFanComponent,
          I2cKernelComponent(scd.i2cAddr(0, 0x48), 'tmp468',
                             '/sys/class/hwmon/hwmon3'),
          PmbusPsu(scd.i2cAddr(6, 0x58, t=3, datr=3, datw=3)),
@@ -131,8 +125,13 @@ class Smartsville(Platform):
       cpld = Scd(PciAddr(bus=0x00, device=0x09, func=0))
       self.addComponent(cpld)
 
+      scdFanComponent = ScdFanComponent(waitFile='/sys/class/hwmon/hwmon2')
+      for fanId in incrange(1, 6):
+         self.inventory.addFan(scdFanComponent.createFan(fanId, ledId=(fanId-1)/2+1))
+
       cpld.addSmbusMasterRange(0x8000, 2, 0x80, 4)
       cpld.addComponents([
+         scdFanComponent,
          I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658'),
          Ucd90160(cpld.i2cAddr(1, 0x4e, t=3)),
          Ucd90320(cpld.i2cAddr(5, 0x11, t=3), causes={
