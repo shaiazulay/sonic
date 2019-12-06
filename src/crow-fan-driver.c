@@ -252,8 +252,8 @@ static s32 read_tach(struct device *dev, u8 tachHigh, u8 tachLow, u32 *speed)
     u8 dataLow;
     u32 tachData;
 
-    status = read_cpld(dev, tachHigh, &dataHigh);
-    status |= read_cpld(dev, tachLow, &dataLow);
+    status = read_cpld(dev, tachLow, &dataLow);
+    status |= read_cpld(dev, tachHigh, &dataHigh);
     if (status) {
         return status;
     }
