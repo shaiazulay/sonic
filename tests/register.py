@@ -32,8 +32,8 @@ class RegisterTest(unittest.TestCase):
 
       for cls in platform.getPlatforms():
          self.assertIsInstance(cls.PLATFORM, (type(None), str))
-         self.assertIsInstance(cls.SID, (type(None), list))
-         self.assertIsInstance(cls.SKU, (type(None), list))
+         self.assertIsInstance(cls.SID, list)
+         self.assertIsInstance(cls.SKU, list)
 
    def testPlatformInstance(self):
       platform.loadPlatforms()

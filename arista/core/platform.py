@@ -155,26 +155,19 @@ def loadPlatforms():
    from .. import platforms as _unused
    logging.debug('Loaded %d platforms', len(platforms))
 
-def registerPlatform(skus=None):
+def registerPlatform():
    def wrapper(cls):
       platforms.append(cls)
 
-      if cls.SID is not None:
-         for sid in cls.SID:
-            platformSidIndex[sid] = cls
-      if cls.SKU is not None:
-         for sku in cls.SKU:
-            platformSkuIndex[sku] = cls
+      for sid in cls.SID:
+         platformSidIndex[sid] = cls
+      for sku in cls.SKU:
+         platformSkuIndex[sku] = cls
 
       if cls.PLATFORM is not None:
          # this is a hack for older platforms that did not provide sid=
          assert cls.PLATFORM not in platformSidIndex
          platformSidIndex[cls.PLATFORM] = cls
-
-      # legacy code to be removed
-      if skus is not None:
-         for sku in skus:
-            platformSkuIndex[sku] = cls
 
       return cls
    return wrapper
