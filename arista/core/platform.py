@@ -5,13 +5,14 @@ import os
 
 from .exception import UnknownPlatformError
 from .fixed import FixedSystem
-from .component import Component, Priority
 from .utils import simulateWith, getCmdlineDict
-from .driver import modprobe, KernelDriver
+from .driver import modprobe
 
 from . import prefdl
 
-platforms = {}
+platforms = []
+platformSidIndex = {}
+platformSkuIndex = {}
 syseeprom = None
 
 host_prefdl_path = '/host/.system-prefdl'
@@ -109,18 +110,18 @@ def readPlatformName():
    return getCmdlineDict().get('platform')
 
 def detectPlatform():
-   sku = readSku()
-   platformCls = platforms.get(sku)
+   sid = readSid()
+   platformCls = platformSidIndex.get(sid)
    if platformCls is not None:
       return platformCls
 
-   sid = readSid()
-   platformCls = platforms.get(sid)
+   sku = readSku()
+   platformCls = platformSkuIndex.get(sku)
    if platformCls is not None:
       return platformCls
 
    name = readPlatformName()
-   platformCls = platforms.get(name)
+   platformCls = platformSidIndex.get(name)
    if platformCls is not None:
       return platformCls
 
@@ -130,25 +131,51 @@ def getPlatform(name=None):
    if name is None:
       platformCls = detectPlatform()
    else:
-      platformCls = platforms.get(name)
+      platformCls = platformSkuIndex.get(name)
       if platformCls is None:
-         raise UnknownPlatformError(name, platforms)
+         platformCls = platformSidIndex.get(name)
+         if platformCls is None:
+            raise UnknownPlatformError(name, platforms)
 
    platform = platformCls()
    platform.refresh()
    return platform
 
+def getPlatformSkus():
+   return platformSkuIndex
+
+def getPlatformSids():
+   return platformSidIndex
+
 def getPlatforms():
    return platforms
 
-def registerPlatform(skus):
-   global platforms
+def loadPlatforms():
+   logging.debug('Loading platform definitions')
+   from .. import platforms as _unused
+   logging.debug('Loaded %d platforms', len(platforms))
+
+def registerPlatform(skus=None):
    def wrapper(cls):
-      if isinstance(skus, list):
+      platforms.append(cls)
+
+      if cls.SID is not None:
+         for sid in cls.SID:
+            platformSidIndex[sid] = cls
+      if cls.SKU is not None:
+         for sku in cls.SKU:
+            platformSkuIndex[sku] = cls
+
+      if cls.PLATFORM is not None:
+         # this is a hack for older platforms that did not provide sid=
+         assert cls.PLATFORM not in platformSidIndex
+         platformSidIndex[cls.PLATFORM] = cls
+
+      # legacy code to be removed
+      if skus is not None:
          for sku in skus:
-            platforms[sku] = cls
-      else:
-         platforms[skus] = cls
+            platformSkuIndex[sku] = cls
+
       return cls
    return wrapper
 

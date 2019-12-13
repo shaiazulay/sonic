@@ -16,7 +16,7 @@ from arista.components.scd import ScdInterruptRegister
 from arista.core import utils
 from arista.core.driver import Driver
 from arista.core.inventory import Psu, Xcvr
-from arista.core.platform import getPlatforms
+from arista.core.platform import getPlatformSkus
 from arista.core.types import I2cAddr
 
 from arista.drivers.i2c import I2cKernelDriver
@@ -94,7 +94,7 @@ class MockTest(unittest.TestCase):
    def setUpClass(cls):
       cls.logger = getLogger(cls.__name__)
       cls.inventories = {}
-      for name, platform in getPlatforms().items():
+      for name, platform in getPlatformSkus().items():
          assert platform
          cls.logger.info('Testing init for platform %s', name)
          platformObj = platform()
@@ -117,7 +117,7 @@ class MockTest(unittest.TestCase):
          led.setColor(color)
 
    def testSetup(self):
-      for name, platform in getPlatforms().items():
+      for name, platform in getPlatformSkus().items():
          self.logger.info('Testing setup for platform %s', name)
          platform = platform()
          platform.setup()

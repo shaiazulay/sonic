@@ -6,6 +6,11 @@ from .driver import KernelDriver
 from .utils import inSimulation, JsonStoredData
 
 class FixedSystem(Component):
+
+   PLATFORM = None
+   SID = None
+   SKU = None
+
    def __init__(self, drivers=None, **kwargs):
       drivers = drivers or [KernelDriver(module='eeprom'),
                             KernelDriver(module='i2c-dev')]
