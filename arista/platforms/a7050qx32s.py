@@ -10,7 +10,7 @@ from ..components.psu import PmbusMixedPsuComponent, PmbusPsu
 from ..components.scd import Scd
 from ..components.ds125br import Ds125Br
 
-@registerPlatform('DCS-7050QX-32S')
+@registerPlatform(['DCS-7050QX-32S', 'Clearlake'])
 class Clearlake(Platform):
    def __init__(self):
       super(Clearlake, self).__init__()

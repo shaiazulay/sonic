@@ -82,7 +82,7 @@ def readPrefdl():
          return prefdl.PreFdlFromFile(fp)
 
    modprobe('eeprom')
-   return readPrefdlEeprom('1-0052')
+   return readPrefdlEeprom('1-0052', '4-0052', '0-0052', '2-0052', '3-0052')
 
 def getPrefdlDataSim():
    logging.debug('bypass prefdl reading by returning default values')
@@ -100,7 +100,10 @@ def getSysEeprom():
    return syseeprom
 
 def readSku():
-   return getSysEeprom().get('SKU')
+   try:
+      return getSysEeprom().get('SKU')
+   except RuntimeError:
+      return None
 
 def readSid():
    return getCmdlineDict().get('sid')

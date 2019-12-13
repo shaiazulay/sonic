@@ -10,7 +10,7 @@ from ..components.psu import PmbusMixedPsuComponent
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
 
-@registerPlatform('DCS-7050QX-32')
+@registerPlatform(['DCS-7050QX-32', 'raven'])
 class Cloverdale(Platform):
    def __init__(self):
       super(Cloverdale, self).__init__()
