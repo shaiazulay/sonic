@@ -10,7 +10,7 @@ from ..components.psu import PmbusPsu
 from ..components.rook import RookLedComponent
 from ..components.scd import Scd
 
-@registerPlatform('DCS-7260CX3-64')
+@registerPlatform(['DCS-7260CX3-64', 'DCS-7260CX3-64E'])
 class Gardena(Platform):
    def __init__(self):
       super(Gardena, self).__init__()
