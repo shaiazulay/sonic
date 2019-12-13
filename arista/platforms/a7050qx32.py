@@ -1,7 +1,6 @@
 from ..core.platform import registerPlatform, Platform
 from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
-from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi, UcdMon
@@ -10,8 +9,15 @@ from ..components.psu import PmbusMixedPsuComponent
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
 
-@registerPlatform('DCS-7050QX-32')
+@registerPlatform()
 class Cloverdale(Platform):
+
+   # This platform doesn't have sid= on the cmdline and therefore needs to rely
+   # on platform= instead. Alternatively we rely on SKU
+   PLATFORM = 'raven'
+   SID = ['Cloverdale', 'CloverdaleSsd']
+   SKU = ['DCS-7050QX-32']
+
    def __init__(self):
       super(Cloverdale, self).__init__()
 

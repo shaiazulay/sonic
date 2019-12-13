@@ -10,8 +10,12 @@ from ..components.psu import PmbusMixedPsuComponent, PmbusPsu
 from ..components.scd import Scd
 from ..components.ds125br import Ds125Br
 
-@registerPlatform('DCS-7050QX-32S')
+@registerPlatform()
 class Clearlake(Platform):
+
+   SID = ['Clearlake', 'ClearlakeSsd']
+   SKU = ['DCS-7050QX-32S', 'DCS-7050QX-32S-SSD']
+
    def __init__(self):
       super(Clearlake, self).__init__()
 
@@ -137,7 +141,8 @@ class Clearlake(Platform):
          addr += 0x10
          bus += 1
 
-@registerPlatform('DCS-7050QX2-32S')
+@registerPlatform()
 class ClearlakePlus(Clearlake):
-   pass
+   SID = ['ClearlakePlus', 'ClearlakePlusSsd']
+   SKU = ['DCS-7050QX2-32S', 'DCS-7050QX2-32S-SSD']
 

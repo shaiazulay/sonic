@@ -10,9 +10,12 @@ from ..components.psu import PmbusPsu
 from ..components.rook import RookLedComponent
 from ..components.scd import Scd
 
-@registerPlatform(['DCS-7170-64', 'DCS-7170-64C', 'DCS-7170-64C-SSD',
-                   'DCS-7170-64C-M'])
+@registerPlatform()
 class Alhambra(Platform):
+
+   SID = ['Alhambra', 'AlhambraSsd']
+   SKU = ['DCS-7170-64C', 'DCS-7170-64C-M']
+
    def __init__(self):
       super(Alhambra, self).__init__()
 

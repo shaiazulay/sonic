@@ -9,8 +9,12 @@ from ..components.fan import TehamaFanCpldComponent
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
-@registerPlatform('DCS-7060PX4-32')
+@registerPlatform()
 class BlackhawkO(Platform):
+
+   SID = ['BlackhawkO']
+   SKU = ['DCS-7060PX4-32']
+
    def __init__(self):
       super(BlackhawkO, self).__init__()
 
@@ -131,6 +135,7 @@ class BlackhawkO(Platform):
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
 
-@registerPlatform('DCS-7060DX4-32')
+@registerPlatform()
 class BlackhawkDD(BlackhawkO):
-   pass
+   SID = ['BlackhawkDD']
+   SKU = ['DCS-7060DX4-32']

@@ -9,8 +9,12 @@ from ..components.phy import Babbage
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
-@registerPlatform(['DCS-7280CR3-32P4', 'DCS-7280CR3-32P4-M'])
+@registerPlatform()
 class Smartsville(Platform):
+
+   SID = ['Smartsville', 'SmartsvilleSsd']
+   SKU = ['DCS-7280CR3-32P4', 'DCS-7280CR3-32P4-M']
+
    def __init__(self):
       super(Smartsville, self).__init__()
 
@@ -145,18 +149,22 @@ class Smartsville(Platform):
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
 
-@registerPlatform(['DCS-7280CR3K-32P4'])
+@registerPlatform()
 class SmartsvilleBK(Smartsville):
-   pass
+   SID = ['SmartsvilleBK']
+   SKU = ['DCS-7280CR3K-32P4']
 
-@registerPlatform(['DCS-7280CR3-32D4', 'DCS-7280CR3-32D4-M'])
+@registerPlatform()
 class SmartsvilleDD(Smartsville):
-   pass
+   SID = ['SmartsvilleDD', 'SmartsvilleDDSsd']
+   SKU = ['DCS-7280CR3-32D4', 'DCS-7280CR3-32D4-M']
 
-@registerPlatform(['DCS-7280CR3K-32D4'])
+@registerPlatform()
 class SmartsvilleDDBK(Smartsville):
-   pass
+   SID = ['SmartsvilleDDBK']
+   SKU = ['DCS-7280CR3K-32D4']
 
-@registerPlatform(['DCS-7280CR3MK-32P4'])
+@registerPlatform()
 class SmartsvilleBkMs(Smartsville):
-   pass
+   SID = ['SmartsvilleBkMs']
+   SKU = ['DCS-7280CR3MK-32P4']

@@ -9,8 +9,12 @@ from ..components.fan import CrowFanCpldComponent
 from ..components.psu import UpperlakeMixedPsuComponent, PmbusPsu
 from ..components.scd import Scd
 
-@registerPlatform(['DCS-7060CX-32S', 'DCS-7060CX-32S-ES'])
+@registerPlatform()
 class Upperlake(Platform):
+
+   SID = ['Upperlake', 'UpperlakeES', 'UpperlakeSsd']
+   SKU = ['DCS-7060CX-32S', 'DCS-7060CX-32S-ES', 'DCS-7060CX-32S-SSD']
+
    def __init__(self):
       super(Upperlake, self).__init__()
 
