@@ -21,7 +21,7 @@ from __future__ import absolute_import
 import StringIO
 
 from ..core import prefdl
-from ..core.platform import fmted_prefdl_path
+from ..core.platform import fmted_prefdl_path, readPrefdl
 
 try:
    from sonic_eeprom import eeprom_base
@@ -35,8 +35,7 @@ class board(eeprom_base.EepromDecoder):
       super(board, self).__init__(self.prefdl_path, None, 0, '', True)
 
    def read_eeprom(self):
-      with open(self.prefdl_path) as fp:
-         return fp.read()
+      return str( readPrefdl() )
 
    def _decode_eeprom(self, e):
       pfdl = self._prefdl_cache.get(e, None)

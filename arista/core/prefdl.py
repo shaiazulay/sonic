@@ -182,6 +182,9 @@ class PreFdl():
    def getCrc( self ):
       return self.crc
 
+   def __str__( self ):
+      return '\n'.join( "{}: {}".format( k, v )  for k, v in self.data().items() )
+
 class PreFdlFromFile():
    def __init__(self, fp):
       self._data = {}
@@ -202,6 +205,9 @@ class PreFdlFromFile():
 
    def getCrc(self):
       return self.crc
+
+   def __str__( self ):
+      return '\n'.join( "{}: {}".format( k, v )  for k, v in self.data().items() )
 
 def decode( fp ):
    data = fp.read( 4 )
