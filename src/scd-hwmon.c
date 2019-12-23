@@ -17,6 +17,7 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/sysfs.h>
 #include <linux/version.h>
 #include <linux/hwmon.h>
@@ -57,6 +58,11 @@
 #define FAIL_REASON_MAX_SZ 50
 #define SET_FAIL_REASON(fail_reason, ...) \
    snprintf(fail_reason, FAIL_REASON_MAX_SZ, ##__VA_ARGS__)
+
+static int smbus_master_max_retries = MASTER_DEFAULT_MAX_RETRIES;
+module_param(smbus_master_max_retries, int, S_IRUSR | S_IWUSR);
+MODULE_PARM_DESC(smbus_master_max_retries,
+                 "Number of smbus transaction retries to perform on error");
 
 struct scd_context {
    struct pci_dev *pdev;
@@ -1032,7 +1038,7 @@ static int scd_smbus_master_add(struct scd_context *ctx, u32 addr, u32 id,
    master->req = addr + SMBUS_REQUEST_OFFSET;
    master->cs = addr + SMBUS_CONTROL_STATUS_OFFSET;
    master->resp = addr + SMBUS_RESPONSE_OFFSET;
-   master->max_retries = MASTER_DEFAULT_MAX_RETRIES;
+   master->max_retries = smbus_master_max_retries;
    INIT_LIST_HEAD(&master->bus_list);
 
    for (i = 0; i < bus_count; ++i) {
