@@ -21,6 +21,7 @@ fmted_prefdl_path = '/etc/sonic/.syseeprom'
 
 def formatPrefdlData(data):
    formatDict = {
+      "ASY": ["ASY"],
       "MAC": ["MAC", "MacAddrBase", "Mac"],
       "SKU": ["SKU", "Sku"],
       "SerialNumber": ["SerialNumber"],

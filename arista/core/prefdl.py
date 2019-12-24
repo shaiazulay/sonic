@@ -20,6 +20,9 @@ import struct
 import sys
 import zlib
 
+class InvalidPrefdlData( Exception ):
+   pass
+
 try:
    from StringIO import StringIO
 except ImportError:
@@ -31,6 +34,7 @@ def showMac( m ):
 typeMap = {
    "END" : ( "00", None, None, None, False ),
    "SKU" : ( "03", None, None, None, False ),
+   "ASY" : ( "04", None, None, None, False ),
    "MAC" : ( "05", None, showMac, None, False ),
    "SerialNumber" : ( "0E", None, None, None, False ),
 }
@@ -47,11 +51,11 @@ def validSerial( x ):
    x = x.replace( "-", "" )
    # All serial numbers are upper case
    x = x.upper()
-   if re.compile( "[A-Z]{3}\d{4}[A-Z0-9]{4}$" ).match( x ):
+   if re.compile( r"[A-Z]{3}\d{4}[A-Z0-9]{4}$" ).match( x ):
       return x
    return None
 
-class PreFdlField( ):
+class PreFdlField( object ):
    def __init__( self, name, valid, show, optionName, data=None, append=False ):
       self.name = name
       if valid:
@@ -85,7 +89,7 @@ class TlvField( PreFdlField ):
          self.id, valid, show, optionName, append = args
       PreFdlField.__init__( self, name, valid, show, optionName, append=append )
 
-class PreFdl():
+class PreFdl( object ):
    def __init__( self, fp=None, preFdlStr=None, version="0002" ):
       # populate the required fields
       self.requiredFields = []
