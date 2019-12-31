@@ -1,5 +1,6 @@
 
 from contextlib import closing
+import os
 
 from ..core.driver import Driver
 from ..core.utils import SMBus
@@ -9,6 +10,11 @@ from .i2c import I2cKernelDriver
 class EepromKernelDriver(I2cKernelDriver):
    def __init__(self, name='eeprom', module='eeprom', **kwargs):
       super(EepromKernelDriver, self).__init__(name=name, module=module, **kwargs)
+
+   def read(self):
+      path = os.path.join(self.getSysfsPath(), 'eeprom')
+      with open(path) as f:
+         return f.read()
 
 class SeepromI2cDevDriver(Driver):
 

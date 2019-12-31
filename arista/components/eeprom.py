@@ -21,6 +21,10 @@ class I2cSeeprom(I2cComponent):
    def read(self):
       return self.drivers['SeepromI2cDevDriver'].read()
 
+class PrefdlEeprom(I2cEeprom):
+   def prefdl(self):
+      return decodeBuffer(self.read()).data()
+
 class PrefdlSeeprom(I2cSeeprom):
    def prefdl(self):
       data = self.read()
