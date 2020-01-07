@@ -2,10 +2,12 @@ from ..core.platform import registerPlatform, Platform
 from ..core.utils import incrange
 from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 
-from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.common import SwitchChip
 from ..components.cpld import CrowCpld
 from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.fan import CrowFanCpldComponent
+from ..components.max6658 import Max6658
+from ..components.max6697 import Max6697
 from ..components.psu import UpperlakeMixedPsuComponent, PmbusPsu
 from ..components.scd import Scd
 
@@ -39,10 +41,8 @@ class Upperlake(Platform):
          self.inventory.addFan(crowFanComponent.createFan(fanId))
 
       scd.addComponents([
-         I2cKernelComponent(scd.i2cAddr(0, 0x1a), 'max6697',
-                            '/sys/class/hwmon/hwmon2'),
-         I2cKernelComponent(scd.i2cAddr(1, 0x4c), 'max6658',
-                            '/sys/class/hwmon/hwmon3'),
+         Max6697(scd.i2cAddr(0, 0x1a), waitFile='/sys/class/hwmon/hwmon2'),
+         Max6658(scd.i2cAddr(1, 0x4c), waitFile='/sys/class/hwmon/hwmon3'),
          crowFanComponent,
          Ucd90120A(scd.i2cAddr(1, 0x4e, t=3)),
          PmbusPsu(scd.i2cAddr(3, 0x58, t=3, datr=2, datw=3)),

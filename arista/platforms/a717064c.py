@@ -6,6 +6,8 @@ from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..components.common import SwitchChip, I2cKernelComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi
 from ..components.fan import LAFanCpldComponent
+from ..components.lm73 import Lm73
+from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
 from ..components.rook import RookLedComponent
 from ..components.scd import Scd
@@ -29,14 +31,13 @@ class Alhambra(Platform):
       switchChip = SwitchChip(PciAddr(bus=0x07))
       self.addComponent(switchChip)
 
-      scd = Scd(PciAddr(bus=0x06), newDriver=True)
+      scd = Scd(PciAddr(bus=0x06))
       self.addComponent(scd)
 
       self.inventory.addWatchdog(scd.createWatchdog())
 
       scd.addComponents([
-         I2cKernelComponent(scd.i2cAddr(7, 0x4c), 'max6658',
-                            '/sys/class/hwmon/hwmon2'),
+         Max6658(scd.i2cAddr(7, 0x4c), waitFile='/sys/class/hwmon/hwmon2'),
          PmbusPsu(scd.i2cAddr(6, 0x58, t=3, datr=2, datw=3), name='dps1900'),
          PmbusPsu(scd.i2cAddr(5, 0x58, t=3, datr=2, datw=3), name='dps1900'),
       ])
@@ -131,8 +132,7 @@ class Alhambra(Platform):
 
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.addComponents([
-         I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
-                            '/sys/class/hwmon/hwmon3'),
+         Max6658(cpld.i2cAddr(0, 0x4c), waitFile='/sys/class/hwmon/hwmon3'),
          Ucd90160(cpld.i2cAddr(1, 0x4e, t=3)),
          Ucd90120A(cpld.i2cAddr(10, 0x4e, t=3), causes={
             'powerloss': UcdGpi(1),
@@ -142,8 +142,7 @@ class Alhambra(Platform):
          }),
          laFanComponent,
          I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
-         I2cKernelComponent(cpld.i2cAddr(15, 0x48), 'lm73',
-                            '/sys/class/hwmon/hwmon5')
+         Lm73(cpld.i2cAddr(15, 0x48), waitFile='/sys/class/hwmon/hwmon5'),
       ])
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())

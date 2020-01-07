@@ -2,12 +2,14 @@ from ..core.platform import registerPlatform, Platform
 from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 
-from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.common import SwitchChip
 from ..components.dpm import Ucd90160, Ucd90320, UcdGpi
 from ..components.fan import ScdFanComponent
+from ..components.max6658 import Max6658
 from ..components.phy import Babbage
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
+from ..components.tmp468 import Tmp468
 
 @registerPlatform()
 class Smartsville(Platform):
@@ -32,8 +34,7 @@ class Smartsville(Platform):
       self.inventory.addWatchdog(scd.createWatchdog())
 
       scd.addComponents([
-         I2cKernelComponent(scd.i2cAddr(0, 0x48), 'tmp468',
-                            '/sys/class/hwmon/hwmon3'),
+         Tmp468(scd.i2cAddr(0, 0x48), waitFile='/sys/class/hwmon/hwmon3'),
          PmbusPsu(scd.i2cAddr(6, 0x58, t=3, datr=3, datw=3)),
          PmbusPsu(scd.i2cAddr(7, 0x58, t=3, datr=3, datw=3)),
       ])
@@ -137,7 +138,7 @@ class Smartsville(Platform):
       cpld.addSmbusMasterRange(0x8000, 2, 0x80, 4)
       cpld.addComponents([
          scdFanComponent,
-         I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658'),
+         Max6658(cpld.i2cAddr(0, 0x4c)),
          Ucd90160(cpld.i2cAddr(1, 0x4e, t=3)),
          Ucd90320(cpld.i2cAddr(5, 0x11, t=3), causes={
             'powerloss': UcdGpi(1),

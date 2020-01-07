@@ -3,9 +3,10 @@ from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
-from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.common import SwitchChip
 from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.fan import CrowFanCpldComponent
+from ..components.max6658 import Max6658
 from ..components.psu import PmbusMixedPsuComponent, PmbusPsu
 from ..components.scd import Scd
 from ..components.ds125br import Ds125Br
@@ -44,10 +45,8 @@ class Clearlake(Platform):
          self.inventory.addFan(crowFanComponent.createFan(fanId))
 
       scd.addComponents([
-         I2cKernelComponent(scd.i2cAddr(0, 0x4c), 'max6658',
-                            '/sys/class/hwmon/hwmon2'),
-         I2cKernelComponent(scd.i2cAddr(1, 0x4c), 'max6658',
-                            '/sys/class/hwmon/hwmon3'),
+         Max6658(scd.i2cAddr(0, 0x4c), waitFile='/sys/class/hwmon/hwmon2'),
+         Max6658(scd.i2cAddr(1, 0x4c), waitFile='/sys/class/hwmon/hwmon3'),
          crowFanComponent,
          Ucd90120A(scd.i2cAddr(1, 0x4e, t=3)),
          Ucd90120A(scd.i2cAddr(5, 0x4e, t=3), causes={

@@ -2,9 +2,11 @@ from ..core.platform import registerPlatform, Platform
 from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 
-from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.common import SwitchChip
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi, UcdMon
 from ..components.fan import RavenFanCpldComponent
+from ..components.lm73 import Lm73
+from ..components.max6658 import Max6658
 from ..components.psu import PmbusMixedPsuComponent
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
@@ -41,9 +43,8 @@ class Cloverdale(Platform):
 
       scd.addComponents([
          ravenFanComponent,
-         I2cKernelComponent(scd.i2cAddr(0, 0x4c), 'max6658', '/sys/class/hwmon/hwmon2'),
-         I2cKernelComponent(scd.i2cAddr(1, 0x48), 'lm73', '/sys/class/hwmon/hwmon3'),
-
+         Max6658(scd.i2cAddr(0, 0x4c), waitFile='/sys/class/hwmon/hwmon2'),
+         Lm73(scd.i2cAddr(1, 0x48), waitFile='/sys/class/hwmon/hwmon3'),
          # Due to a risk of an unrecoverable firmware corruption when a pmbus
          # transaction is done at the same moment of the poweroff, the handling of
          # the DPM is disabled. If you want rail information use it at your own risk

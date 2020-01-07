@@ -3,9 +3,11 @@ from ..core.platform import registerPlatform, Platform
 from ..core.types import NamedGpio, PciAddr, ResetGpio
 from ..core.utils import incrange
 
-from ..components.common import I2cKernelComponent, SwitchChip
+from ..components.common import SwitchChip
 from ..components.dpm import Ucd90320, UcdGpi
 from ..components.fan import TehamaFanCpldComponent
+from ..components.max6581 import Max6581
+from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
@@ -34,8 +36,7 @@ class BlackhawkO(Platform):
       self.inventory.addWatchdog(scd.createWatchdog())
 
       scd.addComponents([
-         I2cKernelComponent(scd.i2cAddr(8, 0x4d), 'max6581',
-                            '/sys/class/hwmon/hwmon2'),
+         Max6581(scd.i2cAddr(8, 0x4d), waitFile='/sys/class/hwmon/hwmon2'),
          PmbusPsu(scd.i2cAddr(11, 0x58, t=3, datr=2, datw=3)),
          PmbusPsu(scd.i2cAddr(12, 0x58, t=3, datr=2, datw=3)),
       ])
@@ -122,8 +123,7 @@ class BlackhawkO(Platform):
 
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.addComponents([
-         I2cKernelComponent(cpld.i2cAddr(0, 0x4c), 'max6658',
-                            '/sys/class/hwmon/hwmon3'),
+         Max6658(cpld.i2cAddr(0, 0x4c), waitFile='/sys/class/hwmon/hwmon3'),
          Ucd90320(cpld.i2cAddr(10, 0x11, t=3), causes={
             'overtemp': UcdGpi(1),
             'powerloss': UcdGpi(3),
