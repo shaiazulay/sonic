@@ -111,6 +111,8 @@ def readPlatformName():
    return getCmdlineDict().get('platform')
 
 def detectPlatform():
+   getSysEeprom()
+
    sid = readSid()
    platformCls = platformSidIndex.get(sid)
    if platformCls is not None:
