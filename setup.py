@@ -11,6 +11,7 @@ setup(
    packages=[
       'arista',
       'arista.accessors',
+      'arista.cli',
       'arista.core',
       'arista.components',
       'arista.drivers',
