@@ -186,8 +186,10 @@ class PreFdlFromFile():
    def __init__(self, fp):
       self._data = {}
       for line in fp:
-         key, val = line.strip().split(': ', 1)
-         self._data[key] = val
+         words = line.strip().split(': ', 1)
+         if len(words) < 2:
+            continue
+         self._data[words[0]] = words[1]
       self.crc = self._data.pop('Crc', -1)
 
    def data(self):
