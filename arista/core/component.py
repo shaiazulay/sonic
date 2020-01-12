@@ -40,6 +40,13 @@ class Component(object):
       self.components[component.priority].append(component)
       return self
 
+   def iterComponents(self):
+      for components in self.components.values():
+         for component in components:
+            yield component
+            for sub in component.iterComponents():
+               yield sub
+
    def addDrivers(self, drivers):
       if drivers:
          for drv in drivers:
@@ -132,4 +139,18 @@ class Component(object):
          self._dumpNode(depth, prefix)
       else:
          self._dumpDrivers(depth, prefix)
+
+   def __diag__(self, ctx):
+      return {}
+
+   def genDiag(self, ctx):
+      output = {
+         "version": 1,
+         "name": self.__class__.__name__,
+         "data": self.__diag__(ctx),
+         "drivers": [ d.genDiag(ctx) for d in self.drivers.values() ],
+      }
+      if ctx.recursive:
+         output["components"] = [ c.genDiag(ctx) for c in self.iterComponents() ]
+      return output
 

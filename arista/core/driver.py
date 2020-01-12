@@ -88,6 +88,16 @@ class Driver(object):
       spacer = ' ' * (depth * 3)
       print('%s%s%s' % (spacer, prefix, self))
 
+   def __diag__(self, ctx):
+      return {}
+
+   def genDiag(self, ctx):
+      return {
+         "version": 1,
+         "name": self.__class__.__name__,
+         "data": self.__diag__(ctx),
+      }
+
    def __str__(self):
       kwargs = ['%s=%s' % (k, v) for k, v in self.__dict__.items()]
       return '%s(%s)' % (self.__class__.__name__, ', '.join(kwargs))
