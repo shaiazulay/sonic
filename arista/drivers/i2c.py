@@ -89,3 +89,39 @@ class I2cKernelFanDriver(I2cKernelDriver):
 
    def getFanDirection(self, fan):
       return self.sysfsDriver.getFanDirection(fan)
+
+class I2cDevDriver(Driver):
+   def __init__(self, name=None, addr=None, registerCls=None, **kwargs):
+      super(I2cDevDriver, self).__init__(*kwargs)
+      self.bus_ = None
+      self.name = name
+      self.addr = addr
+      self.regs = registerCls(self) if registerCls is not None else None
+      # TODO:
+      # introduce callback table based on value types used.
+
+   @property
+   def bus(self):
+      if self.bus_ is None:
+         self.bus_ = utils.SMBus(self.addr.bus)
+      return self.bus_
+
+   def close(self):
+      if self.bus_ is not None:
+         self.bus_.close()
+         self.bus_ = None
+
+   def read_byte_data(self, *args, **kwargs):
+      return self.bus.read_byte_data(self.addr.address, *args, **kwargs)
+
+   def write_byte_data(self, *args, **kwargs):
+      return self.bus.write_byte_data(self.addr.address, *args, **kwargs)
+
+   def read(self, reg):
+      res = self.read_byte_data(self, reg)
+      if res is None:
+         raise IOError(self, reg)
+      return res
+
+   def write(self, reg, value):
+      return self.write_byte_data(self, reg, value)
