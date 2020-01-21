@@ -18,6 +18,7 @@ from .. import platforms
 
 from ..core import utils
 from ..core.config import Config
+from ..core.backtrace import loadBacktraceHook
 
 def setupLogging(verbose=False, logfile=None, syslog=False):
    loglevel = logging.DEBUG if verbose else logging.INFO
@@ -94,6 +95,8 @@ def main(args):
    root, args = parseArgs(args)
 
    setupLogging(args.verbose, args.logfile, args.syslog)
+   if args.verbose:
+      loadBacktraceHook()
 
    if args.simulation:
       setupSimulation()
