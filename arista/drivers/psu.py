@@ -1,9 +1,10 @@
-import logging
-
 from contextlib import closing
 
 from ..core import utils
 from ..core.driver import Driver
+from ..core.log import getLogger
+
+logging = getLogger(__name__)
 
 class UpperlakePsuDriver(Driver):
    def __init__(self, addr=None, **kwargs):

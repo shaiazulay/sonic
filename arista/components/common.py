@@ -1,13 +1,15 @@
 
 from collections import namedtuple
-import logging
 import os
 import time
 
 from ..core.component import Component, DEFAULT_WAIT_TIMEOUT, ASIC_YIELD_TIME
 from ..core.utils import klog, inSimulation
+from ..core.log import getLogger
 
 from ..drivers.i2c import I2cKernelDriver
+
+logging = getLogger(__name__)
 
 SensorDesc = namedtuple('SensorDesc', [
    'diode',

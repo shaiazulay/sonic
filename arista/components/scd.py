@@ -1,6 +1,5 @@
 from __future__ import print_function, with_statement
 
-import logging
 import os
 
 from collections import OrderedDict, namedtuple
@@ -15,6 +14,7 @@ from ..core.driver import KernelDriver
 from ..core.inventory import Interrupt, PowerCycle, Watchdog, Xcvr, Reset
 from ..core.types import I2cAddr, MdioClause, MdioSpeed
 from ..core.utils import FileWaiter, MmapResource, simulateWith, writeConfig
+from ..core.log import getLogger
 
 from ..drivers.i2c import I2cKernelDriver
 from ..drivers.scd import ScdKernelDriver
@@ -22,6 +22,8 @@ from ..drivers.sysfs import LedSysfsDriver, PsuSysfsDriver, ResetSysfsDriver, \
                             XcvrSysfsDriver
 
 from .common import PciComponent, I2cComponent
+
+logging = getLogger(__name__)
 
 SYS_UIO_PATH = '/sys/class/uio'
 

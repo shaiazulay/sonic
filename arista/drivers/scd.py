@@ -1,4 +1,3 @@
-import logging
 import os
 
 from collections import OrderedDict
@@ -6,6 +5,9 @@ from collections import OrderedDict
 from .pci import PciKernelDriver
 from ..core import utils
 from ..core.config import Config
+from ..core.log import getLogger
+
+logging = getLogger(__name__)
 
 SCD_WAIT_TIMEOUT = 5.
 

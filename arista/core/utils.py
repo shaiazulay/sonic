@@ -1,6 +1,5 @@
 import fcntl
 import json
-import logging
 import mmap
 import os
 import time
@@ -8,6 +7,10 @@ import time
 from datetime import datetime
 from functools import wraps
 from struct import pack, unpack
+
+from .log import getLogger
+
+logging = getLogger(__name__)
 
 FLASH_MOUNT = '/host'
 TMPFS_MOUNT = '/run'

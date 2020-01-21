@@ -1,11 +1,13 @@
 
 from __future__ import absolute_import, division, print_function
 
-import logging
 import time
 
 from . import registerAction
 from ..args.reset import resetParser
+from ...core.log import getLogger
+
+logging = getLogger(__name__)
 
 @registerAction(resetParser)
 def doReset(ctx, args):

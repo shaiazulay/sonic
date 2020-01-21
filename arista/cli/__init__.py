@@ -2,8 +2,6 @@
 
 from __future__ import print_function, with_statement
 
-import logging
-import logging.handlers
 import argparse
 import tempfile
 import time
@@ -19,37 +17,9 @@ from .. import platforms
 from ..core import utils
 from ..core.config import Config
 from ..core.backtrace import loadBacktraceHook
+from ..core.log import setupLogging, getLogger
 
-def setupLogging(verbose=False, logfile=None, syslog=False):
-   loglevel = logging.DEBUG if verbose else logging.INFO
-   dateFmt = '%Y-%m-%d %H:%M:%S'
-
-   log = logging.getLogger()
-   log.setLevel(logging.DEBUG)
-
-   logOut = logging.StreamHandler(sys.stdout)
-   logOut.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
-   logOut.setLevel(loglevel)
-   log.addHandler(logOut)
-
-   if logfile:
-      logFile = logging.FileHandler(logfile)
-      logFile.setFormatter(logging.Formatter(
-            '%(asctime)s.%(msecs)03d %(levelname)s: %(message)s', datefmt=dateFmt))
-      log.addHandler(logFile)
-
-   if syslog:
-      logSys = logging.handlers.SysLogHandler()
-      # format to rfc5424 format
-      logSys.setFormatter(
-            logging.Formatter('{} arista: %(message)s'.format(utils.getHostname())))
-      logSys.setLevel(logging.WARNING)
-      log.addHandler(logSys)
-      try:
-         # the connection to the syslog socket happens with the first message
-         log.info('Attaching to syslog')
-      except:
-         log.warning('Failed open syslog')
+logging = getLogger(__name__)
 
 def setupSimulation():
    utils.simulation = True
@@ -59,8 +29,8 @@ def setupSimulation():
    Config().lock_file = tempfile.mktemp(prefix='arista-', suffix='.lock')
 
 def addCommonArgs(parser):
-   parser.add_argument('-v', '--verbose', action='store_true',
-                       help='increase verbosity')
+   parser.add_argument('-v', '--verbosity', type=str,
+                       help='set verbosity')
 
 def rootParser(parser):
    parser.add_argument('-p', '--platform', type=str,
@@ -94,8 +64,13 @@ def parseArgs(args):
 def main(args):
    root, args = parseArgs(args)
 
-   setupLogging(args.verbose, args.logfile, args.syslog)
-   if args.verbose:
+   try:
+      setupLogging(args.verbosity, args.logfile, args.syslog)
+   except LoggerError as e:
+      print(e.msg)
+      return e.code
+
+   if args.verbosity:
       loadBacktraceHook()
 
    if args.simulation:

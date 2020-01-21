@@ -1,12 +1,13 @@
 
 from __future__ import absolute_import, division, print_function
 
-import logging
-
 from . import registerAction
 from ..args.clean import cleanParser
 from ...core import utils
 from ...core.config import Config
+from ...core.log import getLogger
+
+logging = getLogger(__name__)
 
 @registerAction(cleanParser)
 def doClean(ctx, args):

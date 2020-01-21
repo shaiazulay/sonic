@@ -1,8 +1,6 @@
 
 from __future__ import absolute_import, division, print_function
 
-import logging
-
 from ..args import getParser
 
 class Action(object):

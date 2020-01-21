@@ -1,14 +1,16 @@
 from __future__ import print_function
 
-import logging
 import os
 
 from .exception import UnknownPlatformError
 from .fixed import FixedSystem
 from .utils import simulateWith, getCmdlineDict
 from .driver import modprobe
+from .log import getLogger
 
 from . import prefdl
+
+logging = getLogger(__name__)
 
 platforms = []
 platformSidIndex = {}

@@ -1,8 +1,10 @@
-import logging
 import os
 import yaml
 
 from .utils import getCmdlineDict
+from .log import getLogger
+
+logging = getLogger(__name__)
 
 CONFIG_PATH = "/etc/sonic/arista.config"
 

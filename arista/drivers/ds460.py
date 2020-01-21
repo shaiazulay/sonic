@@ -1,9 +1,10 @@
-import logging
-
 from contextlib import closing
 
 from ..core.driver import Driver
 from ..core import utils
+from ..core.log import getLogger
+
+logging = getLogger(__name__)
 
 class Ds460I2cDriver(Driver):
    def __init__(self, name=None, addr=None, **kwargs):

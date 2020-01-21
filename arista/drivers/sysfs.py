@@ -1,11 +1,13 @@
 from __future__ import print_function, with_statement
 
-import logging
 import os
 
 from ..core.driver import Driver
 from ..core.inventory import Xcvr
 from ..core import utils
+from ..core.log import getLogger
+
+logging = getLogger(__name__)
 
 class SysfsDriver(Driver):
    def __init__(self, sysfsPath=None, **kwargs):

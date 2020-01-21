@@ -1,8 +1,10 @@
-import logging
 import os
 
 from ..core.driver import Driver
 from ..core.utils import simulateWith
+from ..core.log import getLogger
+
+logging = getLogger(__name__)
 
 class PmbusDriver(Driver):
    def __init__(self, addr=None, hwmonDir=None, sensors=None, **kwargs):

@@ -1,14 +1,15 @@
-import logging
-
 from ..accessors.fan import FanImpl
 from ..accessors.led import LedImpl
 
 from ..core.driver import KernelDriver
+from ..core.log import getLogger
 
 from ..drivers.i2c import I2cKernelFanDriver
 from ..drivers.sysfs import FanSysfsDriver, LedSysfsDriver
 
 from .common import I2cComponent, PciComponent
+
+logging = getLogger(__name__)
 
 class CrowFanCpldComponent(I2cComponent):
    def __init__(self, addr=None, drivers=None, waitFile=None, **kwargs):

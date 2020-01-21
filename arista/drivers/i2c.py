@@ -1,10 +1,12 @@
-import logging
 import os
 
 from .sysfs import FanSysfsDriver
 
 from ..core.driver import Driver, KernelDriver
 from ..core import utils
+from ..core.log import getLogger
+
+logging = getLogger(__name__)
 
 class I2cKernelDriver(Driver):
    def __init__(self, name=None, addr=None, waitFile=None, waitTimeout=None,

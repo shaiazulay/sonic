@@ -1,10 +1,12 @@
 
 from __future__ import absolute_import, division, print_function
 
-import logging
-
 from . import registerAction
 from ..args.watchdog import watchdogParser
+
+from ...core.log import getLogger
+
+logging = getLogger(__name__)
 
 @registerAction(watchdogParser)
 def doWatchdog(ctx, args):

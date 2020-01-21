@@ -1,7 +1,6 @@
 
 from __future__ import absolute_import, division, print_function
 
-import logging
 import os
 import sys
 
@@ -9,6 +8,9 @@ from . import registerAction
 from ..args.platform import platformParser
 from ...core import utils
 from ...core.platform import getPlatform
+from ...core.log import getLogger
+
+logging = getLogger(__name__)
 
 def checkRootPermissions():
    if utils.inSimulation():

@@ -1,7 +1,6 @@
 
 from __future__ import absolute_import, division, print_function
 
-import logging
 import os
 
 from . import registerAction
@@ -9,6 +8,9 @@ from ..args.setup import setupParser
 from ...core import utils
 from ...core.config import Config
 from ...core.component import Priority
+from ...core.log import getLogger
+
+logging = getLogger(__name__)
 
 def forkForLateInitialization(platform):
    try:

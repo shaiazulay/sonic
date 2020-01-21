@@ -1,12 +1,14 @@
 from __future__ import print_function
 
-import logging
 import os
 import subprocess
 
 from collections import OrderedDict
 
 from .utils import FileWaiter, inDebug, inSimulation
+from .log import getLogger
+
+logging = getLogger(__name__)
 
 def modprobe(name, args=None):
    logging.debug('loading module %s', name)

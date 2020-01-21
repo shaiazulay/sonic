@@ -1,10 +1,12 @@
-import logging
 import copy
 
 from contextlib import closing
 
 from ..core.utils import SMBus
+from ..core.log import getLogger
 from .common import I2cComponent
+
+logging = getLogger(__name__)
 
 class Ds125Br(I2cComponent):
    def __init__(self, addr, **kwargs):

@@ -1,8 +1,9 @@
-import logging
-
 from ..core.driver import Driver
 from ..core.i2c_utils import I2cMsg
 from ..core.utils import inSimulation, SMBus
+from ..core.log import getLogger
+
+logging = getLogger(__name__)
 
 SMBUS_BLOCK_MAX_SZ = 32
 

@@ -1,17 +1,19 @@
 from __future__ import with_statement
 
 import datetime
-import logging
 from collections import namedtuple
 
 from ..core.cause import datetimeToStr, ReloadCauseEntry
 from ..core.component import Priority
 from ..core.config import Config
 from ..core.utils import JsonStoredData, inSimulation
+from ..core.log import getLogger
 
 from ..drivers.dpm import UcdI2cDevDriver
 
 from .common import I2cComponent
+
+logging = getLogger(__name__)
 
 UcdGpi = namedtuple( 'UcdGpi', [ 'bit' ] )
 UcdMon = namedtuple( 'UcdMon', [ 'val' ] )

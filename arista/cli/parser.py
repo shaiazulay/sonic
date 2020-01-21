@@ -2,10 +2,12 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
-import logging
 import importlib
 
 from .exception import ActionError
+from ..core.log import getLogger
+
+logging = getLogger(__name__)
 
 class CliContext(object):
    pass

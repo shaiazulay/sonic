@@ -1,10 +1,11 @@
-import logging
-
 from ..core.inventory import PowerCycle
+from ..core.log import getLogger
 
 from ..drivers.psu import UpperlakePsuDriver
 
 from .common import I2cComponent
+
+logging = getLogger(__name__)
 
 class CpldPowerCycle(PowerCycle):
    def __init__(self, addr, cmd, val):
