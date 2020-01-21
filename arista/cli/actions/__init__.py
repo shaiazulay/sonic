@@ -2,32 +2,20 @@
 from __future__ import absolute_import, division, print_function
 
 import logging
-import importlib
 
-from collections import namedtuple
 from ..args import getParser
 
-# from ...core.dynload import 
+class Action(object):
+   def __init__(self, func, parent, kwargs):
+      self.func = func
+      self.parent = parent
+      self.kwargs = kwargs
 
-Action = namedtuple('Action', ['name', 'func', 'parent', 'needsPlatform'])
-
-registeredActions = {}
-
-def registerAction(*names, **kwargs):
+def registerAction(parser, **kwargs):
    '''Register an action function for a subparser'''
-   needsPlatform = kwargs.pop('needsPlatform', True)
-   parent = kwargs.pop('parent', None)
+   parser = getParser(parser)
    def decorator(func):
-      for name in names:
-         registeredActions[name] = Action(name, func, parent, needsPlatform)
+      action = Action(func, parser, kwargs)
+      parser.addAction(action)
       return func
    return decorator
-
-def getAction(name):
-   if name not in registeredActions:
-      parser = getParser(name)
-      module = parser.func.__module__
-      actionModule = '.cli.actions.%s' % module[ module.rfind( '.' ) + 1: ]
-      logging.debug( 'Loading action module %s', actionModule )
-      importlib.import_module( actionModule, package='arista' )
-   return registeredActions[name]

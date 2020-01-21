@@ -2,8 +2,10 @@
 from __future__ import absolute_import, division, print_function
 
 from . import registerParser
+from .platform import platformParser
 
-@registerParser('reset', help='put devices in or out reset')
+@registerParser('reset', parent=platformParser,
+                help='put devices in or out reset')
 def resetParser(parser):
    parser.add_argument('device', nargs='*',
       help='device(s) to put in or out of reset')

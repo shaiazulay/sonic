@@ -2,8 +2,10 @@
 from __future__ import absolute_import, division, print_function
 
 from . import registerParser
+from .platform import platformParser
 
-@registerParser('setup', help='setup drivers for this platform')
+@registerParser('setup', parent=platformParser,
+                help='setup drivers for this platform')
 def setupParser(parser):
    parser.add_argument('-r', '--reset', action='store_true',
       help='put devices out of reset after init')

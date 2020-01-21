@@ -5,10 +5,11 @@ import logging
 import time
 
 from . import registerAction
+from ..args.reset import resetParser
 
-@registerAction('reset')
-def doReset(args, platform):
-   resets = platform.getInventory().getResets()
+@registerAction(resetParser)
+def doReset(ctx, args):
+   resets = ctx.platform.getInventory().getResets()
    if args.reset_list:
       print('Reset Supported Devices:')
       print("{: <20} {: <20}".format('Name', 'Value'))

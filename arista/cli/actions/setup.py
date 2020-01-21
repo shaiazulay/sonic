@@ -5,6 +5,7 @@ import logging
 import os
 
 from . import registerAction
+from ..args.setup import setupParser
 from ...core import utils
 from ...core.config import Config
 from ...core.component import Priority
@@ -20,8 +21,10 @@ def forkForLateInitialization(platform):
          platform.waitForIt()
          os._exit(0) # pylint: disable=protected-access
 
-@registerAction('setup')
-def doSetup(args, platform):
+@registerAction(setupParser)
+def doSetup(ctx, args):
+   platform = ctx.platform
+
    if args.debug:
       utils.debug = True
 

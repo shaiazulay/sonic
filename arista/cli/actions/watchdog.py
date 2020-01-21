@@ -4,10 +4,11 @@ from __future__ import absolute_import, division, print_function
 import logging
 
 from . import registerAction
+from ..args.watchdog import watchdogParser
 
-@registerAction('watchdog')
-def doWatchdog(args, platform):
-   watchdog = platform.getInventory().getWatchdog()
+@registerAction(watchdogParser)
+def doWatchdog(ctx, args):
+   watchdog = ctx.platform.getInventory().getWatchdog()
    if args.watchdog_status:
       st = watchdog.status()
       if st:

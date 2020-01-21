@@ -27,8 +27,10 @@ def walk_packages(path=None, prefix='', onerror=None):
       yield info
 
       if info.ispkg:
+         # loader = info.module_finder.find_module('arista.cli.args.' + info.name)
          loader = info.module_finder.find_module(info.name)
          try:
+            # module = loader.load_module('arista.cli.args.' + info.name)
             module = loader.load_module(info.name)
          except ImportError:
             if onerror is not None:
@@ -47,15 +49,18 @@ def walk_packages(path=None, prefix='', onerror=None):
             for item in walk_packages(path, info.name+'.', onerror):
                yield item
 
-def importSubmodules(package, recursive=True):
+def importSubmodules(package, prefix=None, recursive=True):
    if isinstance(package, str):
+      prefix = package + '.'
       package = importlib.import_module(package)
+   else:
+      prefix = package.__module__
 
    modules = {}
-   for info in walk_packages(package.__path__):
-      fullName = '%s.%s' % (package.__name__, info.name)
+   for info in walk_packages(package.__path__, prefix=prefix):
+      fullName = info.name
       modules[fullName] = importlib.import_module(fullName)
       if recursive and info.ispkg:
-         modules.update(importSubmodules(fullName))
+         modules.update(importSubmodules(fullName, fullName + '.'))
 
    return modules

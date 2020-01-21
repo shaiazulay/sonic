@@ -2,8 +2,10 @@
 from __future__ import absolute_import, division, print_function
 
 from . import registerParser
+from .platform import platformParser
 
-@registerParser('diag', help='dump diag information on this platform')
+@registerParser('diag', parent=platformParser,
+                help='dump diag information on this platform')
 def diagParser(parser):
    parser.add_argument('-n', '--noIo', action='store_true',
       help='do not perform any IO to generate the diag info')

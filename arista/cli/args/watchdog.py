@@ -2,8 +2,10 @@
 from __future__ import absolute_import, division, print_function
 
 from . import registerParser
+from .platform import platformParser
 
-@registerParser('watchdog', help='configure the hardware watchdog')
+@registerParser('watchdog', parent=platformParser,
+                help='configure the hardware watchdog')
 def watchdogParser(parser):
    parser = parser.add_mutually_exclusive_group(required=True)
    parser.add_argument('--status', action='store_true', dest='watchdog_status',

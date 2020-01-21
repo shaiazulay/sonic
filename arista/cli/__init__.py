@@ -10,22 +10,14 @@ import time
 import sys
 import os
 
-from .args import getParsers
-from .actions import getAction
+from .parser import CliContext, ActionError
+from .args import getRootParser, registerParser
+from .actions import registerAction
 
 from .. import platforms
 
 from ..core import utils
 from ..core.config import Config
-from ..core.platform import getPlatform
-
-def checkRootPermissions():
-   if utils.inSimulation():
-      return
-
-   if os.geteuid() != 0:
-      logging.error('You must be root to use this feature')
-      sys.exit(1)
 
 def setupLogging(verbose=False, logfile=None, syslog=False):
    loglevel = logging.DEBUG if verbose else logging.INFO
@@ -69,11 +61,7 @@ def addCommonArgs(parser):
    parser.add_argument('-v', '--verbose', action='store_true',
                        help='increase verbosity')
 
-def parseArgs(args):
-   parser = argparse.ArgumentParser(
-      description='Arista platform management framework',
-      formatter_class=argparse.ArgumentDefaultsHelpFormatter
-   )
+def rootParser(parser):
    parser.add_argument('-p', '--platform', type=str,
                        help='name of the platform to load')
    parser.add_argument('-l', '--logfile', type=str,
@@ -81,44 +69,29 @@ def parseArgs(args):
    parser.add_argument('-s', '--simulation', action='store_true',
                        help='force simulation mode')
    parser.add_argument('--syslog', action='store_true',
-                       help='also send logs to syslog' )
+                       help='also send logs to syslog')
    addCommonArgs(parser)
 
-   subparsers = parser.add_subparsers(dest='action')
-   subparsers.add_parser('help', help='print a help message')
-   for subparser in getParsers():
-      sub = subparsers.add_parser(
-         subparser.name,
-         formatter_class=argparse.RawDescriptionHelpFormatter,
-         **subparser.kwargs
-      )
-      addCommonArgs(sub)
-      subparser.func(sub)
+def parseArgs(args):
+   parser = argparse.ArgumentParser(
+      description='Arista platform management framework',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter
+   )
+
+   rootParser(parser)
+
+   root = getRootParser()
+   root.addSubparsers(parser, common=addCommonArgs)
 
    args = parser.parse_args(args)
    if args.action is None or args.action == 'help':
       parser.print_help()
       sys.exit(0)
-   return args
 
-def runAction(args):
-   action = getAction(args.action)
-   if action is None:
-      logging.error("Command %s doesn't exists", args.action)
-      return 1
-
-   platform = None
-   if action.needsPlatform:
-      checkRootPermissions()
-      platform = getPlatform(args.platform)
-
-   ret = action.func(args, platform)
-   if ret is None or ret == 0:
-      return 0
-   return int(ret)
+   return root, args
 
 def main(args):
-   args = parseArgs(args)
+   root, args = parseArgs(args)
 
    setupLogging(args.verbose, args.logfile, args.syslog)
 
@@ -127,5 +100,10 @@ def main(args):
 
    logging.debug(args)
 
-   return runAction(args)
+   try:
+      root.runAction(CliContext(), args)
+   except ActionError as e:
+      logging.error('%s', e)
+      return e.code
 
+   return 0

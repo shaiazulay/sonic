@@ -2,6 +2,7 @@
 from __future__ import absolute_import, division, print_function
 
 from . import registerAction
+from ..args.reboot_cause import rebootCauseParser
 from ...core import utils
 from ...core.cause import (
    getReloadCause,
@@ -10,12 +11,12 @@ from ...core.cause import (
 )
 from ...core.config import Config
 
-@registerAction('reboot-cause')
-def doRebootCause(args, platform):
+@registerAction(rebootCauseParser)
+def doRebootCause(ctx, args):
    if utils.inSimulation():
       return
    with utils.FileLock(Config().lock_file):
-      updateReloadCausesHistory(platform.getReloadCauses(clear=True))
+      updateReloadCausesHistory(ctx.platform.getReloadCauses(clear=True))
    if args.history:
       causes = getReloadCauseHistory()
    else:
