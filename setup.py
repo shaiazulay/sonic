@@ -12,6 +12,8 @@ setup(
       'arista',
       'arista.accessors',
       'arista.cli',
+      'arista.cli.actions',
+      'arista.cli.args',
       'arista.core',
       'arista.components',
       'arista.drivers',

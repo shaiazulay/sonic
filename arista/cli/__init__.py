@@ -10,15 +10,14 @@ import time
 import sys
 import os
 
-from .. import platforms
-from ..core import utils
-from ..core.cause import getReloadCause, getReloadCauseHistory, \
-                              updateReloadCausesHistory
-from ..core.platform import getPlatform, getSysEeprom, \
-                                 getPlatformSids, getPlatformSkus
-from ..core.component import Priority
+from .args import getParsers
+from .actions import getAction
 
-lock_file = '/var/lock/arista.lock'
+from .. import platforms
+
+from ..core import utils
+from ..core.config import Config
+from ..core.platform import getPlatform
 
 def checkRootPermissions():
    if utils.inSimulation():
@@ -27,13 +26,6 @@ def checkRootPermissions():
    if os.geteuid() != 0:
       logging.error('You must be root to use this feature')
       sys.exit(1)
-
-def getHostname():
-   import socket
-   try:
-      return socket.gethostname()
-   except:
-      return 'localhost'
 
 def setupLogging(verbose=False, logfile=None, syslog=False):
    loglevel = logging.DEBUG if verbose else logging.INFO
@@ -57,7 +49,7 @@ def setupLogging(verbose=False, logfile=None, syslog=False):
       logSys = logging.handlers.SysLogHandler()
       # format to rfc5424 format
       logSys.setFormatter(
-            logging.Formatter('{} arista: %(message)s'.format(getHostname())))
+            logging.Formatter('{} arista: %(message)s'.format(utils.getHostname())))
       logSys.setLevel(logging.WARNING)
       log.addHandler(logSys)
       try:
@@ -67,216 +59,63 @@ def setupLogging(verbose=False, logfile=None, syslog=False):
          log.warning('Failed open syslog')
 
 def setupSimulation():
-   global lock_file, log_file
-
    utils.simulation = True
    assert utils.inSimulation()
 
    logging.info('Running in simulation mode')
-   lock_file = tempfile.mktemp(prefix='arista-', suffix='.lock')
-   log_file = tempfile.mktemp(prefix='arista-', suffix='.log')
+   Config().lock_file = tempfile.mktemp(prefix='arista-', suffix='.lock')
 
-def forkForLateInitialization(platform):
-      try:
-         pid = os.fork()
-      except OSError:
-         logging.warn('fork failed, setting up background drivers normally')
-      else:
-         if pid > 0:
-            logging.debug('initializing slow drivers in child %d', pid)
-            platform.waitForIt()
-            os._exit(0)
-
-def doSetup(args, platform):
-   if args.debug:
-      utils.debug = True
-
-   with utils.FileLock(lock_file):
-      logging.debug('setting up critical drivers')
-      platform.setup(Priority.DEFAULT)
-
-      # NOTE: This assumes that none of the resetable devices are
-      #       initialized in background.
-      #       This should stay true in the future.
-      if args.reset:
-         logging.debug('taking devices out of reset')
-         platform.resetOut()
-
-      if args.background:
-         logging.debug('forking and setting up slow drivers in background')
-         forkForLateInitialization(platform)
-      else:
-         logging.debug('setting up slow drivers normally')
-
-      platform.setup(Priority.BACKGROUND)
-
-      if not args.background:
-         platform.waitForIt()
-
-def doClean(args, platform):
-   if args.reset:
-      logging.debug('putting devices in reset')
-      platform.resetIn()
-
-   logging.debug('cleaning up platform')
-   with utils.FileLock(lock_file):
-      platform.clean()
-
-def doReset(args, platform):
-   resets = platform.getInventory().getResets()
-   if args.reset_list:
-      print('Reset Supported Devices:')
-      print("{: <20} {: <20}".format('Name', 'Value'))
-      for reset in sorted(resets):
-        print("{: <20} {: <20}".format(reset, resets[reset].read()))
-      sys.exit(0)
-
-   devices = args.device
-   if len(devices) == 0:
-      devices = resets.keys()
-   else:
-      for device in devices:
-         if device not in resets:
-            logging.error('device %s does not exist', device)
-            sys.exit(1)
-
-   if args.reset_out:
-      for device in devices:
-         resets[device].resetOut()
-   elif args.reset_in:
-      for device in devices:
-         resets[device].resetIn()
-   elif args.reset_toggle:
-      for device in devices:
-         resets[device].resetIn()
-      time.sleep(args.reset_delay)
-      for device in devices:
-         resets[device].resetOut()
-   else:
-      logging.info('nothing to do')
-
-def doWatchdog(args, platform):
-   watchdog = platform.getInventory().getWatchdog()
-   if args.watchdog_status:
-      st = watchdog.status()
-      if st:
-         kv = ' '.join('%s=%s' % (k, v) for k, v in st.items())
-         print("Watchdog status: %s" % kv)
-      else:
-         print("Watchdog status - error.")
-   elif args.watchdog_stop:
-      logging.info('disabling the hardware watchdog')
-      if not watchdog.stop():
-         logging.error('failed to stop the hardware watchdog')
-         sys.exit(1)
-   else:
-      logging.info('arming the hardware watchdog for %ds' % args.watchdog_timeout)
-      # Tens of milliseconds
-      watchdog_timeout = args.watchdog_timeout * 100
-      if watchdog_timeout >= 65536:
-         logging.error('failed to arm the hardware watchdog: time value is too big')
-         sys.exit(1)
-      if not watchdog.arm(watchdog_timeout):
-         logging.error('failed to arm the hardware watchdog')
-         sys.exit(1)
-
-def doPlatforms(args):
-   print('supported platforms:')
-   for platform in sorted(getPlatformSkus()):
-      print(' -', platform)
-
-def doSysEeprom(args):
-   for key, value in getSysEeprom().items():
-      print('%s: %s' % (key, value))
-
-def doReboot(args, platform):
-   import arista.utils.sonic_reboot
-   arista.utils.sonic_reboot.reboot(platform.getInventory())
-
-def doRebootCause(args, platform):
-   if utils.inSimulation():
-      return
-   with utils.FileLock(lock_file):
-      updateReloadCausesHistory(platform.getReloadCauses(clear=True))
-   if args.history:
-      causes = getReloadCauseHistory()
-   else:
-      causes = getReloadCause()
-   if not causes:
-      print('No reboot cause detected')
-      return
-   print('Found reboot cause(s):')
-   print('----------------------')
-   for item in causes:
-      print(item)
-
-def todo(*args, **kwargs):
-   raise NotImplementedError
+def addCommonArgs(parser):
+   parser.add_argument('-v', '--verbose', action='store_true',
+                       help='increase verbosity')
 
 def parseArgs(args):
    parser = argparse.ArgumentParser(
-      description='Arista driver initialisation framework',
+      description='Arista platform management framework',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter
    )
    parser.add_argument('-p', '--platform', type=str,
                        help='name of the platform to load')
    parser.add_argument('-l', '--logfile', type=str,
                        help='log file to log to')
-   parser.add_argument('-v', '--verbose', action='store_true',
-                       help='increase verbosity')
    parser.add_argument('-s', '--simulation', action='store_true',
                        help='force simulation mode')
    parser.add_argument('--syslog', action='store_true',
                        help='also send logs to syslog' )
+   addCommonArgs(parser)
 
    subparsers = parser.add_subparsers(dest='action')
-   sub = subparsers.add_parser('help', help='print a help message')
-   sub = subparsers.add_parser('platforms', help='show supported platforms')
-   sub = subparsers.add_parser('syseeprom', help='show system eeprom content')
-
-   sub = subparsers.add_parser('dump', help='dump information on this platform')
-   sub = subparsers.add_parser('setup', help='setup drivers for this platform')
-   sub.add_argument('-r', '--reset', action='store_true',
-                    help='put devices out of reset after init')
-   sub.add_argument('-d', '--debug', action='store_true',
-                    help='enable debug features for the drivers')
-   sub.add_argument('-b', '--background', action='store_true',
-                    help='initialize slow, non-critical drivers in background')
-   sub = subparsers.add_parser('clean', help='unload drivers for this platform')
-   sub.add_argument('-r', '--reset', action='store_true',
-                    help='put devices in reset before cleanup')
-   sub = subparsers.add_parser('reset', help='put devices in or out reset')
-   sub.add_argument('device', nargs='*',
-                    help='device(s) to put in or out of reset')
-   sub.add_argument('-t', '--toggle', action='store_true', dest='reset_toggle',
-                    help='put devices in and out of reset')
-   sub.add_argument('-i', '--in', action='store_true', dest='reset_in',
-                    help='put devices in reset')
-   sub.add_argument('-o', '--out', action='store_true', dest='reset_out',
-                    help='put devices out of reset')
-   sub.add_argument('-d', '--delay', type=int, default=1, dest='reset_delay',
-                    help='time to wait between in and out in seconds')
-   sub.add_argument('-l', '--list', action='store_true', dest='reset_list',
-                    help='list devices that support reset')
-   sub = subparsers.add_parser('watchdog', help='configure the hardware watchdog')
-   sub = sub.add_mutually_exclusive_group(required=True)
-   sub.add_argument('--status', action='store_true', dest='watchdog_status',
-                    help='print the hardware watchdog status')
-   sub.add_argument('--stop', action='store_true', dest='watchdog_stop',
-                    help='stop the hardware watchdog')
-   sub.add_argument('--arm', type=int, nargs='?', const=300, dest='watchdog_timeout',
-                    help='arm the hardware watchdog for X seconds ' \
-                         'before the watchdog triggers')
-   sub = subparsers.add_parser('reboot', help='perform a cold reboot for platform')
-   sub = subparsers.add_parser('reboot-cause', help='reload cause information')
-   sub.add_argument('--history', action='store_true',
-                    help='print reboot causes history if it exists')
+   subparsers.add_parser('help', help='print a help message')
+   for subparser in getParsers():
+      sub = subparsers.add_parser(
+         subparser.name,
+         formatter_class=argparse.RawDescriptionHelpFormatter,
+         **subparser.kwargs
+      )
+      addCommonArgs(sub)
+      subparser.func(sub)
 
    args = parser.parse_args(args)
    if args.action is None or args.action == 'help':
       parser.print_help()
       sys.exit(0)
    return args
+
+def runAction(args):
+   action = getAction(args.action)
+   if action is None:
+      logging.error("Command %s doesn't exists", args.action)
+      return 1
+
+   platform = None
+   if action.needsPlatform:
+      checkRootPermissions()
+      platform = getPlatform(args.platform)
+
+   ret = action.func(args, platform)
+   if ret is None or ret == 0:
+      return 0
+   return int(ret)
 
 def main(args):
    args = parseArgs(args)
@@ -288,26 +127,5 @@ def main(args):
 
    logging.debug(args)
 
-   generic_commands = {
-      'platforms': doPlatforms,
-      'syseeprom': doSysEeprom,
-   }
+   return runAction(args)
 
-   platform_commands = {
-      'dump':  lambda _, x: x.dump(),
-      'setup': doSetup,
-      'clean': doClean,
-      'status': todo,
-      'reset': doReset,
-      'watchdog': doWatchdog,
-      'reboot': doReboot,
-      'reboot-cause': doRebootCause,
-   }
-
-   if args.action in generic_commands:
-      generic_commands[args.action](args)
-   elif args.action in platform_commands:
-      checkRootPermissions()
-      platform_commands[args.action](args, getPlatform(args.platform))
-   else:
-      logging.error("Command %s doesn't exists", args.action)

@@ -326,6 +326,13 @@ def locateHwmonPath(searchPath, prefix, timeout=1.0):
    logging.error('could not locate hwmon path for %s', searchPath)
    return None
 
+def getHostname():
+   import socket
+   try:
+      return socket.gethostname()
+   except OSError:
+      return 'localhost'
+
 def libraryInit():
    global simulation, debug, SMBus
 
