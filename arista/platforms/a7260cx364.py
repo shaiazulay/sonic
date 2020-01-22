@@ -4,6 +4,7 @@ from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 
 from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.cpld import SysCpld
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi
 from ..components.fan import LAFanCpldComponent
 from ..components.psu import PmbusPsu
@@ -141,3 +142,10 @@ class Gardena(Platform):
       ])
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
+
+      self.syscpld = SysCpld(cpld.i2cAddr(8, 0x23),
+         seuCfgReg=0x17,
+         seuCfgBit=0,
+         seuStsReg=0x8,
+         seuStsBit=0,
+      )

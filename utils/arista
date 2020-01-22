@@ -34,7 +34,7 @@ def getHostname():
    except:
       return 'localhost'
 
-def setupLogging(verbose=False, logfile=None, syslog=False):
+def setupLogging(verbose=False, logfile=None, syslog=None):
    loglevel = logging.DEBUG if verbose else logging.INFO
    dateFmt = '%Y-%m-%d %H:%M:%S'
 
@@ -52,12 +52,12 @@ def setupLogging(verbose=False, logfile=None, syslog=False):
             '%(asctime)s.%(msecs)03d %(levelname)s: %(message)s', datefmt=dateFmt))
       log.addHandler(logFile)
 
-   if syslog:
+   if syslog is not None:
       logSys = logging.handlers.SysLogHandler()
       # format to rfc5424 format
       logSys.setFormatter(
             logging.Formatter('{} arista: %(message)s'.format(getHostname())))
-      logSys.setLevel(logging.WARNING)
+      logSys.setLevel(getattr(logging, syslog))
       log.addHandler(logSys)
       try:
          # the connection to the syslog socket happens with the first message
@@ -192,6 +192,10 @@ def doReboot(args, platform):
    import arista.utils.sonic_reboot
    arista.utils.sonic_reboot.reboot(platform.getInventory())
 
+def doDaemon(args, platform):
+   from arista.utils.daemon import runDaemon
+   runDaemon(platform, interval=args.poll_interval)
+
 def doRebootCause(args, platform):
    if utils.inSimulation():
       return
@@ -225,7 +229,7 @@ def parseArgs():
                        help='increase verbosity')
    parser.add_argument('-s', '--simulation', action='store_true',
                        help='force simulation mode')
-   parser.add_argument('--syslog', action='store_true',
+   parser.add_argument('--syslog', nargs='?', default=None, const='WARN',
                        help='also send logs to syslog' )
 
    subparsers = parser.add_subparsers(dest='action')
@@ -234,6 +238,9 @@ def parseArgs():
    sub = subparsers.add_parser('syseeprom', help='show system eeprom content')
 
    sub = subparsers.add_parser('dump', help='dump information on this platform')
+   sub = subparsers.add_parser('daemon', help='run this as a daemon')
+   sub.add_argument('-i', '--poll-interval', default=60, type=int,
+                    help='interval at which to poll platform info')
    sub = subparsers.add_parser('setup', help='setup drivers for this platform')
    sub.add_argument('-r', '--reset', action='store_true',
                     help='put devices out of reset after init')
@@ -294,6 +301,7 @@ def main():
 
    platform_commands = {
       'dump':  lambda _, x: x.dump(),
+      'daemon': doDaemon,
       'setup': doSetup,
       'clean': doClean,
       'status': todo,

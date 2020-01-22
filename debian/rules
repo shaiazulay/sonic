@@ -8,7 +8,11 @@ export INSTALL_MOD_DIR:=extra
 
 BIN_FILES      := arista boot-eos
 RULE_FILES     := 98-scd-uio.rules
-SERVICE_FILES  := sonic-platform-arista.service watchdog-stop.service arista-reboot-cause.service
+SERVICE_FILES  := \
+   sonic-platform-arista.service \
+   watchdog-stop.service \
+   arista-reboot-cause.service \
+   arista-daemon.service
 
 KVERSION       ?= $(shell uname -r)
 KERNEL_SRC     ?= /lib/modules/$(KVERSION)/build

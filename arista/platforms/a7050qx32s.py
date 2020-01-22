@@ -1,9 +1,10 @@
 from ..core.platform import registerPlatform, Platform
 from ..core.utils import incrange
-from ..core.types import PciAddr, NamedGpio, ResetGpio
+from ..core.types import I2cAddr, PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.cpld import SysCpld
 from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.fan import CrowFanCpldComponent
 from ..components.psu import PmbusMixedPsuComponent, PmbusPsu
@@ -136,6 +137,13 @@ class Clearlake(Platform):
          self.inventory.addXcvr(xcvr)
          addr += 0x10
          bus += 1
+
+      self.syscpld = SysCpld(I2cAddr(1, 0x23),
+         seuCfgReg=0x09,
+         seuCfgBit=0,
+         seuStsReg=0x0a,
+         seuStsBit=2,
+      )
 
 @registerPlatform('DCS-7050QX2-32S')
 class ClearlakePlus(Clearlake):
