@@ -130,16 +130,26 @@ def detectPlatform():
 
    raise UnknownPlatformError(sku, sid, name, platforms)
 
-def getPlatform(name=None):
-   if name is None:
-      platformCls = detectPlatform()
-   else:
-      platformCls = platformSkuIndex.get(name)
-      if platformCls is None:
-         platformCls = platformSidIndex.get(name)
-         if platformCls is None:
-            raise UnknownPlatformError(name, platforms)
+def getPlatformCls(*names):
+   if not names or not [name for name in names if name]:
+      return detectPlatform()
 
+   for name in names:
+      if name is None:
+         continue
+
+      platformCls = platformSkuIndex.get(name)
+      if platformCls is not None:
+         return platformCls
+
+      platformCls = platformSidIndex.get(name)
+      if platformCls is not None:
+         return platformCls
+
+   raise UnknownPlatformError(names, platforms)
+
+def getPlatform(name=None):
+   platformCls = getPlatformCls(name)
    platform = platformCls()
    platform.refresh()
    return platform
