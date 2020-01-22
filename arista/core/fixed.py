@@ -1,8 +1,8 @@
 from .cause import ReloadCauseEntry
 from .component import Component, Priority
 from .config import Config
-from .inventory import Inventory
 from .driver import KernelDriver
+from .inventory import Inventory
 from .utils import inSimulation, JsonStoredData
 
 class FixedSystem(Component):
@@ -11,18 +11,15 @@ class FixedSystem(Component):
    SID = None
    SKU = None
 
-   def __init__(self, drivers=None, **kwargs):
+   def __init__(self, drivers=None, inventoryCls=Inventory, **kwargs):
       drivers = drivers or [KernelDriver(module='eeprom'),
                             KernelDriver(module='i2c-dev')]
-      super(FixedSystem, self).__init__(drivers=drivers, **kwargs)
-      self.inventory = Inventory()
+      super(FixedSystem, self).__init__(drivers=drivers, inventoryCls=inventoryCls,
+                                        **kwargs)
 
    def setup(self, priority=Priority.DEFAULT):
       super(FixedSystem, self).setup()
       super(FixedSystem, self).finish(priority)
-
-   def getInventory(self):
-      return self.inventory
 
    def __str__(self):
       return '%s()' % self.__class__.__name__

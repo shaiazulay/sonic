@@ -2,6 +2,7 @@ from __future__ import print_function
 from collections import defaultdict, OrderedDict
 
 from .driver import KernelDriver
+from .metainventory import LazyInventory
 from .utils import flatten
 
 import os
@@ -13,13 +14,16 @@ class Priority(object):
    DEFAULT = 0
    THERMAL = 0
    BACKGROUND = 1
+   POWER = 1
 
 class Component(object):
-   def __init__(self, addr=None, priority=Priority.DEFAULT, drivers=None, **kwargs):
+   def __init__(self, addr=None, priority=Priority.DEFAULT, drivers=None,
+                inventoryCls=LazyInventory, **kwargs):
       self.components = defaultdict(list)
       self.addr = addr
       self.priority = priority
       self.drivers = OrderedDict()
+      self.inventory = inventoryCls()
       self.addDrivers(drivers)
       self.__dict__.update(kwargs)
 
@@ -40,12 +44,18 @@ class Component(object):
       self.components[component.priority].append(component)
       return self
 
-   def iterComponents(self):
-      for components in self.components.values():
+   def iterComponents(self, priority=None):
+      for level, components in self.components.items():
+         if priority is not None and level != priority:
+            continue
          for component in components:
             yield component
             for sub in component.iterComponents():
                yield sub
+
+   def iterInventory(self, priority=None):
+      for component in self.iterComponents(priority=priority):
+         yield component.inventory
 
    def addDrivers(self, drivers):
       if drivers:
@@ -61,6 +71,9 @@ class Component(object):
          drv = driver(**kwargs)
          self.drivers[getattr(drv, 'driverName', None) or
                       driver.__class__.__name__] = drv
+
+   def getInventory(self):
+      return self.inventory
 
    def setup(self):
       for driver in self.drivers.values():
