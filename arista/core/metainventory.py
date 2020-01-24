@@ -24,6 +24,7 @@ class MetaInventory(object):
       func = getattr(Inventory, key)
       def callback():
          data = None
+         count = 0
          for inv in self.invs:
             res = func(inv)
             if data is None:
@@ -34,5 +35,10 @@ class MetaInventory(object):
                data.extend(res)
             elif isinstance(res, int):
                data += res
+            else:
+               raise ValueError('Unknown type to process')
+            count += 1
+         if count == 0:
+            return copy.deepcopy(getattr(_TEMPLATE_INVENTORY, key)())
          return data
       return callback

@@ -266,17 +266,21 @@ class InventoryTest(unittest.TestCase):
       meta = MetaInventory(invs=[inv])
       return meta
 
-   def assertInventoryEqual(self, inv1, inv2):
-      for attr in Inventory.__dict__:
+   def _iterInventoryGetters(self):
+      for attr in dir(Inventory):
          if attr.startswith('get') and attr.endswith( 's' ):
-            v1 = getattr(inv1, attr)()
-            v2 = getattr(inv2, attr)()
-            self.assertEqual(type(v1), type(v2))
-            if isinstance(v1, (list, dict, set)):
-               for item in v1:
-                  self.assertIn(item, v2)
-            else:
-               self.assertEqual(v1, v2)
+            yield attr
+
+   def assertInventoryEqual(self, inv1, inv2):
+      for attr in self._iterInventoryGetters():
+         v1 = getattr(inv1, attr)()
+         v2 = getattr(inv2, attr)()
+         self.assertEqual(type(v1), type(v2))
+         if isinstance(v1, (list, dict, set)):
+            for item in v1:
+               self.assertIn(item, v2)
+         else:
+            self.assertEqual(v1, v2)
 
    def testInventory(self):
       inv = self._getTestInventory()
@@ -332,6 +336,14 @@ class InventoryTest(unittest.TestCase):
 
       inv = self._getFullInventory()
       self.assertInventoryEqual(inv, meta)
+
+   def testEmptyMetaInventory(self):
+      meta = MetaInventory()
+      inv = Inventory()
+      for attr in self._iterInventoryGetters():
+         metaval = getattr(meta, attr)()
+         invval = getattr(inv, attr)()
+         self.assertEquals(metaval, invval)
 
 if __name__ == '__main__':
    unittest.main()
