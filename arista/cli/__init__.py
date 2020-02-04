@@ -17,7 +17,7 @@ from .. import platforms
 from ..core import utils
 from ..core.config import Config
 from ..core.backtrace import loadBacktraceHook
-from ..core.log import setupLogging, getLogger
+from ..core.log import setupLogging, getLogger, LoggerError
 
 logging = getLogger(__name__)
 

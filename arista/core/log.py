@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import logging
 import logging.handlers
+import os
 import re
 import sys
 
@@ -48,9 +49,8 @@ class LoggerManager(object):
             cliLevel = None
 
       logger = logging.getLogger(name)
+      logger.setLevel(DEBUG)
       if cliLevel:
-         logger.setLevel(cliLevel)
-
          logOut = logging.StreamHandler(sys.stdout)
          logOut.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
          logOut.setLevel(cliLevel)
@@ -64,14 +64,14 @@ class LoggerManager(object):
          logFile.setFormatter(logging.Formatter(
                '%(asctime)s.%(msecs)03d %(levelname)s: %(message)s',
                datefmt=dateFmt))
+         logFile.setLevel(DEBUG)
          logger.addHandler(logFile)
 
       if self.syslog:
          logSys = logging.handlers.SysLogHandler()
          # format to rfc5424 format
          logSys.setFormatter(
-               logging.Formatter('{} arista: %(message)s'.
-                  format(utils.getHostname())))
+               logging.Formatter('{} arista: %(message)s'.format(getHostname())))
          logSys.setLevel(syslogLevel)
          logger.addHandler(logSys)
          try:
@@ -104,6 +104,9 @@ class Logger(object):
       self.log(INFO, msg, *args, **kwargs)
 
    def warning(self, msg, *args, **kwargs):
+      self.log(WARNING, msg, *args, **kwargs)
+
+   def warn(self, msg, *args, **kwargs):
       self.log(WARNING, msg, *args, **kwargs)
 
    def error(self, msg, *args, **kwargs):
@@ -139,9 +142,19 @@ def parseVerbosity(verbosity):
             raise LoggerError('Invalid log level: %s' % logLevelStr)
          logLevel = logLevelDict[ logLevelStr ]
 
-      verbosityDict[re.compile(pattern)] = logLevel
+      try:
+         verbosityDict[re.compile(pattern)] = logLevel
+      except re.error as e:
+         raise LoggerError('Invalid verbosity: %s' % str(e))
 
    return verbosityDict
 
 loggerManager = LoggerManager()
+
+def getHostname():
+   import socket
+   try:
+      return socket.gethostname()
+   except os.OSError:
+      return 'localhost'
 
