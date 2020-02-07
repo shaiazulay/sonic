@@ -20,6 +20,7 @@ class SeepromI2cDevDriver(Driver):
 
    offset = 0
    length = 256
+   header_size = 8
 
    def __init__(self, addr=None, **kwargs):
       super(SeepromI2cDevDriver, self).__init__(**kwargs)
@@ -28,8 +29,23 @@ class SeepromI2cDevDriver(Driver):
    def read(self):
       with closing(SMBus(self.addr.bus)) as bus:
          data = ''
-         # consecutive byte read
          bus.write_byte_data(self.addr.address, 0x00, 0)
-         for _ in range(self.offset, self.length):
+
+         header = []
+         # consecutive byte read
+         for _ in range(self.offset, self.header_size):
+            header += [bus.read_byte(self.addr.address)]
+
+         # The 32 bits at 0x4 indicates the length of the prefdl (including the
+         # header)
+         length = ((header[4] << 24) |
+                   (header[5] << 16) |
+                   (header[6] << 8) |
+                    header[7])
+
+         data += ''.join(map(chr, header))
+
+         # consecutive byte read
+         for _ in range(self.offset + self.header_size, length):
             data += chr(bus.read_byte(self.addr.address))
          return data
