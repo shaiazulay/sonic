@@ -71,8 +71,17 @@ class Lodoga(Platform):
          ResetGpio(0x4000, 2, False, 'switch_chip_pcie_reset'),
       ]))
 
-      cpld = CrowCpld(I2cAddr(1, 0x23))
+      self.syscpld = CrowCpld(I2cAddr(1, 0x23),
+         seuCfgReg=0x09,
+         seuCfgBit=0,
+         seuStsReg=0x0a,
+         seuStsBit=2,
+      )
+      cpld = self.syscpld
       self.inventory.addPowerCycle(cpld.createPowerCycle())
+
+      self.addComponent(cpld)
+
       scd.addGpios([
          NamedGpio(0x5000, 1, True, False, "psu1_present"),
          NamedGpio(0x5000, 0, True, False, "psu2_present"),
