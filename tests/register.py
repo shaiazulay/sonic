@@ -6,6 +6,7 @@ from __future__ import absolute_import, division, print_function
 import unittest
 
 import arista.core.platform as platform
+from arista.core.fixed import FixedSystem
 
 class UniqueKeyDict(dict):
    def __setitem__(self, key, value):
@@ -20,6 +21,7 @@ class UniqueList(list):
       list.append(self, value)
 
 class RegisterTest(unittest.TestCase):
+   @unittest.skip("affect later tests as clearing platform.platforms")
    def testUniquePlatform(self):
       platform.platformSkuIndex = UniqueKeyDict()
       platform.platformSidIndex = UniqueKeyDict()
@@ -39,6 +41,8 @@ class RegisterTest(unittest.TestCase):
       platform.loadPlatforms()
 
       for cls in platform.getPlatforms():
+         if not issubclass(cls, FixedSystem):
+            continue
          cls()
 
 if __name__ == '__main__':

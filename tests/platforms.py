@@ -15,6 +15,7 @@ from arista.components.scd import ScdInterruptRegister
 
 from arista.core import utils
 from arista.core.driver import Driver
+from arista.core.fixed import FixedSystem
 from arista.core.inventory import Psu, Xcvr
 from arista.core.platform import getPlatformSkus
 from arista.core.types import I2cAddr
@@ -75,6 +76,9 @@ def mock_waitReady(self):
 def mock_return(self):
    return
 
+def mock_iterAll(self):
+   return [];
+
 @patch('arista.drivers.scd.i2cBusFromName', mock_i2cBusFromName)
 @patch('arista.core.utils.inSimulation', mock_inSimulation)
 @patch('arista.core.utils.locateHwmonPath', mock_locateHwmonPath)
@@ -93,16 +97,6 @@ class MockTest(unittest.TestCase):
    @classmethod
    def setUpClass(cls):
       cls.logger = getLogger(cls.__name__)
-      cls.inventories = {}
-      for name, platform in getPlatformSkus().items():
-         assert platform
-         cls.logger.info('Testing init for platform %s', name)
-         platformObj = platform()
-         assert platformObj
-         cls.logger.info('Setting inventory for platform %s', name)
-         inventory = platformObj.getInventory()
-         assert inventory
-         cls.inventories[name] = inventory
       cls.ledColors = ['off', 'green', 'red', 'yellow']
 
    def _testLed(self, led):
@@ -118,12 +112,22 @@ class MockTest(unittest.TestCase):
 
    def testSetup(self):
       for name, platform in getPlatformSkus().items():
+         if not issubclass(platform, FixedSystem):
+            continue
          self.logger.info('Testing setup for platform %s', name)
+         assert platform
          platform = platform()
          platform.setup()
+         assert platform
+         self.logger.info('Setting inventory for platform %s', name)
+         inventory = platform.getInventory()
+         assert inventory
 
    def testXcvrs(self):
-      for name, inventory in self.inventories.items():
+      for name, platform in getPlatformSkus().items():
+         if not issubclass(platform, FixedSystem):
+            continue
+         inventory = platform().getInventory()
          self.logger.info('Testing transceivers for platform %s', name)
          for index, xcvr in inventory.getXcvrs().items():
             self.logger.debug('Testing xcvr index %s', index)
@@ -165,7 +169,10 @@ class MockTest(unittest.TestCase):
                self._testLed(led)
 
    def testPsus(self):
-      for name, inventory in self.inventories.items():
+      for name, platform in getPlatformSkus().items():
+         if not issubclass(platform, FixedSystem):
+            continue
+         inventory = platform().getInventory()
          self.logger.info('Testing PSUs for platform %s', name)
          for psu in inventory.getPsus():
             assert isinstance(psu, Psu)
@@ -175,7 +182,10 @@ class MockTest(unittest.TestCase):
             assert isinstance(psu.getStatus(), bool)
 
    def testFans(self):
-      for name, inventory in self.inventories.items():
+      for name, platform in getPlatformSkus().items():
+         if not issubclass(platform, FixedSystem):
+            continue
+         inventory = platform().getInventory()
          self.logger.info('Testing fans for platform %s', name)
          for fan in inventory.getFans():
             assert isinstance(fan, FanImpl)
