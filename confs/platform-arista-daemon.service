@@ -1,0 +1,14 @@
+[Unit]
+Description=Arista platform daemon
+After=sonic-platform-arista.service
+ConditionKernelCommandLine=Aboot
+
+[Service]
+User=root
+Restart=always
+RestartSec=30
+
+ExecStart=/usr/bin/python3 /usr/bin/arista --syslog -l /var/log/arista-daemon.log daemon
+
+[Install]
+WantedBy=multi-user.target
