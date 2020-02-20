@@ -2,6 +2,7 @@
 from __future__ import absolute_import, division, print_function
 
 from . import registerParser
+from .common import addPriorityArgs
 from .platform import platformParser
 
 @registerParser('setup', parent=platformParser,
@@ -13,3 +14,4 @@ def setupParser(parser):
       help='enable debug features for the drivers')
    parser.add_argument('-b', '--background', action='store_true',
       help='initialize slow, non-critical drivers in background')
+   addPriorityArgs(parser)

@@ -31,8 +31,9 @@ def doSetup(ctx, args):
       utils.debug = True
 
    with utils.FileLock(Config().lock_file):
-      logging.debug('setting up critical drivers')
-      platform.setup(Priority.defaultFilter)
+      if args.early or not args.late:
+         logging.debug('setting up critical drivers')
+         platform.setup(Priority.defaultFilter)
 
       # NOTE: This assumes that none of the resetable devices are
       #       initialized in background.
@@ -41,13 +42,15 @@ def doSetup(ctx, args):
          logging.debug('taking devices out of reset')
          platform.resetOut()
 
-      if args.background:
-         logging.debug('forking and setting up slow drivers in background')
-         forkForLateInitialization(platform)
-      else:
-         logging.debug('setting up slow drivers normally')
+      if args.late or not args.early:
+         if args.background:
+            logging.debug('forking and setting up slow drivers in background')
+            forkForLateInitialization(platform)
+         else:
+            logging.debug('setting up slow drivers normally')
 
-      platform.setup(Priority.backgroundFilter)
+         platform.setup(Priority.backgroundFilter)
 
-      if not args.background:
-         platform.waitForIt()
+      if args.early or not args.late:
+         if not args.background:
+            platform.waitForIt()
