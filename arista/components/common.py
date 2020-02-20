@@ -11,6 +11,11 @@ from ..drivers.i2c import I2cKernelDriver
 
 logging = getLogger(__name__)
 
+class Position(object):
+   INLET = 'inlet'
+   OUTLET = 'outlet'
+   OTHER = 'other'
+
 SensorDesc = namedtuple('SensorDesc', [
    'diode',
    'name',
