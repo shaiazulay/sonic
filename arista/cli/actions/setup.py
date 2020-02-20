@@ -32,7 +32,7 @@ def doSetup(ctx, args):
 
    with utils.FileLock(Config().lock_file):
       logging.debug('setting up critical drivers')
-      platform.setup(Priority.DEFAULT)
+      platform.setup(Priority.defaultFilter)
 
       # NOTE: This assumes that none of the resetable devices are
       #       initialized in background.
@@ -47,7 +47,7 @@ def doSetup(ctx, args):
       else:
          logging.debug('setting up slow drivers normally')
 
-      platform.setup(Priority.BACKGROUND)
+      platform.setup(Priority.backgroundFilter)
 
       if not args.background:
          platform.waitForIt()

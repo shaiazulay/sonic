@@ -203,5 +203,18 @@ class MockTest(unittest.TestCase):
             assert led == fan.led
             self._testLed(led)
 
+   def testComponents(self):
+      def _testSubcomponentPriority(component):
+         for sub in component.components:
+            assert sub.priority >= component.priority
+            _testSubcomponentPriority(sub)
+
+      for name, platform in getPlatformSkus().items():
+         if not issubclass(platform, FixedSystem):
+            continue
+         self.logger.info('Testing components priority for platform %s', name)
+         for component in platform().iterComponents():
+            _testSubcomponentPriority(component)
+
 if __name__ == '__main__':
    unittest.main()

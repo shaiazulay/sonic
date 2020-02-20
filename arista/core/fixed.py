@@ -17,9 +17,9 @@ class FixedSystem(Component):
       super(FixedSystem, self).__init__(drivers=drivers, inventoryCls=inventoryCls,
                                         **kwargs)
 
-   def setup(self, priority=Priority.DEFAULT):
+   def setup(self, filters=Priority.defaultFilter):
       super(FixedSystem, self).setup()
-      super(FixedSystem, self).finish(priority)
+      super(FixedSystem, self).finish(filters)
 
    def __str__(self):
       return '%s()' % self.__class__.__name__
