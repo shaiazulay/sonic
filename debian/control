@@ -38,7 +38,6 @@ Architecture: all
 Depends:
    ${python3:Depends},
    ${misc:Depends}
-Recommends:
    python3-smbus
 Description: Arista python3 libraries
  These libraries allow to work with devices such as fan, led, sfp, psu
