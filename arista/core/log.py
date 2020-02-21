@@ -30,25 +30,15 @@ class LoggerManager(object):
       self.cliVerbosityDict = {}
       self.logfile = None
       self.syslog = False
+      self.loggers = {}
 
-   def newLogger(self, name, cliLevel=INFO, syslogLevel=WARNING):
-      if name.startswith('arista.'):
-         name = name[len('arista.'):]
+   def initLogger(self, logger, cliLevel, syslogLevel):
+      # Prevent the logger from going through its parent handlers.
+      # Parents are automatically assigned due to the use of __name__.
+      # We should probably only create the handlers on the root parser and
+      # write a custom Filter object per logger instead.
+      logger.propagate = False
 
-      # If a verbosity parameter is given, use it to find the cli log level
-      # Otherwise, use the default level
-      if self.cliVerbosityDict:
-         for pattern, level in self.cliVerbosityDict.iteritems():
-            if re.match(pattern, name):
-               # level can be None when using verbosity 'abc'
-               # Use default level in this case
-               if level:
-                  cliLevel = level
-               break
-         else:
-            cliLevel = None
-
-      logger = logging.getLogger(name)
       logger.setLevel(DEBUG)
       if cliLevel:
          logOut = logging.StreamHandler(sys.stdout)
@@ -74,12 +64,34 @@ class LoggerManager(object):
                logging.Formatter('{} arista: %(message)s'.format(getHostname())))
          logSys.setLevel(syslogLevel)
          logger.addHandler(logSys)
-         try:
-            # the connection to the syslog socket happens with the first message
-            logger.info('Attaching to syslog')
-         except:
-            logger.warning('Failed open syslog')
 
+      return logger
+
+   def newLogger(self, name, cliLevel=INFO, syslogLevel=WARNING):
+      if name.startswith('arista.'):
+         name = name[len('arista.'):]
+
+      logger = self.loggers.get(name)
+      if logger is not None:
+         return logger
+
+      # If a verbosity parameter is given, use it to find the cli log level
+      # Otherwise, use the default level
+      if self.cliVerbosityDict:
+         for pattern, level in self.cliVerbosityDict.items():
+            if re.match(pattern, name):
+               # level can be None when using verbosity 'abc'
+               # Use default level in this case
+               if level:
+                  cliLevel = level
+               break
+         else:
+            cliLevel = None
+
+      logger = logging.getLogger(name)
+      if logger not in self.loggers.values():
+         self.initLogger(logger, cliLevel, syslogLevel)
+         self.loggers[name] = logger
       return logger
 
 class Logger(object):
@@ -155,6 +167,6 @@ def getHostname():
    import socket
    try:
       return socket.gethostname()
-   except os.OSError:
+   except OSError:
       return 'localhost'
 
