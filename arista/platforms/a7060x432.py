@@ -4,8 +4,8 @@ from ..core.types import NamedGpio, PciAddr, ResetGpio
 from ..core.utils import incrange
 
 from ..components.common import SwitchChip
+from ..components.cpu.rook import TehamaFanCpldComponent, RookSysCpld
 from ..components.dpm import Ucd90320, UcdGpi
-from ..components.fan import TehamaFanCpldComponent
 from ..components.max6581 import Max6581
 from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
@@ -134,6 +134,9 @@ class BlackhawkO(Platform):
       ])
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
+
+      self.syscpld = RookSysCpld(cpld.i2cAddr(8, 0x23))
+      self.addComponent(self.syscpld)
 
 @registerPlatform()
 class BlackhawkDD(BlackhawkO):

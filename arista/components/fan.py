@@ -4,46 +4,11 @@ from ..accessors.led import LedImpl
 from ..core.driver import KernelDriver
 from ..core.log import getLogger
 
-from ..drivers.i2c import I2cKernelFanDriver
 from ..drivers.sysfs import FanSysfsDriver, LedSysfsDriver
 
 from .common import I2cComponent, PciComponent
 
 logging = getLogger(__name__)
-
-class LAFanCpldComponent(I2cComponent):
-   def __init__(self, addr=None, drivers=None, waitFile=None, **kwargs):
-      if not drivers:
-         fanSysfsDriver = I2cKernelFanDriver(name='la_cpld',
-               module='rook-fan-cpld', addr=addr, maxPwm=255, waitFile=waitFile)
-         ledSysfsDriver = LedSysfsDriver(sysfsPath='/sys/class/leds')
-         drivers = [fanSysfsDriver, ledSysfsDriver]
-      super(LAFanCpldComponent, self).__init__(addr=addr, drivers=drivers,
-                                               **kwargs)
-
-   def createFan(self, fanId, driver='I2cKernelFanDriver',
-                 ledDriver='LedSysfsDriver', **kwargs):
-      logging.debug('creating LA fan %s', fanId)
-      driver = self.drivers[driver]
-      led = LedImpl(name='fan%s' % fanId, driver=self.drivers[ledDriver])
-      return FanImpl(fanId=fanId, driver=driver, led=led, **kwargs)
-
-class TehamaFanCpldComponent(I2cComponent):
-   def __init__(self, addr=None, drivers=None, waitFile=None, **kwargs):
-      if not drivers:
-         fanSysfsDriver = I2cKernelFanDriver(name='tehama_cpld',
-               module='rook-fan-cpld', addr=addr, maxPwm=255, waitFile=waitFile)
-         ledSysfsDriver = LedSysfsDriver(sysfsPath='/sys/class/leds')
-         drivers = [fanSysfsDriver, ledSysfsDriver]
-      super(TehamaFanCpldComponent, self).__init__(addr=addr, drivers=drivers,
-                                                   **kwargs)
-
-   def createFan(self, fanId, driver='I2cKernelFanDriver',
-                 ledDriver='LedSysfsDriver', **kwargs):
-      logging.debug('creating Tehama fan %s', fanId)
-      driver = self.drivers[driver]
-      led = LedImpl(name='fan%s' % fanId, driver=self.drivers[ledDriver])
-      return FanImpl(fanId=fanId, driver=driver, led=led, **kwargs)
 
 class RavenFanCpldComponent(I2cComponent):
    def __init__(self, drivers=None, waitFile=None, **kwargs):

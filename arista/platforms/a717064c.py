@@ -4,12 +4,11 @@ from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 
 from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.cpu.rook import RookLedComponent, LAFanCpldComponent, RookSysCpld
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi
-from ..components.fan import LAFanCpldComponent
 from ..components.lm73 import Lm73
 from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
-from ..components.rook import RookLedComponent
 from ..components.scd import Scd
 
 @registerPlatform()
@@ -146,3 +145,6 @@ class Alhambra(Platform):
       ])
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
+
+      self.syscpld = RookSysCpld(cpld.i2cAddr(8, 0x23))
+      self.addComponent(self.syscpld)
