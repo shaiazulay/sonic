@@ -1,5 +1,6 @@
 # kernel module build
 *.o
+*.o.d
 *.ko
 *.mod.c
 *.mod.o
@@ -17,7 +18,15 @@ DEBIAN
 
 # python
 *.pyc
+__pycache__/
 /build
 /*.egg-info
-/venv
+/venv*
 /.pybuild
+
+# package related rules
+/debian/files
+/debian/drivers-sonic-platform-arista/
+/debian/python-sonic-platform-arista/
+/debian/python3-sonic-platform-arista/
+/debian/sonic-platform-arista/
