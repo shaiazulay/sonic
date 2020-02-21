@@ -3,8 +3,8 @@ from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 
 from ..components.common import SwitchChip
+from ..components.cpu.raven import RavenFanCpldComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi, UcdMon
-from ..components.fan import RavenFanCpldComponent
 from ..components.lm73 import Lm73
 from ..components.max6658 import Max6658
 from ..components.psu import PmbusMixedPsuComponent
