@@ -111,17 +111,17 @@ class I2cDevDriver(Driver):
          self.bus_.close()
          self.bus_ = None
 
-   def read_byte_data(self, *args, **kwargs):
-      return self.bus.read_byte_data(self.addr.address, *args, **kwargs)
+   def read_byte_data(self, reg):
+      return self.bus.read_byte_data(self.addr.address, reg)
 
-   def write_byte_data(self, *args, **kwargs):
-      return self.bus.write_byte_data(self.addr.address, *args, **kwargs)
+   def write_byte_data(self, reg, data):
+      return self.bus.write_byte_data(self.addr.address, reg, data)
 
    def read(self, reg):
-      res = self.read_byte_data(self, reg)
+      res = self.read_byte_data(reg)
       if res is None:
          raise IOError(self, reg)
       return res
 
-   def write(self, reg, value):
-      return self.write_byte_data(self, reg, value)
+   def write(self, reg, data):
+      return self.write_byte_data(reg, data)
