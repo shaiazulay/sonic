@@ -3,9 +3,8 @@ from ..core.utils import incrange
 from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
 
 from ..components.common import SwitchChip
-from ..components.cpld import CrowCpld
+from ..components.cpu.crow import CrowSysCpld, CrowFanCpldComponent
 from ..components.dpm import Ucd90120A, UcdGpi
-from ..components.fan import CrowFanCpldComponent
 from ..components.max6658 import Max6658
 from ..components.max6697 import Max6697
 from ..components.psu import UpperlakeMixedPsuComponent, PmbusPsu
@@ -70,13 +69,14 @@ class Upperlake(Platform):
          ResetGpio(0x4000, 2, False, 'switch_chip_pcie_reset'),
       ]))
 
-      cpld = CrowCpld(I2cAddr(1, 0x23))
-      self.inventory.addPowerCycle(cpld.createPowerCycle())
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
       ])
 
+      self.syscpld = CrowSysCpld(I2cAddr(1, 0x23))
+      cpld = self.syscpld
+      self.inventory.addPowerCycle(cpld.createPowerCycle())
       self.addComponent(cpld)
 
       psuComponent = UpperlakeMixedPsuComponent(presenceComponent=scd,

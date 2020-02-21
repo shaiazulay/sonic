@@ -1,37 +1,56 @@
+import time
+
 from ..core.inventory import PowerCycle
 from ..core.log import getLogger
+from ..core.register import Register, RegisterMap
 
-from ..drivers.psu import UpperlakePsuDriver
+from ..drivers.cpld import SysCpldI2cDriver
 
 from .common import I2cComponent
 
 logging = getLogger(__name__)
 
-class CpldPowerCycle(PowerCycle):
-   def __init__(self, addr, cmd, val):
-      self.addr = addr
-      self.cmd = cmd
-      self.val = val
+class SysCpldCommonRegisters(RegisterMap):
+   REVISION = Register(0x01, name='revision')
+   SCRATCHPAD = Register(0x02, name='scratchpad', ro=False)
+   SUICIDE = Register(0x03, name='suicide', ro=False)
+   POWER_CYCLE = Register(0x04, name='powerCycle', ro=False)
+
+class SysCpldPowerCycle(PowerCycle):
+   def __init__(self, parent):
+      self.parent = parent
 
    def powerCycle(self):
-      import smbus
-      bus = smbus.SMBus(self.addr.bus)
       logging.info("Initiating powercycle through CPLD")
-      bus.write_byte_data(self.addr.address, self.cmd, self.val)
+      self.parent.drivers['SysCpldI2cDriver'].regs.powerCycle(0xDE)
       logging.info("Powercycle triggered from CPLD")
 
-class CrowCpld(I2cComponent):
-   def __init__(self, addr, drivers=None, **kwargs):
+class SysCpld(I2cComponent):
+   def __init__(self, addr, drivers=None, registerCls=None, **kwargs):
       self.powerCycles = []
-      self.psus = []
       if not drivers:
-         drivers = [UpperlakePsuDriver(addr=addr)]
-      super(CrowCpld, self).__init__(addr=addr, drivers=drivers, **kwargs)
+         drivers = [SysCpldI2cDriver(addr=addr, registerCls=registerCls)]
+      super(SysCpld, self).__init__(addr=addr, drivers=drivers, **kwargs)
 
-   def createPowerCycle(self, cmd=0x04, val=0xde):
-      powerCycle = CpldPowerCycle(self.addr, cmd, val)
-      self.powerCycles.append(powerCycle)
-      return powerCycle
+   def createPowerCycle(self):
+      return SysCpldPowerCycle(self)
 
    def getPowerCycles(self):
       return self.powerCycles
+
+   def resetScd(self, sleep=1, wait=True):
+      driver = self.drivers['SysCpldI2cDriver']
+      state = driver.regs.scdReset()
+      logging.debug('%s: scd reset: %s', self, state)
+
+      driver.regs.scdReset(1)
+      if wait:
+         time.sleep(sleep) # could be lower
+      driver.regs.scdReset(0)
+
+   def powerCycleOnSeu(self, value=None):
+      return self.drivers['SysCpldI2cDriver'].regs.powerCycleOnCrc(value)
+
+   def hasSeuError(self):
+      return self.drivers['SysCpldI2cDriver'].regs.scdCrcError()
+

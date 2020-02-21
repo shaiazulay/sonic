@@ -1,11 +1,11 @@
 from ..core.platform import registerPlatform, Platform
 from ..core.utils import incrange
-from ..core.types import PciAddr, NamedGpio, ResetGpio
+from ..core.types import I2cAddr, PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
 
 from ..components.common import SwitchChip
+from ..components.cpu.crow import CrowFanCpldComponent, CrowSysCpld
 from ..components.dpm import Ucd90120A, UcdGpi
-from ..components.fan import CrowFanCpldComponent
 from ..components.max6658 import Max6658
 from ..components.psu import PmbusMixedPsuComponent, PmbusPsu
 from ..components.scd import Scd
@@ -69,6 +69,9 @@ class Clearlake(Platform):
 
       self.inventory.addReset(
          scd.addReset(ResetGpio(0x4000, 0, False, 'switch_chip_reset')))
+
+      self.syscpld = CrowSysCpld(I2cAddr(1, 0x23))
+      self.addComponent(self.syscpld)
 
       pmbusPsu1 = PmbusPsu(scd.i2cAddr(3, 0x58, t=3, datr=3, datw=3),
                            '/sys/class/hwmon/hwmon5')
