@@ -6,57 +6,27 @@ include /usr/share/dpkg/pkg-info.mk
 
 export INSTALL_MOD_DIR:=extra
 
-BIN_FILES      := arista boot-eos
-RULE_FILES     := 98-scd-uio.rules
-SERVICE_FILES  := \
-   arista-reboot-cause.service \
-   sonic-platform-arista.service \
-   platform-arista-daemon.service \
-   watchdog-stop.service \
-   # left blank
-
-KVERSION       ?= $(shell uname -r)
-KERNEL_SRC     ?= /lib/modules/$(KVERSION)/build
-EXTRA_SYMBOLS  := /lib/modules/$(KVERSION)/extra/scd-Module.symvers
-KERNEL_DST     := /lib/modules/$(KVERSION)
-BASE_DIR       := $(shell pwd)
-MODULE_SRC     := $(BASE_DIR)/src
-TEST_DIR       := $(BASE_DIR)/tests
-BIN_SRC        := $(addprefix $(BASE_DIR)/utils/,$(BIN_FILES))
-RULE_SRC       := $(addprefix $(BASE_DIR)/utils/,$(RULE_FILES))
-SERVICE_SRC    := $(addprefix $(BASE_DIR)/confs/,$(SERVICE_FILES))
-
 %:
 	dh $@ --with python2,python3,systemd --buildsystem=pybuild
 
 override_dh_auto_build:
-	EXTRA_SYMBOLS=$(EXTRA_SYMBOLS) $(MAKE) -C $(KERNEL_SRC) M=$(MODULE_SRC)
-	python2 setup.py build
+	make -f build.mk build
 
 override_dh_auto_install:
-	dh_installdirs -p$(DEB_SOURCE) usr/bin
-	cp $(BIN_SRC) debian/$(DEB_SOURCE)/usr/bin
-	dh_installdirs -p$(DEB_SOURCE) etc/udev/rules.d
-	cp $(RULE_SRC) debian/$(DEB_SOURCE)/etc/udev/rules.d
-	dh_installdirs -p$(DEB_SOURCE) lib/systemd/system
-	cp $(SERVICE_SRC) debian/$(DEB_SOURCE)/lib/systemd/system
-	dh_installdirs -pdrivers-$(DEB_SOURCE) $(KERNEL_DST)/$(INSTALL_MOD_DIR)
-	cp $(MODULE_SRC)/*.ko debian/drivers-$(DEB_SOURCE)/$(KERNEL_DST)/$(INSTALL_MOD_DIR)
-	python2 setup.py install --root=$(BASE_DIR)/debian/python-$(DEB_SOURCE) --install-layout=deb
-	python3 setup.py install --root=$(BASE_DIR)/debian/python3-$(DEB_SOURCE) --install-layout=deb
+	make -f build.mk install-py2 \
+	   DESTDIR=$(CURDIR)/debian/python-$(DEB_SOURCE) \
+	   PY_INSTALL_ARGS=--install-layout=deb
+	make -f build.mk install-py3 \
+	   DESTDIR=$(CURDIR)/debian/python3-$(DEB_SOURCE) \
+	   PY_INSTALL_ARGS=--install-layout=deb
+	make -f build.mk install-drivers \
+	   DESTDIR=$(CURDIR)/debian/drivers-$(DEB_SOURCE)
+	make -f build.mk install-fs \
+	   DESTDIR=$(CURDIR)/debian/$(DEB_SOURCE)
 
 override_dh_clean:
+	make -f build.mk clean
 	dh_clean
-	$(RM) $(MODULE_SRC)/*.o $(MODULE_SRC)/*.ko $(MODULE_SRC)/*.mod.c $(MODULE_SRC)/.*.cmd
-	$(RM) $(MODULE_SRC)/Module.markers $(MODULE_SRC)/Module.symvers $(MODULE_SRC)/modules.order
-	$(RM) -r $(MODULE_SRC)/.tmp_versions
-	$(RM) -r $(BASE_DIR)/*.egg-info $(BASE_DIR)/build
 
 override_dh_auto_test:
-	python2 setup.py test
-	python3 setup.py test
-	PYTHON=python2 PYTHONPATH=$(BASE_DIR) $(TEST_DIR)/all-platforms.sh
-	PYTHON=python3 PYTHONPATH=$(BASE_DIR) $(TEST_DIR)/all-platforms.sh
-
-print-%:
-	@echo $($*)
+	make -f build.mk test
