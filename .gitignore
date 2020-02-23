@@ -1,7 +1,10 @@
 # kernel module build
+*.a
 *.o
+*.so
 *.o.d
 *.ko
+*.mod
 *.mod.c
 *.mod.o
 *.cmd

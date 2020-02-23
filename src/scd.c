@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2017 Arista Networks, Inc.  All rights reserved.
+ * Copyright (c) 2006-2020 Arista Networks, Inc.  All rights reserved.
  * Arista Networks, Inc. Confidential and Proprietary.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -37,7 +37,6 @@
  *   ptp_low_offset
  *   msi_rearm_offset
  *   interrupt_irq
- *   power_loss
  *   ardma_offset
  *   interrupt_poll
  *   nmi_port_io_p
@@ -152,6 +151,9 @@ typedef struct scd_irq_info_s {
    unsigned long interrupt_mask_powerloss;
    unsigned long interrupt_mask_watchdog;
    unsigned long interrupt_mask_ardma;
+   unsigned long interrupt_valid_addr;
+   unsigned long interrupt_valid_val;
+   unsigned long interrupt_valid_mask;
    struct uio_info *uio_info[NUM_BITS_IN_WORD];
    unsigned long uio_count[NUM_BITS_IN_WORD];
    char uio_names[NUM_BITS_IN_WORD][40];
@@ -162,7 +164,6 @@ struct scd_dev_priv {
    struct pci_dev *pdev;
    void __iomem *mem;
    size_t mem_len;
-   spinlock_t ptp_time_spinlock;
    scd_irq_info_t irq_info[SCD_NUM_IRQ_REGISTERS];
    unsigned long crc_error_irq;
    unsigned long ptp_high_offset;
@@ -225,17 +226,26 @@ static spinlock_t scd_ptp_lock;
 // nmi_priv points to the scd responsible for the nmi
 static struct scd_dev_priv *nmi_priv = NULL;
 
-#define timestamped_watchdog_panic(msg) do {                            \
-      struct timeval tv;                                                \
-      struct tm t;                                                      \
-      do_gettimeofday(&tv);                                             \
-      time_to_tm(tv.tv_sec, 0, &t);                                     \
-      panic("%s (%02d:%02d:%02d)",msg, t.tm_hour, t.tm_min, t.tm_sec);  \
-   }while(0);
+void
+scd_timestamped_panic(const char *msg)
+{
+   struct timespec64 now;
+   struct tm t;
+
+   ktime_get_real_ts64(&now);
+   time64_to_tm(now.tv_sec, 0, &t);
+
+   panic("%s (%02d:%02d:%02d)", msg, t.tm_hour, t.tm_min, t.tm_sec);
+}
+EXPORT_SYMBOL(scd_timestamped_panic);
 
 /* prototypes */
 static int scd_probe(struct pci_dev *pdev, const struct pci_device_id *ent);
-static void scd_interrupt_poll( unsigned long data );
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+static void scd_interrupt_poll(unsigned long data);
+#else
+static void scd_interrupt_poll(struct timer_list *t);
+#endif
 static void scd_remove(struct pci_dev *pdev);
 static void scd_shutdown(struct pci_dev *pdev);
 static void scd_mask_interrupts(struct scd_dev_priv *priv);
@@ -257,9 +267,6 @@ struct scd_driver_cb {
 
 // registered ardma handlers
 static struct scd_ardma_ops *scd_ardma_ops = NULL;
-
-// registered extention callbacks
-static struct scd_ext_ops *scd_ext_ops = NULL;
 
 int scd_register_ardma_ops(struct scd_ardma_ops *ops) {
    struct scd_dev_priv *priv;
@@ -307,6 +314,9 @@ out_unlock:
 EXPORT_SYMBOL(scd_register_ardma_ops);
 EXPORT_SYMBOL(scd_unregister_ardma_ops);
 
+// registered extention callbacks
+static struct scd_ext_ops *scd_ext_ops = NULL;
+
 int scd_register_ext_ops(struct scd_ext_ops *ops) {
    struct scd_dev_priv *priv;
 
@@ -321,7 +331,7 @@ int scd_register_ext_ops(struct scd_ext_ops *ops) {
       }
    }
    scd_unlock();
-   return (0);
+   return 0;
 }
 
 void scd_unregister_ext_ops() {
@@ -353,6 +363,7 @@ static irqreturn_t scd_interrupt(int irq, void *dev_id)
    u32 interrupt_status;
    u32 interrupt_mask;
    u32 unmasked_interrupt_status;
+   u32 interrupt_valid_val;
    irqreturn_t rc = IRQ_NONE;
    u32 irq_reg;
    u32 unexpected;
@@ -402,6 +413,14 @@ static irqreturn_t scd_interrupt(int irq, void *dev_id)
          break;
       }
 
+      if( priv->irq_info[irq_reg].interrupt_valid_addr ) {
+         interrupt_valid_val = ioread32(
+            priv->mem + priv->irq_info[irq_reg].interrupt_valid_addr );
+         if( ( interrupt_valid_val & priv->irq_info[irq_reg].interrupt_valid_mask )
+            != priv->irq_info[irq_reg].interrupt_valid_val ) {
+            continue;
+         }
+      }
 
       unexpected = 0;
       interrupt_status = ioread32(priv->mem +
@@ -452,8 +471,7 @@ static irqreturn_t scd_interrupt(int irq, void *dev_id)
          // the panic will generate backtrace and cause the kdump kernel to kick in
          // which should provide us more data than if we did nothing before the
          // watchdog rebooted the system, we have 10 seconds before reboot
-         timestamped_watchdog_panic( "SCD watchdog detected, "
-                                     "system will reboot.\n" );
+         scd_timestamped_panic( "SCD watchdog detected, system will reboot.\n" );
       }
 
       // ardma interrupt
@@ -513,50 +531,67 @@ static irqreturn_t scd_crc_error_interrupt(int irq, void *dev_id)
    return IRQ_HANDLED;
 }
 
-static int scd_watchdog_maybe_panic(void)
+static void scd_nmi_panic(struct pt_regs *regs, char *msg)
 {
-   unsigned int val;
-
-   if (nmi_disabled) {
-      printk(KERN_ALERT "SCD watchdog NMI detected, but handler is disabled\n");
-      return NMI_HANDLED;
-   }
    if (nmi_priv->nmi_port_io_p) {
-      val = inw(nmi_priv->nmi_control_reg_addr) & ~nmi_priv->nmi_control_mask;
+      u16 val =
+         inw(nmi_priv->nmi_control_reg_addr) & ~nmi_priv->nmi_control_mask;
       outw(val, nmi_priv->nmi_control_reg_addr);
       outw(nmi_priv->nmi_status_mask, nmi_priv->nmi_status_reg_addr);
    } else {
-      val = (ioread32(nmi_priv->nmi_control_reg) & ~nmi_priv->nmi_control_mask);
+      u32 val =
+         (ioread32(nmi_priv->nmi_control_reg) & ~nmi_priv->nmi_control_mask);
       iowrite32(val, nmi_priv->nmi_control_reg);
       iowrite32(nmi_priv->nmi_status_mask, nmi_priv->nmi_status_reg);
    }
-   panic("SCD watchdog NMI detected, system will reboot.\n");
-   return NMI_HANDLED;
+
+   nmi_panic(regs, msg);
 }
 
-
-static int scd_watchdog_nmi_notify(unsigned int cmd, struct pt_regs *regs)
+static void scd_watchdog_panic(struct pt_regs *regs)
 {
-   int ret = NMI_DONE;
+   scd_nmi_panic(regs, "SCD watchdog NMI detected, system will reboot.");
+}
 
-   if (nmi_priv == NULL) {
-      // This should never happen, panic even if the nmi is disabled
-      panic("SCD NMI detected, nmi_priv==NULL, system will reboot.\n");
-      return ret;
+static int scd_nmi_notify(unsigned int cmd, struct pt_regs *regs)
+{
+   bool scd_nmi;
+
+   BUG_ON(nmi_priv == NULL);
+
+   /* Test for  a SCD NMI */
+
+   if ( nmi_priv->nmi_port_io_p ) {
+      /* IO-mapped: Intel PCH */
+      scd_nmi =
+         inw(nmi_priv->nmi_status_reg_addr) &
+         nmi_priv->nmi_status_mask;
+   } else {
+      /* Memory-mapped: AMD Kabini, Sb800 */
+      scd_nmi =
+         ((ioread32(nmi_priv->nmi_status_reg) &
+           nmi_priv->nmi_status_mask) &&
+
+          /* Sb800 maps GPIO status to NMI, which we can test */
+          (!nmi_priv->nmi_gpio_status_reg ||
+           !(ioread8(nmi_priv->nmi_gpio_status_reg) &
+             nmi_priv->nmi_gpio_status_mask)));
    }
 
-   // Check if the watchdog caused the NMI
-   if (nmi_priv->nmi_port_io_p) {
-      if (inw(nmi_priv->nmi_status_reg_addr) & nmi_priv->nmi_status_mask) {
-         ret = scd_watchdog_maybe_panic();
+   if (scd_nmi) {
+      if (nmi_disabled) {
+         printk(KERN_ALERT "SCD NMI detected, but handler is disabled\n");
+      } else {
+         /* A watchdog NMI has no SCD status */
+         scd_watchdog_panic(regs);
       }
-   } else if ((ioread32(nmi_priv->nmi_status_reg) & nmi_priv->nmi_status_mask) &&
-              (!nmi_priv->nmi_gpio_status_reg ||
-               ((ioread8(nmi_priv->nmi_gpio_status_reg) &
-                 nmi_priv->nmi_gpio_status_mask) == 0))) {
-      ret = scd_watchdog_maybe_panic();
    }
-   return ret;
+
+   /*
+    * Any of our NMIs are fatal (panic() is a __noreturn). We either
+    * terminate, or didn't identify our source.
+    */
+   return NMI_DONE;
 }
 
 /*
@@ -600,9 +635,7 @@ static int scd_register_nmi_handler(void)
       }
    }
 
-   err = register_nmi_handler(NMI_LOCAL,
-                              scd_watchdog_nmi_notify,
-                              0, "WATCHDOG_NMI");
+   err = register_nmi_handler(NMI_LOCAL, scd_nmi_notify, 0, "WATCHDOG_NMI");
    if (err) {
       printk(KERN_ERR "failed to register SCD NMI notifier (error %d)\n", err);
       goto out_register_fail;
@@ -662,7 +695,7 @@ static int scd_finish_init(struct device *dev)
             }
             snprintf(priv->irq_info[irq_reg].uio_names[i],
                      sizeof(priv->irq_info[irq_reg].uio_names[i]),
-                     "uio-%s-%d-%d", pci_name(to_pci_dev(dev)), irq_reg, i);
+                     "uio-%s-%x-%d", pci_name(to_pci_dev(dev)), irq_reg, i);
             info->name = priv->irq_info[irq_reg].uio_names[i];
             info->version = "0.0.1";
             info->irq = UIO_IRQ_CUSTOM;
@@ -744,7 +777,11 @@ static int scd_finish_init(struct device *dev)
 
    // interrupt polling
    if( priv->interrupt_poll != SCD_UNINITIALIZED ) {
-      setup_timer( &priv->intr_poll_timer, scd_interrupt_poll, (unsigned long)priv );
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+      setup_timer(&priv->intr_poll_timer, scd_interrupt_poll, (unsigned long)priv);
+#else
+      timer_setup(&priv->intr_poll_timer, scd_interrupt_poll, 0);
+#endif
       priv->intr_poll_timer.expires = jiffies + INTR_POLL_INTERVAL;
       add_timer( &priv->intr_poll_timer );
    }
@@ -871,7 +908,10 @@ SCD_IRQ_DEVICE_ATTR(interrupt_mask_clear_offset, num);  \
 SCD_IRQ_DEVICE_ATTR(interrupt_mask, num);               \
 SCD_IRQ_DEVICE_ATTR(interrupt_mask_powerloss, num);     \
 SCD_IRQ_DEVICE_ATTR(interrupt_mask_watchdog, num);      \
-SCD_IRQ_DEVICE_ATTR(interrupt_mask_ardma, num);
+SCD_IRQ_DEVICE_ATTR(interrupt_mask_ardma, num); \
+SCD_IRQ_DEVICE_ATTR(interrupt_valid_addr, num); \
+SCD_IRQ_DEVICE_ATTR(interrupt_valid_val, num); \
+SCD_IRQ_DEVICE_ATTR(interrupt_valid_mask, num);
 
 #define SCD_IRQ_ATTRS_POINTERS(num)                     \
 &dev_attr_interrupt_status_offset##num.attr,            \
@@ -881,7 +921,10 @@ SCD_IRQ_DEVICE_ATTR(interrupt_mask_ardma, num);
 &dev_attr_interrupt_mask##num.attr,                     \
 &dev_attr_interrupt_mask_powerloss##num.attr,           \
 &dev_attr_interrupt_mask_watchdog##num.attr,            \
-&dev_attr_interrupt_mask_ardma##num.attr
+&dev_attr_interrupt_mask_ardma##num.attr, \
+&dev_attr_interrupt_valid_addr##num.attr, \
+&dev_attr_interrupt_valid_val##num.attr, \
+&dev_attr_interrupt_valid_mask##num.attr
 
 u32
 scd_read_register(struct pci_dev *pdev, u32 offset)
@@ -924,7 +967,7 @@ EXPORT_SYMBOL(scd_write_register);
 u64
 scd_ptp_timestamp(void)
 {
-   unsigned long flags, ptp_lock_flags;
+   unsigned long ptp_lock_flags;
    u64 ts = 0;
    u32 low = 0;
    u32 high = 0;
@@ -937,10 +980,8 @@ scd_ptp_timestamp(void)
       ASSERT(priv->ptp_high_offset != SCD_UNINITIALIZED);
       // Reading the high register also latches the current time into the low
       // register, so we don't need any special handling of the rollover case.
-      spin_lock_irqsave(&priv->ptp_time_spinlock, flags);
       high = ioread32(priv->mem + priv->ptp_high_offset);
       low = ioread32(priv->mem + priv->ptp_low_offset);
-      spin_unlock_irqrestore(&priv->ptp_time_spinlock, flags);
       ts = (((u64)high) << 32) | low;
    }
 
@@ -1040,6 +1081,7 @@ static ssize_t scd_set_nmi_control_reg_addr(struct device *dev,
    scd_unlock();
    return count;
 }
+
 
 static DEVICE_ATTR(init_trigger, S_IRUGO|S_IWUSR|S_IWGRP,
                    show_init_trigger, store_init_trigger);
@@ -1323,7 +1365,6 @@ static int scd_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
    priv->nmi_gpio_status_mask = SCD_UNINITIALIZED;
    priv->nmi_registered = false;
 
-   spin_lock_init(&priv->ptp_time_spinlock);
    priv->magic = SCD_MAGIC;
    priv->localbus = NULL;
    priv->driver_cb = scd_cb;
@@ -1370,9 +1411,15 @@ fail:
    return err;
 }
 
-static void scd_interrupt_poll( unsigned long data )
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+static void scd_interrupt_poll(unsigned long data)
 {
-   struct scd_dev_priv * dev = ( struct scd_dev_priv * ) data;
+   struct scd_dev_priv *dev = (struct scd_dev_priv *)data;
+#else
+static void scd_interrupt_poll(struct timer_list *t)
+{
+   struct scd_dev_priv *dev = from_timer(dev, t, intr_poll_timer);
+#endif
    struct pci_dev * pdev = dev->pdev;
    scd_interrupt( 0, ( void* ) &pdev->dev );
    dev->intr_poll_timer.expires = jiffies + INTR_POLL_INTERVAL;
@@ -1385,6 +1432,8 @@ static void scd_remove(struct pci_dev *pdev)
    unsigned int irq;
    int i;
    u32 irq_reg;
+
+   dev_info(&pdev->dev, "scd removed\n");
 
    if (priv == NULL)
       return;
@@ -1473,8 +1522,6 @@ static void scd_remove(struct pci_dev *pdev)
    memset(priv, 0, sizeof (struct scd_dev_priv));
 
    kfree(priv);
-
-   dev_info(&pdev->dev, "scd removed\n");
 }
 
 static void scd_shutdown(struct pci_dev *pdev) {
@@ -1528,6 +1575,7 @@ static int scd_dump(struct seq_file *m, void *p) {
 
    scd_lock();
    seq_printf(m, "\ndebug 0x%x\n\n", debug);
+
    list_for_each_entry(priv, &scd_list, list) {
       if(priv->magic == SCD_MAGIC) {
          seq_printf(m, "scd %s\n", pci_name(priv->pdev));
@@ -1575,7 +1623,10 @@ static int scd_dump(struct seq_file *m, void *p) {
                           "interrupt_mask 0x%lx "
                           "interrupt_mask_power_loss 0x%lx\n"
                           "interrupt_mask_watchdog 0x%lx "
-                          "ardma_interrupt_mask 0x%lx\n",
+                          "ardma_interrupt_mask 0x%lx "
+                          "interrupt_valid_addr 0x%lx "
+                          "interrupt_valid_val 0x%lx "
+                          "interrupt_valid_mask 0x%lx\n",
                        priv->irq_info[irq_reg].interrupt_status_offset,
                        priv->irq_info[irq_reg].interrupt_mask_read_offset,
                        priv->irq_info[irq_reg].interrupt_mask_set_offset,
@@ -1583,7 +1634,10 @@ static int scd_dump(struct seq_file *m, void *p) {
                        priv->irq_info[irq_reg].interrupt_mask,
                        priv->irq_info[irq_reg].interrupt_mask_powerloss,
                        priv->irq_info[irq_reg].interrupt_mask_watchdog,
-                       priv->irq_info[irq_reg].interrupt_mask_ardma);
+                       priv->irq_info[irq_reg].interrupt_mask_ardma,
+                       priv->irq_info[irq_reg].interrupt_valid_addr,
+                       priv->irq_info[irq_reg].interrupt_valid_val,
+                       priv->irq_info[irq_reg].interrupt_valid_mask);
 
          }
 
@@ -1625,7 +1679,7 @@ static int scd_dump_open( struct inode *inode, struct file *file ) {
    return single_open(file, scd_dump, NULL);
 }
 
-static ssize_t scd_disable_nmi_write(struct class *cls, struct class_attribute *attr,
+static ssize_t disable_nmi_store(struct class *cls, struct class_attribute *attr,
                                      const char *buf, size_t count)
 {
    nmi_disabled = true;
@@ -1633,7 +1687,7 @@ static ssize_t scd_disable_nmi_write(struct class *cls, struct class_attribute *
    return count;
 }
 
-static ssize_t crc_error_panic_write(struct class *cls,
+static ssize_t crc_error_panic_store(struct class *cls,
                                      struct class_attribute *attr,
                                      const char *buf,
                                      size_t count)
@@ -1651,17 +1705,32 @@ static ssize_t crc_error_panic_write(struct class *cls,
    return count;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 static struct class_attribute scd_class_attrs[] = {
-   __ATTR(disable_nmi, S_IWUSR , NULL, scd_disable_nmi_write),
-   __ATTR(crc_error_panic, S_IWUSR, NULL, crc_error_panic_write),
+   __ATTR_WO(disable_nmi),
+   __ATTR_WO(crc_error_panic),
    __ATTR_NULL
 };
+#else
+static CLASS_ATTR_WO(disable_nmi);
+static CLASS_ATTR_WO(crc_error_panic);
+static struct attribute *scd_class_attrs[] = {
+   &class_attr_disable_nmi.attr,
+   &class_attr_crc_error_panic.attr,
+   NULL,
+};
+ATTRIBUTE_GROUPS(scd_class);
+#endif
 
 static struct class scd_class =
 {
    .owner = THIS_MODULE,
    .name = SCD_MODULE_NAME,
-   .class_attrs = scd_class_attrs
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+   .class_attrs = scd_class_attrs,
+#else
+   .class_groups = scd_class_groups,
+#endif
 };
 
 static const struct file_operations scd_dump_file_ops = {

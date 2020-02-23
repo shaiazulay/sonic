@@ -37,6 +37,11 @@
 #include "scd-hwmon.h"
 #include "scd-mdio.h"
 
+// sizeof_field was introduced in v4.15 and FIELD_SIZEOF removed in 4.20
+#ifndef sizeof_field
+# define sizeof_field FIELD_SIZEOF
+#endif
+
 #define SCD_MODULE_NAME "scd-hwmon"
 
 #define SMBUS_REQUEST_OFFSET 0x10
@@ -1600,7 +1605,7 @@ static int scd_led_add(struct scd_context *ctx, const char *name, u32 addr)
 
    led->ctx = ctx;
    led->addr = addr;
-   strncpy(led->name, name, FIELD_SIZEOF(typeof(*led), name));
+   strncpy(led->name, name, sizeof_field(typeof(*led), name));
    INIT_LIST_HEAD(&led->list);
 
    led->cdev.name = led->name;
@@ -2184,7 +2189,7 @@ static int scd_xcvr_add(struct scd_context *ctx, const char *prefix,
       goto fail;
    }
 
-   err = snprintf(xcvr->name, FIELD_SIZEOF(typeof(*xcvr), name),
+   err = snprintf(xcvr->name, sizeof_field(typeof(*xcvr), name),
                   "%s%u", prefix, id);
    if (err < 0) {
       goto fail;
@@ -2269,7 +2274,7 @@ static int scd_gpio_add(struct scd_context *ctx, const char *name,
       return -ENOMEM;
    }
 
-   snprintf(gpio->name, FIELD_SIZEOF(typeof(*gpio), name), name);
+   snprintf(gpio->name, sizeof_field(typeof(*gpio), name), name);
    if (read_only)
       gpio->attr = (struct scd_gpio_attribute)SCD_RO_GPIO_ATTR(
                            gpio->name, ctx, addr, bitpos, active_low);
@@ -2297,7 +2302,7 @@ static int scd_reset_add(struct scd_context *ctx, const char *name,
       return -ENOMEM;
    }
 
-   snprintf(reset->name, FIELD_SIZEOF(typeof(*reset), name), name);
+   snprintf(reset->name, sizeof_field(typeof(*reset), name), name);
    reset->attr = (struct scd_reset_attribute)SCD_RESET_ATTR(
                                                 reset->name, ctx, addr, bitpos);
 
@@ -2411,7 +2416,7 @@ static int scd_fan_group_add(struct scd_context *ctx, u32 addr, u32 platform_id,
       return -ENOMEM;
    }
 
-   scnprintf(fan_group->name, FIELD_SIZEOF(typeof(*fan_group), name),
+   scnprintf(fan_group->name, sizeof_field(typeof(*fan_group), name),
              "scd_fan_p%u", platform_id);
    fan_group->ctx = ctx;
    fan_group->addr_base = addr;

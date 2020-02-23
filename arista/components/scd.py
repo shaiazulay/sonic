@@ -454,4 +454,4 @@ class Scd(PciComponent):
       if not self.uioMap:
          self.uioMapInit()
       return '/dev/%s' % self.uioMap[
-            'uio-%s-%d-%d' % (getattr(self, 'addr'), reg, bit)]
+            'uio-%s-%x-%d' % (getattr(self, 'addr'), reg, bit)]
