@@ -1,7 +1,7 @@
 [Unit]
 Description=Arista platform daemon
 After=sonic-platform-arista.service
-ConditionKernelCommandLine=Aboot
+ConditionKernelCommandLine=Aboot-disabled
 
 [Service]
 User=root
