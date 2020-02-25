@@ -43,8 +43,8 @@ EXTRA_SYMBOLS := /lib/modules/$(KVERSION)/extra/scd-Module.symvers
 export EXTRA_SYMBOLS
 
 # dev
-PY2_VENV ?= venv2
-PY3_VENV ?= venv3
+PY2_VENV_PATH ?= venv2
+PY3_VENV_PATH ?= venv3
 
 all:
 	@echo "Nothing to do."
@@ -121,19 +121,13 @@ install: install-py2 install-py3 install-drivers install-fs
 # test targets
 #
 
-test-py2-legacy:
-	PYTHON=python2 PYTHONPATH=$(BASE_DIR) $(TEST_DIR)/all-platforms.sh
-
 test-py2:
 	python2 setup.py test
-
-test-py3-legacy:
-	PYTHON=python3 PYTHONPATH=$(BASE_DIR) $(TEST_DIR)/all-platforms.sh
 
 test-py3:
 	python3 setup.py test
 
-test: test-py2 test-py3 test-py3-legacy test-py2-legacy
+test: test-py2 test-py3
 
 #
 # dev tools
@@ -141,11 +135,13 @@ test: test-py2 test-py3 test-py3-legacy test-py2-legacy
 
 $(PY2_VENV_PATH):
 	virtualenv $@
-	echo "-> source $@/bin/activate"
+	@echo "source $@/bin/activate"
+	@echo "python setup.py develop"
 
 $(PY3_VENV_PATH):
 	$(PYTHON3) -m venv $@
-	echo "-> source $@/bin/activate"
+	@echo "source $@/bin/activate"
+	@echo "python setup.py develop"
 
 print-%:
 	@echo $($*)
