@@ -24,12 +24,14 @@ class Priority(object):
 
 class Component(object):
    def __init__(self, addr=None, priority=Priority.DEFAULT, drivers=None,
-                inventoryCls=LazyInventory, **kwargs):
+                inventoryCls=None, inventory=None, **kwargs):
       self.components = []
       self.addr = addr
       self.priority = priority
       self.drivers = OrderedDict()
-      self.inventory = inventoryCls()
+      self.inventory = inventory
+      if not inventory and inventoryCls:
+         self.inventory = inventoryCls()
       self.addDrivers(drivers)
       self.__dict__.update(kwargs)
 
@@ -42,12 +44,14 @@ class Component(object):
       for component in components:
          component.priority = max(component.priority, self.priority)
          self.components.append(component)
+         component.inventory = self.inventory
       return self
 
    def addComponent(self, component):
       assert isinstance(component, Component)
       component.priority = max(component.priority, self.priority)
       self.components.append(component)
+      component.inventory = self.inventory
       return self
 
    def iterComponents(self, filters=Priority.defaultFilter):

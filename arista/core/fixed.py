@@ -12,10 +12,11 @@ class FixedSystem(Component):
    SKU = None
    HWAPI = None
 
-   def __init__(self, drivers=None, inventoryCls=Inventory, **kwargs):
+   def __init__(self, drivers=None, inventory=None, **kwargs):
       drivers = drivers or [KernelDriver(module='eeprom'),
                             KernelDriver(module='i2c-dev')]
-      super(FixedSystem, self).__init__(drivers=drivers, inventoryCls=inventoryCls,
+      inventory = inventory or Inventory()
+      super(FixedSystem, self).__init__(drivers=drivers, inventory=inventory,
                                         **kwargs)
 
    def setup(self, filters=Priority.defaultFilter):
