@@ -31,7 +31,7 @@ class Smartsville(Platform):
 
       scd = self.newComponent(Scd, PciAddr(bus=0x02))
 
-      self.inventory.addWatchdog(scd.createWatchdog())
+      scd.createWatchdog()
 
       scd.newComponent(Tmp468, scd.i2cAddr(0, 0x48),
                        waitFile='/sys/class/hwmon/hwmon3')
@@ -48,11 +48,11 @@ class Smartsville(Platform):
          (0x6090, 'beacon'),
       ]))
 
-      self.inventory.addResets(scd.addResets([
+      scd.addResets([
          ResetGpio(0x4000, 0, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 1, False, 'switch_chip_pcie_reset'),
          ResetGpio(0x4000, 2, False, 'security_asic_reset'),
-      ]))
+      ])
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
@@ -69,10 +69,8 @@ class Smartsville(Platform):
          NamedGpio(0x5000, 20, False, False, "psu1_ac_status_changed"),
          NamedGpio(0x5000, 21, False, False, "psu2_ac_status_changed"),
       ])
-      self.inventory.addPsus([
-         scd.createPsu(1, led=self.inventory.getLed('psu1')),
-         scd.createPsu(2, led=self.inventory.getLed('psu2')),
-      ])
+      scd.createPsu(1, led=self.inventory.getLed('psu1'))
+      scd.createPsu(2, led=self.inventory.getLed('psu2'))
 
       addr = 0x6100
       for xcvrId in self.qsfpRange:
@@ -101,18 +99,16 @@ class Smartsville(Platform):
          intr = intrRegs[1].getInterruptBit(index)
          name = 'qsfp%d' % xcvrId
          self.inventory.addInterrupt(name, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
-                            leds=self.inventory.getLedGroup(name))
-         self.inventory.addXcvr(xcvr)
+         scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                     leds=self.inventory.getLedGroup(name))
          addr += 0x10
          bus += 1
       for index, xcvrId in enumerate(self.osfpRange):
          intr = intrRegs[2].getInterruptBit(index)
          name = 'osfp%d' % xcvrId
          self.inventory.addInterrupt(name, intr)
-         xcvr = scd.addOsfp(addr, xcvrId, bus, interruptLine=intr,
-                            leds=self.inventory.getLedGroup(name))
-         self.inventory.addXcvr(xcvr)
+         scd.addOsfp(addr, xcvrId, bus, interruptLine=intr,
+                     leds=self.inventory.getLedGroup(name))
          addr += 0x10
          bus += 1
 
@@ -122,7 +118,6 @@ class Smartsville(Platform):
          phyId = i + 1
          reset = scd.addReset(ResetGpio(0x4000, 3 + i, False,
                                         'phy%d_reset' % phyId))
-         self.inventory.addReset(reset)
          mdios = [scd.addMdio(i, 0), scd.addMdio(i, 1)]
          phy = Babbage(phyId, mdios, reset=reset)
          self.inventory.addPhy(phy)
@@ -146,7 +141,7 @@ class Smartsville(Platform):
       })
       cpld.addFanGroup(0x9000, 3, 3)
 
-      self.inventory.addPowerCycle(cpld.createPowerCycle())
+      cpld.createPowerCycle()
 
 @registerPlatform()
 class SmartsvilleBK(Smartsville):

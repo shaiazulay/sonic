@@ -35,9 +35,9 @@ class Cloverdale(Platform):
 
       scd = self.newComponent(Scd, PciAddr(bus=0x04))
 
-      self.inventory.addWatchdog(scd.createWatchdog())
+      scd.createWatchdog()
 
-      self.inventory.addPowerCycle(scd.createPowerCycle())
+      scd.createPowerCycle()
 
       ravenFanComponent = scd.newComponent(RavenFanCpldComponent,
                                            waitFile='/sys/class/hwmon/hwmon1',
@@ -84,20 +84,18 @@ class Cloverdale(Platform):
       psu2 = self.newComponent(PmbusMixedPsuComponent, presenceComponent=scd,
                                statusComponent=ds460Psu2)
 
-      self.inventory.addPsus([
-         psu1.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
-         psu2.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
-      ])
+      psu1.createPsu(psuId=1, led=self.inventory.getLed('psu1'))
+      psu2.createPsu(psuId=2, led=self.inventory.getLed('psu2'))
 
       scd.addSmbusMasterRange(0x8000, 5)
 
-      self.inventory.addResets(scd.addResets([
+      scd.addResets([
          ResetGpio(0x4000, 0, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 2, False, 'phy1_reset'),
          ResetGpio(0x4000, 3, False, 'phy2_reset'),
          ResetGpio(0x4000, 4, False, 'phy3_reset'),
          ResetGpio(0x4000, 5, False, 'phy4_reset'),
-      ]))
+      ])
 
       addr = 0x6100
       for xcvrId in self.qsfp40gAutoRange:
@@ -125,8 +123,7 @@ class Cloverdale(Platform):
          intr = intrRegs[1].getInterruptBit(xcvrId - 1)
          name = 'qsfp%d' % xcvrId
          self.inventory.addInterrupt(name, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
-                            leds=self.inventory.getLedGroup(name))
-         self.inventory.addXcvr(xcvr)
+         scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                     leds=self.inventory.getLedGroup(name))
          addr += 0x10
          bus += 1

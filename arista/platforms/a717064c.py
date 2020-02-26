@@ -34,7 +34,7 @@ class Alhambra(Platform):
 
       scd = self.newComponent(Scd, PciAddr(bus=0x06))
 
-      self.inventory.addWatchdog(scd.createWatchdog())
+      scd.createWatchdog()
 
       scd.newComponent(Max6658, scd.i2cAddr(7, 0x4c),
                        waitFile='/sys/class/hmon/hwmon2')
@@ -45,11 +45,11 @@ class Alhambra(Platform):
 
       scd.addSmbusMasterRange(0x8000, 9, 0x80)
 
-      self.inventory.addResets(scd.addResets([
+      scd.addResets([
          ResetGpio(0x4000, 8, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 1, False, 'security_chip_reset'),
          ResetGpio(0x4000, 0, False, 'repeater_sfp_reset'),
-      ]))
+      ])
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
@@ -69,10 +69,8 @@ class Alhambra(Platform):
          LedDesc(colors=['green', 'red'], name='status'),
       ])
 
-      self.inventory.addPsus([
-         scd.createPsu(1, led=self.inventory.getLed('psu1_status')),
-         scd.createPsu(2, led=self.inventory.getLed('psu2_status')),
-      ])
+      scd.createPsu(1, led=self.inventory.getLed('psu1_status'))
+      scd.createPsu(2, led=self.inventory.getLed('psu2_status'))
 
       addr = 0x6100
       for xcvrId in self.qsfpRange:
@@ -103,18 +101,16 @@ class Alhambra(Platform):
          intr = intrRegs[xcvrId // 33 + 1].getInterruptBit((xcvrId - 1) % 32)
          name = 'qsfp%d' % xcvrId
          self.inventory.addInterrupt(name, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
-                            leds=self.inventory.getLedGroup(name))
-         self.inventory.addXcvr(xcvr)
+         scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                     leds=self.inventory.getLedGroup(name))
          addr += 0x10
          bus += 1
 
       addr = 0xA500
       bus = 72
       for xcvrId in sorted(self.sfpRange):
-         xcvr = scd.addSfp(addr, xcvrId, bus,
-                           leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
-         self.inventory.addXcvr(xcvr)
+         scd.addSfp(addr, xcvrId, bus,
+                    leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
          addr += 0x10
          bus += 1
 
@@ -143,6 +139,6 @@ class Alhambra(Platform):
       cpld.newComponent(Lm73, cpld.i2cAddr(15, 0x48),
                         waitFile='/sys/class/hwmon/hwmon5'),
 
-      self.inventory.addPowerCycle(cpld.createPowerCycle())
+      cpld.createPowerCycle()
 
       self.syscpld = self.newComponent(RookSysCpld, cpld.i2cAddr(8, 0x23))

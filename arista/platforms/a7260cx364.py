@@ -34,7 +34,7 @@ class Gardena(Platform):
 
       scd = self.newComponent(Scd, PciAddr(bus=0x06))
 
-      self.inventory.addWatchdog(scd.createWatchdog())
+      scd.createWatchdog()
 
       scd.newComponent(Max6658, scd.i2cAddr(0, 0x4c),
                        waitFile='/sys/class/hwmon/hwmon2')
@@ -43,11 +43,11 @@ class Gardena(Platform):
 
       scd.addSmbusMasterRange(0x8000, 8, 0x80)
 
-      self.inventory.addResets(scd.addResets([
+      scd.addResets([
          ResetGpio(0x4000, 0, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 1, False, 'switch_chip_pcie_reset'),
          ResetGpio(0x4000, 2, False, 'security_asic_reset'),
-      ]))
+      ])
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
@@ -67,10 +67,8 @@ class Gardena(Platform):
          LedDesc(colors=['green', 'red'], name='status'),
       ])
 
-      self.inventory.addPsus([
-         scd.createPsu(1, led=self.inventory.getLed('psu1_status')),
-         scd.createPsu(2, led=self.inventory.getLed('psu2_status')),
-      ])
+      scd.createPsu(1, led=self.inventory.getLed('psu1_status'))
+      scd.createPsu(2, led=self.inventory.getLed('psu2_status'))
 
       addr = 0x6100
       for xcvrId in self.qsfpRange:
@@ -99,18 +97,16 @@ class Gardena(Platform):
          intr = intrRegs[xcvrId // 33 + 1].getInterruptBit((xcvrId - 1) % 32)
          name = 'qsfp%d' % xcvrId
          self.inventory.addInterrupt(name, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
-                            leds=self.inventory.getLedGroup(name))
-         self.inventory.addXcvr(xcvr)
+         scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                     leds=self.inventory.getLedGroup(name))
          addr += 0x10
          bus += 1
 
       addr = 0xA410
       bus = 6
       for xcvrId in sorted(self.sfpRange):
-         xcvr = scd.addSfp(addr, xcvrId, bus,
-                           leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
-         self.inventory.addXcvr(xcvr)
+         scd.addSfp(addr, xcvrId, bus,
+                    leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
          addr += 0x10
          bus += 1
 
@@ -139,6 +135,6 @@ class Gardena(Platform):
       cpld.newComponent(Lm73, cpld.i2cAddr(15, 0x48),
                         waitFile='/sys/class/hwmon/hwmon5')
 
-      self.inventory.addPowerCycle(cpld.createPowerCycle())
+      cpld.createPowerCycle()
 
       self.syscpld = self.newComponent(RookSysCpld, cpld.i2cAddr(8, 0x23))

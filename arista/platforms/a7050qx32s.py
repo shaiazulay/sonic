@@ -33,9 +33,9 @@ class Clearlake(Platform):
 
       scd = self.newComponent(Scd, PciAddr(bus=0x02))
 
-      self.inventory.addWatchdog(scd.createWatchdog())
+      scd.createWatchdog()
 
-      self.inventory.addPowerCycle(scd.createPowerCycle())
+      scd.createPowerCycle()
 
       scd.newComponent(Max6658, scd.i2cAddr(0, 0x4c),
                        waitFile='/sys/class/hwmon/hwmon2')
@@ -68,8 +68,7 @@ class Clearlake(Platform):
          (0x6090, 'beacon'),
       ]))
 
-      self.inventory.addReset(
-         scd.addReset(ResetGpio(0x4000, 0, False, 'switch_chip_reset')))
+      scd.addReset(ResetGpio(0x4000, 0, False, 'switch_chip_reset'))
 
       self.syscpld = self.newComponent(CrowSysCpld, I2cAddr(1, 0x23))
 
@@ -90,10 +89,8 @@ class Clearlake(Platform):
       psu2 = scd.newComponent(PmbusMixedPsuComponent, presenceComponent=scd,
                               statusComponent=pmbusPsu2)
 
-      self.inventory.addPsus([
-         psu1.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
-         psu2.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
-      ])
+      psu1.createPsu(psuId=1, led=self.inventory.getLed('psu1'))
+      psu2.createPsu(psuId=2, led=self.inventory.getLed('psu2'))
 
       addr = 0x6100
       for xcvrId in self.qsfp40gAutoRange:
@@ -127,18 +124,16 @@ class Clearlake(Platform):
          intr = intrRegs[1].getInterruptBit(xcvrId - 5)
          name = 'qsfp%d' % xcvrId
          self.inventory.addInterrupt(name, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
-                            leds=self.inventory.getLedGroup(name))
-         self.inventory.addXcvr(xcvr)
+         scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                     leds=self.inventory.getLedGroup(name))
          addr += 0x10
          bus += 1
 
       addr = 0x5210
       bus = 40
       for xcvrId in sorted(self.sfpRange):
-         xcvr = scd.addSfp(addr, xcvrId, bus,
-                           leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
-         self.inventory.addXcvr(xcvr)
+         scd.addSfp(addr, xcvrId, bus,
+                    leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
          addr += 0x10
          bus += 1
 

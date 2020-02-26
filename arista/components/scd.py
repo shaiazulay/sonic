@@ -266,13 +266,16 @@ class Scd(PciComponent):
    def createPowerCycle(self, reg=0x7000, wr=0xDEAD):
       powerCycle = ScdPowerCycle(self, reg=reg, wr=wr)
       self.powerCycles.append(powerCycle)
+      self.inventory.addPowerCycle(powerCycle)
       return powerCycle
 
    def getPowerCycles(self):
       return self.powerCycles
 
    def createWatchdog(self, reg=0x0120):
-      return ScdWatchdog(self, reg=reg)
+      watchdog = ScdWatchdog(self, reg=reg)
+      self.inventory.addWatchdog(watchdog)
+      return watchdog
 
    def createInterrupt(self, addr, num, mask=0xffffffff):
       interrupt = ScdInterruptRegister(self, addr, num, mask)
@@ -329,12 +332,15 @@ class Scd(PciComponent):
    def addReset(self, gpio):
       scdReset = ScdReset(self.pciSysfs, gpio)
       self.resets += [scdReset]
+      self.inventory.addReset(scdReset)
       return scdReset
 
    def addResets(self, gpios):
       scdResets = [ScdReset(self.pciSysfs, gpio) for gpio in gpios]
       self.resets += scdResets
-      return {reset.getName(): reset for reset in scdResets}
+      resetDict = {reset.getName(): reset for reset in scdResets}
+      self.inventory.addResets(resetDict)
+      return resetDict
 
    def addGpio(self, gpio):
       self.gpios += [gpio]
@@ -355,6 +361,7 @@ class Scd(PciComponent):
       self.newComponent(I2cComponent, addr=addr,
                         drivers=[I2cKernelDriver(name='sff8436', addr=addr)])
       self.xcvrs.append(xcvr)
+      self.inventory.addXcvr(xcvr)
       return xcvr
 
    def addOsfp(self, addr, xcvrId, bus, interruptLine=None, leds=None):
@@ -372,8 +379,10 @@ class Scd(PciComponent):
    # In platforms, should change "statusGpios" to "statusGpio" and make it a boolean
    def createPsu(self, psuId, driver='PsuSysfsDriver', statusGpios=True, led=None,
                  **kwargs):
-      return PsuImpl(psuId=psuId, driver=self.drivers[driver],
+      psu = PsuImpl(psuId=psuId, driver=self.drivers[driver],
                      statusGpio=statusGpios, led=led, **kwargs)
+      self.inventory.addPsus([psu])
+      return psu
 
    def addMdioMaster(self, addr, masterId, busCount=1, speed=MdioSpeed.S2_5):
       self.mdioMasters[addr] = {

@@ -28,7 +28,7 @@ class Lodoga(Platform):
 
       scd = self.newComponent(Scd, PciAddr(bus=0x02))
 
-      self.inventory.addWatchdog(scd.createWatchdog())
+      scd.createWatchdog()
 
       scd.newComponent(I2cKernelComponent, scd.i2cAddr(0, 0x4c), 'max6658',
                        '/sys/class/hwmon/hwmon2')
@@ -63,14 +63,14 @@ class Lodoga(Platform):
          (0x6090, 'beacon'),
       ]))
 
-      self.inventory.addResets(scd.addResets([
+      scd.addResets([
          ResetGpio(0x4000, 1, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 2, False, 'switch_chip_pcie_reset'),
-      ]))
+      ])
 
       self.syscpld = CrowSysCpld(I2cAddr(1, 0x23))
       cpld = self.syscpld
-      self.inventory.addPowerCycle(cpld.createPowerCycle())
+      cpld.createPowerCycle()
       scd.addGpios([
          NamedGpio(0x5000, 1, True, False, "psu1_present"),
          NamedGpio(0x5000, 0, True, False, "psu2_present"),
@@ -79,10 +79,8 @@ class Lodoga(Platform):
          NamedGpio(0x5000, 11, True, False, "psu1_ac_status"),
          NamedGpio(0x5000, 10, True, False, "psu2_ac_status"),
       ])
-      self.inventory.addPsus([
-         scd.createPsu(1, led=self.inventory.getLed('psu1')),
-         scd.createPsu(2, led=self.inventory.getLed('psu2')),
-      ])
+      scd.createPsu(1, led=self.inventory.getLed('psu1'))
+      scd.createPsu(2, led=self.inventory.getLed('psu2'))
 
       addr = 0x6100
       for xcvrId in self.sfpRange:
@@ -110,9 +108,8 @@ class Lodoga(Platform):
          intr = intrRegs[0].getInterruptBit(28 + xcvrId - 33)
          name = 'sfp%d' % xcvrId
          self.inventory.addInterrupt(name, intr)
-         xcvr = scd.addSfp(addr, xcvrId, bus, interruptLine=intr,
-                           leds=self.inventory.getLedGroup(name))
-         self.inventory.addXcvr(xcvr)
+         scd.addSfp(addr, xcvrId, bus, interruptLine=intr,
+                    leds=self.inventory.getLedGroup(name))
          addr += 0x10
          bus += 1
 
@@ -122,9 +119,8 @@ class Lodoga(Platform):
          intr = intrRegs[1].getInterruptBit(xcvrId - 1)
          name = 'qsfp%d' % xcvrId
          self.inventory.addInterrupt(name, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
-                            leds=self.inventory.getLedGroup(name))
-         self.inventory.addXcvr(xcvr)
+         scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                     leds=self.inventory.getLedGroup(name))
          addr += 0x10
          bus += 1
 

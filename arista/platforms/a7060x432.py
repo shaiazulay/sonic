@@ -33,7 +33,7 @@ class BlackhawkO(Platform):
 
       scd = self.newComponent(Scd, PciAddr(bus=0x07))
 
-      self.inventory.addWatchdog(scd.createWatchdog())
+      scd.createWatchdog()
 
       scd.newComponent(Max6581, scd.i2cAddr(8, 0x4d),
                        waitFile='/sys/class/hwmon/hwmon2')
@@ -50,12 +50,12 @@ class BlackhawkO(Platform):
          (0x6090, 'beacon'),
       ]))
 
-      self.inventory.addResets(scd.addResets([
+      scd.addResets([
          ResetGpio(0x4000, 4, False, 'sat_cpld1_reset'),
          ResetGpio(0x4000, 3, False, 'sat_cpld0_reset'),
          ResetGpio(0x4000, 2, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 0, False, 'security_asic_reset'),
-      ]))
+      ])
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu2_present"),
@@ -66,10 +66,8 @@ class BlackhawkO(Platform):
          NamedGpio(0x5000, 11, True, False, "psu1_ac_status"),
       ])
 
-      self.inventory.addPsus([
-         scd.createPsu(1, led=self.inventory.getLed('psu1')),
-         scd.createPsu(2, led=self.inventory.getLed('psu2')),
-      ])
+      scd.createPsu(1, led=self.inventory.getLed('psu1'))
+      scd.createPsu(2, led=self.inventory.getLed('psu2'))
 
       addr = 0x6100
       for xcvrId in self.osfpRange:
@@ -95,18 +93,16 @@ class BlackhawkO(Platform):
          intr = intrRegs[1].getInterruptBit(xcvrId - 1)
          name = 'osfp%d' % xcvrId
          self.inventory.addInterrupt(name, intr)
-         xcvr = scd.addOsfp(addr, xcvrId, bus, interruptLine=intr,
-                            leds=self.inventory.getLedGroup(name))
-         self.inventory.addXcvr(xcvr)
+         scd.addOsfp(addr, xcvrId, bus, interruptLine=intr,
+                     leds=self.inventory.getLedGroup(name))
          addr += 0x10
          bus += 1
 
       addr = 0xA210
       bus = 48
       for xcvrId in sorted(self.sfpRange):
-         xcvr = scd.addSfp(addr, xcvrId, bus,
-                           leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
-         self.inventory.addXcvr(xcvr)
+         scd.addSfp(addr, xcvrId, bus,
+                    leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
          addr += 0x10
          bus += 1
 
@@ -130,7 +126,7 @@ class BlackhawkO(Platform):
          FanDesc(fanId) for fanId in incrange(1, 5)
       ])
 
-      self.inventory.addPowerCycle(cpld.createPowerCycle())
+      cpld.createPowerCycle()
 
       self.syscpld = self.newComponent(RookSysCpld, cpld.i2cAddr(8, 0x23))
 

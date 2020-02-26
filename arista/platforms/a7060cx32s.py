@@ -30,7 +30,7 @@ class Upperlake(Platform):
 
       scd = self.newComponent(Scd, PciAddr(bus=0x02))
 
-      self.inventory.addWatchdog(scd.createWatchdog())
+      scd.createWatchdog()
 
       scd.newComponent(Max6697, scd.i2cAddr(0, 0x1a),
                        waitFile='/sys/class/hwmon/hwmon2')
@@ -65,10 +65,10 @@ class Upperlake(Platform):
          (0x6090, 'beacon'),
       ]))
 
-      self.inventory.addResets(scd.addResets([
+      scd.addResets([
          ResetGpio(0x4000, 1, False, 'switch_chip_reset'),
          ResetGpio(0x4000, 2, False, 'switch_chip_pcie_reset'),
-      ]))
+      ])
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
@@ -77,16 +77,14 @@ class Upperlake(Platform):
 
       self.syscpld = self.newComponent(CrowSysCpld, I2cAddr(1, 0x23))
       cpld = self.syscpld
-      self.inventory.addPowerCycle(cpld.createPowerCycle())
+      cpld.createPowerCycle()
 
       psuComponent = self.newComponent(UpperlakeMixedPsuComponent,
                                        presenceComponent=scd,
                                        statusComponent=cpld)
 
-      self.inventory.addPsus([
-         psuComponent.createPsu(psuId=1, led=self.inventory.getLed('psu1')),
-         psuComponent.createPsu(psuId=2, led=self.inventory.getLed('psu2')),
-      ])
+      psuComponent.createPsu(psuId=1, led=self.inventory.getLed('psu1'))
+      psuComponent.createPsu(psuId=2, led=self.inventory.getLed('psu2'))
 
       addr = 0x6100
       for xcvrId in self.sfpRange:
@@ -106,9 +104,8 @@ class Upperlake(Platform):
       addr = 0x5010
       bus = 8
       for xcvrId in self.sfpRange:
-         xcvr = scd.addSfp(addr, xcvrId, bus,
-                           leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
-         self.inventory.addXcvr(xcvr)
+         scd.addSfp(addr, xcvrId, bus,
+                    leds=self.inventory.getLedGroup('sfp%d' % xcvrId))
          addr += 0x10
          bus += 1
 
@@ -123,9 +120,8 @@ class Upperlake(Platform):
          intr = intrRegs[1].getInterruptBit(xcvrId - 1)
          name = 'qsfp%d' % xcvrId
          self.inventory.addInterrupt(name, intr)
-         xcvr = scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
-                            leds=self.inventory.getLedGroup(name))
-         self.inventory.addXcvr(xcvr)
+         scd.addQsfp(addr, xcvrId, bus, interruptLine=intr,
+                     leds=self.inventory.getLedGroup(name))
          addr += 0x10
          bus += 1
 
