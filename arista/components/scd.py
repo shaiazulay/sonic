@@ -333,12 +333,23 @@ class Scd(PciComponent):
    def addFanGroup(self, addr, platform, num):
       self.fanGroups += [(addr, platform, num)]
 
-   def addLed(self, addr, name):
+   def _addLed(self, addr, name):
       self.leds += [(addr, name)]
-      return LedImpl(name=name, driver=self.drivers['LedSysfsDriver'])
+      led = LedImpl(name=name, driver=self.drivers['LedSysfsDriver'])
+      return led
+
+   def addLed(self, addr, name):
+      led = self._addLed(addr, name)
+      self.inventory.addLed(led)
+      return led
 
    def addLeds(self, leds):
       return [self.addLed(*led) for led in leds]
+
+   def addLedGroup(self, groupName, leds):
+      leds = [self._addLed(*led) for led in leds]
+      self.inventory.addLedGroup(groupName, leds)
+      return leds
 
    def addReset(self, gpio):
       scdReset = ScdReset(self.pciSysfs, gpio)

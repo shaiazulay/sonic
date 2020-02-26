@@ -62,14 +62,14 @@ class Alhambra(FixedSystem):
          leds = []
          for laneId in incrange(1, 4):
             name = "qsfp%d_%d" % (xcvrId, laneId)
-            leds.append(scd.addLed(addr, name))
+            leds.append((addr, name))
             addr += 0x10
-         self.inventory.addLedGroup("qsfp%d" % xcvrId, leds)
+         scd.addLedGroup("qsfp%d" % xcvrId, leds)
 
       addr = 0x7200
       for xcvrId in self.sfpRange:
          name = "sfp%d" % xcvrId
-         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
+         scd.addLedGroup(name, [(addr, name)])
          addr += 0x10
 
       scd.setMsiRearmOffset(0x190)

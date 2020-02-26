@@ -40,13 +40,13 @@ class BlackhawkO(FixedSystem):
 
       scd.addSmbusMasterRange(0x8000, 8, 0x80)
 
-      self.inventory.addLeds(scd.addLeds([
+      scd.addLeds([
          (0x6050, 'status'),
          (0x6060, 'fan_status'),
          (0x6070, 'psu1'),
          (0x6080, 'psu2'),
          (0x6090, 'beacon'),
-      ]))
+      ])
 
       scd.addResets([
          ResetGpio(0x4000, 4, False, 'sat_cpld1_reset'),
@@ -70,13 +70,13 @@ class BlackhawkO(FixedSystem):
       addr = 0x6100
       for xcvrId in self.osfpRange:
          name = "osfp%d" % xcvrId
-         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
+         scd.addLedGroup(name, [(addr, name)])
          addr += 0x40
 
       addr = 0x6900
       for xcvrId in self.sfpRange:
          name = "sfp%d" % xcvrId
-         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
+         scd.addLedGroup(name, [(addr, name)])
          addr += 0x40
 
       intrRegs = [
