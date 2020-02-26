@@ -6,6 +6,9 @@ include /usr/share/dpkg/pkg-info.mk
 
 export INSTALL_MOD_DIR:=extra
 
+KVERSION_SHORT ?=
+ARCH ?= amd64
+
 %:
 	dh $@ --with python2,python3,systemd --buildsystem=pybuild
 
@@ -13,6 +16,13 @@ override_dh_auto_build:
 	make -f build.mk build
 
 override_dh_auto_install:
+	# Sonic specific behavior to automatically rewrite kernel dependency
+	# The kernel tends to change pretty often which is annoying because
+	# debian/kernel is static
+	if [ ! -z "$(KVERSION_SHORT)" ]; then \
+	   echo "Rewriting linux-image dependency in debian/control to $(KVERSION_SHORT)"; \
+	   sed -Ei "s/linux-image-.+-$(ARCH)/linux-image-$(KVERSION_SHORT)-$(ARCH)/" debian/control; \
+	fi
 	make -f build.mk install-py2 \
 	   DESTDIR=$(CURDIR)/debian/python-$(DEB_SOURCE) \
 	   PY_INSTALL_ARGS=--install-layout=deb
