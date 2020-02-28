@@ -112,27 +112,35 @@ def readSid():
 def readPlatformName():
    return getCmdlineDict().get('platform')
 
+def readHwApi():
+   return getSysEeprom().get('HwApi')
+
 def detectPlatform():
    getSysEeprom()
 
+   hwApi = readHwApi()
+
    sid = readSid()
-   platformCls = platformSidIndex.get(sid)
+   platformCls = platformSidIndex.get(sid) or platformSidIndex.get((sid, hwApi))
    if platformCls is not None:
       return platformCls
 
    sku = readSku()
-   platformCls = platformSkuIndex.get(sku)
+   platformCls = platformSkuIndex.get(sku) or platformSkuIndex.get((sku, hwApi))
    if platformCls is not None:
       return platformCls
 
    name = readPlatformName()
-   platformCls = platformSidIndex.get(name)
+   platformCls = platformSidIndex.get(name) or platformSidIndex.get((name, hwApi))
    if platformCls is not None:
       return platformCls
 
    raise UnknownPlatformError(sku, sid, name, platforms)
 
 def getPlatformCls(*names):
+   return getPlatformClsWithHwApi(None, *names)
+
+def getPlatformClsWithHwApi(hwApi, *names):
    if not names or not [name for name in names if name]:
       return detectPlatform()
 
@@ -140,11 +148,11 @@ def getPlatformCls(*names):
       if name is None:
          continue
 
-      platformCls = platformSkuIndex.get(name)
+      platformCls = platformSkuIndex.get(name) or platformSkuIndex.get((name, hwApi))
       if platformCls is not None:
          return platformCls
 
-      platformCls = platformSidIndex.get(name)
+      platformCls = platformSidIndex.get(name) or platformSidIndex.get((name, hwApi))
       if platformCls is not None:
          return platformCls
 
@@ -175,9 +183,17 @@ def registerPlatform():
       platforms.append(cls)
 
       for sid in cls.SID:
-         platformSidIndex[sid] = cls
+         if hasattr(cls, 'HWAPI') and cls.HWAPI:
+            for hwApi in cls.HWAPI:
+               platformSidIndex[(sid,hwApi)] = cls
+         else:
+            platformSidIndex[sid] = cls
       for sku in cls.SKU:
-         platformSkuIndex[sku] = cls
+         if hasattr(cls, 'HWAPI') and cls.HWAPI:
+            for hwApi in cls.HWAPI:
+               platformSkuIndex[(sku,hwApi)] = cls
+         else:
+            platformSkuIndex[sku] = cls
 
       if cls.PLATFORM is not None:
          # this is a hack for older platforms that did not provide sid=

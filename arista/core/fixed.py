@@ -10,6 +10,7 @@ class FixedSystem(Component):
    PLATFORM = None
    SID = None
    SKU = None
+   HWAPI = None
 
    def __init__(self, drivers=None, inventoryCls=Inventory, **kwargs):
       drivers = drivers or [KernelDriver(module='eeprom'),
