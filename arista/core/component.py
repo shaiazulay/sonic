@@ -54,6 +54,11 @@ class Component(object):
       component.inventory = self.inventory
       return self
 
+   def newComponent(self, cls, *args, **kwargs):
+      component = cls(inventory=self.inventory, *args, **kwargs)
+      self.addComponent(component)
+      return component
+
    def iterComponents(self, filters=Priority.defaultFilter, recursive=True):
       if filters is None:
          filters = []

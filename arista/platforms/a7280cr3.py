@@ -25,19 +25,16 @@ class Smartsville(Platform):
 
       self.inventory.addPorts(qsfps=self.qsfpRange, osfps=self.osfpRange)
 
-      switchChip = SwitchChip(PciAddr(bus=0x05))
-      self.addComponent(switchChip)
+      self.newComponent(SwitchChip, PciAddr(bus=0x05))
 
-      scd = Scd(PciAddr(bus=0x02))
-      self.addComponent(scd)
+      scd = self.newComponent(Scd, PciAddr(bus=0x02))
 
       self.inventory.addWatchdog(scd.createWatchdog())
 
-      scd.addComponents([
-         Tmp468(scd.i2cAddr(0, 0x48), waitFile='/sys/class/hwmon/hwmon3'),
-         PmbusPsu(scd.i2cAddr(6, 0x58, t=3, datr=3, datw=3)),
-         PmbusPsu(scd.i2cAddr(7, 0x58, t=3, datr=3, datw=3)),
-      ])
+      scd.newComponent(Tmp468, scd.i2cAddr(0, 0x48),
+                       waitFile='/sys/class/hwmon/hwmon3')
+      scd.newComponent(PmbusPsu, scd.i2cAddr(6, 0x58, t=3, datr=3, datw=3))
+      scd.newComponent(PmbusPsu, scd.i2cAddr(7, 0x58, t=3, datr=3, datw=3))
 
       scd.addSmbusMasterRange(0x8000, 5, 0x80)
 
@@ -128,25 +125,22 @@ class Smartsville(Platform):
          phy = Babbage(phyId, mdios, reset=reset)
          self.inventory.addPhy(phy)
 
-      cpld = Scd(PciAddr(bus=0x00, device=0x09, func=0))
-      self.addComponent(cpld)
+      cpld = self.newComponent(Scd, PciAddr(bus=0x00, device=0x09, func=0))
 
-      scdFanComponent = ScdFanComponent(waitFile='/sys/class/hwmon/hwmon2')
+      scdFanComponent = cpld.newComponent(ScdFanComponent,
+                                          waitFile='/sys/class/hwmon/hwmon2')
       for fanId in incrange(1, 6):
          self.inventory.addFan(scdFanComponent.createFan(fanId, ledId=(fanId-1)/2+1))
 
       cpld.addSmbusMasterRange(0x8000, 2, 0x80, 4)
-      cpld.addComponents([
-         scdFanComponent,
-         Max6658(cpld.i2cAddr(0, 0x4c)),
-         Ucd90160(cpld.i2cAddr(1, 0x4e, t=3)),
-         Ucd90320(cpld.i2cAddr(5, 0x11, t=3), causes={
-            'powerloss': UcdGpi(1),
-            'reboot': UcdGpi(2),
-            'watchdog': UcdGpi(3),
-            'overtemp': UcdGpi(4),
-         }),
-      ])
+      cpld.newComponent(Max6658, cpld.i2cAddr(0, 0x4c))
+      cpld.newComponent(Ucd90160, cpld.i2cAddr(1, 0x4e, t=3))
+      cpld.newComponent(Ucd90320, cpld.i2cAddr(5, 0x11, t=3), causes={
+         'powerloss': UcdGpi(1),
+         'reboot': UcdGpi(2),
+         'watchdog': UcdGpi(3),
+         'overtemp': UcdGpi(4),
+      })
       cpld.addFanGroup(0x9000, 3, 3)
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())

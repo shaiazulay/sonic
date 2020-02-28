@@ -22,38 +22,34 @@ class Lodoga(Platform):
 
       self.inventory.addPorts(sfps=self.sfpRange, qsfps=self.qsfp100gRange)
 
-      switchChip = SwitchChip(PciAddr(bus=0x01))
-      self.addComponent(switchChip)
+      self.newComponent(SwitchChip, PciAddr(bus=0x01))
 
-      scd = Scd(PciAddr(bus=0x02))
-      self.addComponent(scd)
+      scd = self.newComponent(Scd, PciAddr(bus=0x02))
 
       self.inventory.addWatchdog(scd.createWatchdog())
 
+      scd.newComponent(I2cKernelComponent, scd.i2cAddr(0, 0x4c), 'max6658',
+                       '/sys/class/hwmon/hwmon2')
+      scd.newComponent(Ucd90120A, scd.i2cAddr(0, 0x4e, t=3))
+
       crowFanCpldAddr = scd.i2cAddr(0, 0x60)
-      crowFanComponent = CrowFanCpldComponent(addr=crowFanCpldAddr,
-                                              waitFile='/sys/class/hwmon/hwmon3')
+      crowFanComponent = scd.newComponent(CrowFanCpldComponent, addr=crowFanCpldAddr,
+                                          waitFile='/sys/class/hwmon/hwmon3')
 
       for fanId in incrange(1, 4):
          self.inventory.addFan(crowFanComponent.createFan(fanId))
 
-      scd.addComponents([
-         I2cKernelComponent(scd.i2cAddr(0, 0x4c), 'max6658',
-                            '/sys/class/hwmon/hwmon2'),
-         Ucd90120A(scd.i2cAddr(0, 0x4e, t=3)),
-         crowFanComponent,
-         I2cKernelComponent(scd.i2cAddr(9, 0x4c), 'max6658',
-                            '/sys/class/hwmon/hwmon4'),
-         PmbusPsu(scd.i2cAddr(11, 0x58, t=3, datr=2, datw=3)),
-         PmbusPsu(scd.i2cAddr(12, 0x58, t=3, datr=2, datw=3)),
-         Ucd90120A(scd.i2cAddr(13, 0x4e, t=3), causes={
-            'reboot': UcdGpi(1),
-            'watchdog': UcdGpi(2),
-            'overtemp': UcdGpi(4),
-            'powerloss': UcdGpi(5),
-            'systempowerloss': UcdGpi(6),
-         }),
-      ])
+      scd.newComponent(I2cKernelComponent, scd.i2cAddr(9, 0x4c), 'max6658',
+                       '/sys/class/hwmon/hwmon4')
+      scd.newComponent(PmbusPsu, scd.i2cAddr(11, 0x58, t=3, datr=2, datw=3))
+      scd.newComponent(PmbusPsu, scd.i2cAddr(12, 0x58, t=3, datr=2, datw=3))
+      scd.newComponent(Ucd90120A, scd.i2cAddr(13, 0x4e, t=3), causes={
+         'reboot': UcdGpi(1),
+         'watchdog': UcdGpi(2),
+         'overtemp': UcdGpi(4),
+         'powerloss': UcdGpi(5),
+         'systempowerloss': UcdGpi(6),
+      })
 
       scd.addSmbusMasterRange(0x8000, 6, 0x80)
 

@@ -29,33 +29,31 @@ class Cloverdale(Platform):
 
       self.inventory.addPorts(qsfps=self.allQsfps)
 
-      switchChip = SwitchChip(PciAddr(bus=0x02))
-      self.addComponent(switchChip)
+      self.newComponent(SwitchChip, PciAddr(bus=0x02))
 
-      scd = Scd(PciAddr(bus=0x04))
-      self.addComponent(scd)
+      scd = self.newComponent(Scd, PciAddr(bus=0x04))
 
       self.inventory.addWatchdog(scd.createWatchdog())
 
       self.inventory.addPowerCycle(scd.createPowerCycle())
 
-      ravenFanComponent = RavenFanCpldComponent(waitFile='/sys/class/hwmon/hwmon1')
+      ravenFanComponent = scd.newComponent(RavenFanCpldComponent,
+                                           waitFile='/sys/class/hwmon/hwmon1')
 
-      scd.addComponents([
-         ravenFanComponent,
-         Max6658(scd.i2cAddr(0, 0x4c), waitFile='/sys/class/hwmon/hwmon2'),
-         Lm73(scd.i2cAddr(1, 0x48), waitFile='/sys/class/hwmon/hwmon3'),
-         # Due to a risk of an unrecoverable firmware corruption when a pmbus
-         # transaction is done at the same moment of the poweroff, the handling of
-         # the DPM is disabled. If you want rail information use it at your own risk
-         # The current implementation will just read the firmware information once.
-         Ucd90120A(scd.i2cAddr(1, 0x4e, t=3)),
-         Ucd90160(scd.i2cAddr(5, 0x4e, t=3), causes={
-            'reboot': UcdGpi(2),
-            'watchdog': UcdGpi(3),
-            'powerloss': UcdMon(13),
-         }),
-      ])
+      scd.newComponent(Max6658, scd.i2cAddr(0, 0x4c),
+                       waitFile='/sys/class/hwmon/hwmon2')
+      scd.newComponent(Lm73, scd.i2cAddr(1, 0x48),
+                       waitFile='/sys/class/hwmon/hwmon3')
+      # Due to a risk of an unrecoverable firmware corruption when a pmbus
+      # transaction is done at the same moment of the poweroff, the handling of
+      # the DPM is disabled. If you want rail information use it at your own risk
+      # The current implementation will just read the firmware information once.
+      self.newComponent(Ucd90120A, scd.i2cAddr(1, 0x4e, t=3))
+      self.newComponent(Ucd90160, scd.i2cAddr(5, 0x4e, t=3), causes={
+         'reboot': UcdGpi(2),
+         'watchdog': UcdGpi(3),
+         'powerloss': UcdMon(13),
+      })
 
       for fanId in incrange(1, 4):
          self.inventory.addFan(ravenFanComponent.createFan(fanId))
@@ -70,22 +68,19 @@ class Cloverdale(Platform):
 
       # PSU
       psu1Addr = scd.i2cAddr(3, 0x58, t=3, datr=3, datw=3, ed=0)
-      ds460Psu1 = Ds460(psu1Addr, '/sys/class/hwmon/hwmon4')
+      ds460Psu1 = scd.newComponent(Ds460, psu1Addr, '/sys/class/hwmon/hwmon4')
       psu2Addr = scd.i2cAddr(4, 0x58, t=3, datr=3, datw=3, ed=0)
-      ds460Psu2 = Ds460(psu2Addr, '/sys/class/hwmon/hwmon5')
-      scd.addComponents([ds460Psu1, ds460Psu2])
+      ds460Psu2 = scd.newComponent(Ds460, psu2Addr, '/sys/class/hwmon/hwmon5')
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
       ])
 
-      psu1 = PmbusMixedPsuComponent(presenceComponent=scd,
-                                    statusComponent=ds460Psu1)
-      psu2 = PmbusMixedPsuComponent(presenceComponent=scd,
-                                    statusComponent=ds460Psu2)
-
-      self.addComponents([psu1, psu2])
+      psu1 = self.newComponent(PmbusMixedPsuComponent, presenceComponent=scd,
+                               statusComponent=ds460Psu1)
+      psu2 = self.newComponent(PmbusMixedPsuComponent, presenceComponent=scd,
+                               statusComponent=ds460Psu2)
 
       self.inventory.addPsus([
          psu1.createPsu(psuId=1, led=self.inventory.getLed('psu1')),

@@ -27,19 +27,16 @@ class Gardena(Platform):
 
       self.addDriver(KernelDriver, 'rook-led-driver')
 
-      switchChip = SwitchChip(PciAddr(bus=0x07))
-      self.addComponent(switchChip)
+      self.newComponent(SwitchChip, PciAddr(bus=0x07))
 
-      scd = Scd(PciAddr(bus=0x06))
-      self.addComponent(scd)
+      scd = self.newComponent(Scd, PciAddr(bus=0x06))
 
       self.inventory.addWatchdog(scd.createWatchdog())
 
-      scd.addComponents([
-         Max6658(scd.i2cAddr(0, 0x4c), waitFile='/sys/class/hwmon/hwmon2'),
-         PmbusPsu(scd.i2cAddr(2, 0x58, t=3, datr=2, datw=3)),
-         PmbusPsu(scd.i2cAddr(3, 0x58, t=3, datr=2, datw=3)),
-      ])
+      scd.newComponent(Max6658, scd.i2cAddr(0, 0x4c),
+                       waitFile='/sys/class/hwmon/hwmon2')
+      scd.newComponent(PmbusPsu, scd.i2cAddr(2, 0x58, t=3, datr=2, datw=3))
+      scd.newComponent(PmbusPsu, scd.i2cAddr(3, 0x58, t=3, datr=2, datw=3))
 
       scd.addSmbusMasterRange(0x8000, 8, 0x80)
 
@@ -58,9 +55,8 @@ class Gardena(Platform):
          NamedGpio(0x5000, 11, True, False, "psu2_ac_status"),
       ])
 
-      ledComponent = RookLedComponent(baseName='rook_leds-88', scd=scd)
-
-      self.addComponent(ledComponent)
+      ledComponent = self.newComponent(RookLedComponent, baseName='rook_leds-88',
+                                       scd=scd)
 
       self.inventory.addLeds([
          ledComponent.createLed(colors=['blue'], name='beacon'),
@@ -117,32 +113,31 @@ class Gardena(Platform):
          addr += 0x10
          bus += 1
 
-      cpld = Scd(PciAddr(bus=0xff, device=0x0b, func=3), newDriver=True)
-      self.addComponent(cpld)
+      cpld = self.newComponent(Scd, PciAddr(bus=0xff, device=0x0b, func=3),
+                               newDriver=True)
+
+      cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
+      cpld.newComponent(Max6658, cpld.i2cAddr(0, 0x4c),
+                        waitFile='/sys/class/hwmon/hwmon3')
+      cpld.newComponent(Ucd90160, cpld.i2cAddr(1, 0x4e, t=3))
+      cpld.newComponent(Ucd90120A, cpld.i2cAddr(10, 0x34, t=3), causes={
+         'powerloss': UcdGpi(1),
+         'reboot': UcdGpi(2),
+         'watchdog': UcdGpi(3),
+         'overtemp': UcdGpi(4),
+      })
 
       laFanCpldAddr = cpld.i2cAddr(12, 0x60)
-      laFanComponent = LAFanCpldComponent(addr=laFanCpldAddr,
-                                          waitFile='/sys/class/hwmon/hwmon4')
+      laFanComponent = cpld.newComponent(LAFanCpldComponent, addr=laFanCpldAddr,
+                                         waitFile='/sys/class/hwmon/hwmon4')
 
       for fanId in incrange(1, 4):
          self.inventory.addFan(laFanComponent.createFan(fanId))
 
-      cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
-      cpld.addComponents([
-         Max6658(cpld.i2cAddr(0, 0x4c), waitFile='/sys/class/hwmon/hwmon3'),
-         Ucd90160(cpld.i2cAddr(1, 0x4e, t=3)),
-         Ucd90120A(cpld.i2cAddr(10, 0x34, t=3), causes={
-            'powerloss': UcdGpi(1),
-            'reboot': UcdGpi(2),
-            'watchdog': UcdGpi(3),
-            'overtemp': UcdGpi(4),
-         }),
-         laFanComponent,
-         I2cKernelComponent(cpld.i2cAddr(15, 0x20), 'rook_leds'),
-         Lm73(cpld.i2cAddr(15, 0x48), waitFile='/sys/class/hwmon/hwmon5'),
-      ])
+      cpld.newComponent(I2cKernelComponent, cpld.i2cAddr(15, 0x20), 'rook_leds')
+      cpld.newComponent(Lm73, cpld.i2cAddr(15, 0x48),
+                        waitFile='/sys/class/hwmon/hwmon5')
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
 
-      self.syscpld = RookSysCpld(cpld.i2cAddr(8, 0x23))
-      self.addComponent(self.syscpld)
+      self.syscpld = self.newComponent(RookSysCpld, cpld.i2cAddr(8, 0x23))

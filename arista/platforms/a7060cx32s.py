@@ -24,35 +24,34 @@ class Upperlake(Platform):
 
       self.inventory.addPorts(sfps=self.sfpRange, qsfps=self.qsfp100gRange)
 
-      switchChip = SwitchChip(PciAddr(bus=0x01))
-      self.addComponent(switchChip)
+      self.newComponent(SwitchChip, PciAddr(bus=0x01))
 
-      scd = Scd(PciAddr(bus=0x02))
-      self.addComponent(scd)
+      scd = self.newComponent(Scd, PciAddr(bus=0x02))
 
       self.inventory.addWatchdog(scd.createWatchdog())
 
+      scd.newComponent(Max6697, scd.i2cAddr(0, 0x1a),
+                       waitFile='/sys/class/hwmon/hwmon2')
+      scd.newComponent(Max6658, scd.i2cAddr(1, 0x4c),
+                       waitFile='/sys/class/hwmon/hwmon3')
+
       crowFanCpldAddr = scd.i2cAddr(1, 0x60)
-      crowFanComponent = CrowFanCpldComponent(addr=crowFanCpldAddr,
-                                              waitFile='/sys/class/hwmon/hwmon4')
+      crowFanComponent = scd.newComponent(CrowFanCpldComponent,
+                                           addr=crowFanCpldAddr,
+                                           waitFile='/sys/class/hwmon/hwmon4')
 
       for fanId in incrange(1, 4):
          self.inventory.addFan(crowFanComponent.createFan(fanId))
 
-      scd.addComponents([
-         Max6697(scd.i2cAddr(0, 0x1a), waitFile='/sys/class/hwmon/hwmon2'),
-         Max6658(scd.i2cAddr(1, 0x4c), waitFile='/sys/class/hwmon/hwmon3'),
-         crowFanComponent,
-         Ucd90120A(scd.i2cAddr(1, 0x4e, t=3)),
-         PmbusPsu(scd.i2cAddr(3, 0x58, t=3, datr=2, datw=3)),
-         PmbusPsu(scd.i2cAddr(4, 0x58, t=3, datr=2, datw=3)),
-         Ucd90120A(scd.i2cAddr(5, 0x4e, t=3), causes={
-            'reboot': UcdGpi(1),
-            'watchdog': UcdGpi(2),
-            'overtemp': UcdGpi(4),
-            'powerloss': UcdGpi(5),
-         }),
-      ])
+      scd.newComponent(Ucd90120A, scd.i2cAddr(1, 0x4e, t=3))
+      scd.newComponent(PmbusPsu, scd.i2cAddr(3, 0x58, t=3, datr=2, datw=3))
+      scd.newComponent(PmbusPsu, scd.i2cAddr(4, 0x58, t=3, datr=2, datw=3))
+      scd.newComponent(Ucd90120A, scd.i2cAddr(5, 0x4e, t=3), causes={
+         'reboot': UcdGpi(1),
+         'watchdog': UcdGpi(2),
+         'overtemp': UcdGpi(4),
+         'powerloss': UcdGpi(5),
+      })
 
       scd.addSmbusMasterRange(0x8000, 5, 0x80)
 
@@ -74,15 +73,13 @@ class Upperlake(Platform):
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
       ])
 
-      self.syscpld = CrowSysCpld(I2cAddr(1, 0x23))
+      self.syscpld = self.newComponent(CrowSysCpld, I2cAddr(1, 0x23))
       cpld = self.syscpld
       self.inventory.addPowerCycle(cpld.createPowerCycle())
-      self.addComponent(cpld)
 
-      psuComponent = UpperlakeMixedPsuComponent(presenceComponent=scd,
-                                                statusComponent=cpld)
-
-      self.addComponent(psuComponent)
+      psuComponent = self.newComponent(UpperlakeMixedPsuComponent,
+                                       presenceComponent=scd,
+                                       statusComponent=cpld)
 
       self.inventory.addPsus([
          psuComponent.createPsu(psuId=1, led=self.inventory.getLed('psu1')),

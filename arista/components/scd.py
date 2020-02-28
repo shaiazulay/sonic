@@ -352,8 +352,8 @@ class Scd(PciComponent):
                       driver=self.drivers['XcvrSysfsDriver'],
                       addr=addr, interruptLine=interruptLine,
                       reset=reset, leds=leds)
-      self.addComponent(I2cComponent(addr=addr,
-                           drivers=[I2cKernelDriver(name='sff8436', addr=addr)]))
+      self.newComponent(I2cComponent, addr=addr,
+                        drivers=[I2cKernelDriver(name='sff8436', addr=addr)])
       self.xcvrs.append(xcvr)
       return xcvr
 
