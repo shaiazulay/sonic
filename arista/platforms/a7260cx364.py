@@ -11,6 +11,8 @@ from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
+from ..descs.led import LedDesc
+
 @registerPlatform()
 class Gardena(Platform):
 
@@ -56,14 +58,12 @@ class Gardena(Platform):
       ])
 
       ledComponent = self.newComponent(RookLedComponent, baseName='rook_leds-88',
-                                       scd=scd)
-
-      self.inventory.addLeds([
-         ledComponent.createLed(colors=['blue'], name='beacon'),
-         ledComponent.createLed(colors=['green', 'red'], name='fan_status'),
-         ledComponent.createLed(colors=['green', 'red'], name='psu1_status'),
-         ledComponent.createLed(colors=['green', 'red'], name='psu2_status'),
-         ledComponent.createLed(colors=['green', 'red'], name='status'),
+                                       scd=scd, leds=[
+         LedDesc(colors=['blue'], name='beacon'),
+         LedDesc(colors=['green', 'red'], name='fan_status'),
+         LedDesc(colors=['green', 'red'], name='psu1_status'),
+         LedDesc(colors=['green', 'red'], name='psu2_status'),
+         LedDesc(colors=['green', 'red'], name='status'),
       ])
 
       self.inventory.addPsus([

@@ -34,15 +34,19 @@ class RookSysCpld(SysCpld):
                                         registerCls=registerCls, **kwargs)
 
 class RookLedComponent(Component):
-   def __init__(self, baseName=None, scd=None, drivers=None, **kwargs):
+   def __init__(self, baseName=None, scd=None, drivers=None, leds=[], **kwargs):
       self.baseName = baseName
       if not drivers:
          drivers = [RookLedSysfsDriver(sysfsPath='/sys/class/leds/')]
       super(RookLedComponent, self).__init__(drivers=drivers, **kwargs)
+      for led in leds:
+         self.createLed(led.colors, led.name)
 
    def createLed(self, colors=None, name=None):
-      return RookLedImpl(baseName=self.baseName, colors=colors or [], name=name,
+      led = RookLedImpl(baseName=self.baseName, colors=colors or [], name=name,
                          driver=self.drivers['RookLedSysfsDriver'])
+      self.inventory.addLed(led)
+      return led
 
 class LAFanCpldComponent(I2cComponent):
    def __init__(self, addr=None, drivers=None, waitFile=None, **kwargs):
