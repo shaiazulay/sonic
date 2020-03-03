@@ -3,10 +3,10 @@
 
 from __future__ import absolute_import, division, print_function
 
-import unittest
+from ...tests.testing import unittest
 
-import arista.core.platform as platform
-from arista.core.fixed import FixedSystem
+from .. import platform
+from ..fixed import FixedSystem
 
 class UniqueKeyDict(dict):
    def __setitem__(self, key, value):

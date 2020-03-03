@@ -1,15 +1,8 @@
-#!/usr/bin/env python
-
 from __future__ import absolute_import
 
-import unittest
-try:
-   from mock import patch
-except ImportError:
-   from unittest.mock import patch
-
-from arista.core.platform import loadPlatforms, getPlatforms
-from arista.cli import main
+from ...tests.testing import unittest, patch
+from ...core.platform import loadPlatforms, getPlatforms
+from .. import main
 
 class CliLegacyTest(unittest.TestCase):
    def _runMain(self, args, code=0):

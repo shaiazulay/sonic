@@ -1,33 +1,27 @@
-#!/usr/bin/env python
 from __future__ import absolute_import
 
-try:
-   from mock import patch
-except ImportError:
-   from unittest.mock import patch
-import unittest
+from ...tests.testing import unittest, patch
+from ...tests.logging import getLogger
 
-from arista.accessors.fan import FanImpl
-from arista.accessors.led import LedImpl
-from arista.accessors.xcvr import XcvrImpl
+from ...accessors.fan import FanImpl
+from ...accessors.led import LedImpl
+from ...accessors.xcvr import XcvrImpl
 
-from arista.components.scd import ScdInterruptRegister
+from ...components.scd import ScdInterruptRegister
 
-from arista.core import utils
-from arista.core.driver import Driver
-from arista.core.fixed import FixedSystem
-from arista.core.inventory import Psu, Xcvr
-from arista.core.platform import getPlatformSkus
-from arista.core.types import I2cAddr
+from ...drivers.i2c import I2cKernelDriver
+from ...drivers.psu import UpperlakePsuDriver
+from ...drivers.scd import ScdKernelDriver
+from ...drivers.sysfs import SysfsDriver
 
-from arista.drivers.i2c import I2cKernelDriver
-from arista.drivers.psu import UpperlakePsuDriver
-from arista.drivers.scd import ScdKernelDriver
-from arista.drivers.sysfs import SysfsDriver
+from .. import utils
+from ..driver import Driver
+from ..fixed import FixedSystem
+from ..inventory import Psu, Xcvr
+from ..platform import getPlatformSkus
+from ..types import I2cAddr
 
-import arista.platforms
-
-from tests.common import getLogger
+from ... import platforms as _
 
 def mock_i2cBusFromName(name, idx=0, force=False):
    assert isinstance(name, str)
@@ -77,7 +71,7 @@ def mock_return(self):
    return
 
 def mock_iterAll(self):
-   return [];
+   return []
 
 @patch('arista.drivers.scd.i2cBusFromName', mock_i2cBusFromName)
 @patch('arista.core.utils.inSimulation', mock_inSimulation)

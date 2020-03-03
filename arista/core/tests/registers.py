@@ -1,9 +1,9 @@
 from __future__ import absolute_import, division, print_function
 
-import unittest
+from ...tests.testing import unittest
 
-from arista.core.diag import DiagContext
-from arista.core.register import RegisterMap, Register, RegBitField
+from ..diag import DiagContext
+from ..register import RegisterMap, Register, RegBitField
 
 class FakeRegisterMap(RegisterMap):
    REVISION = Register(0x01, name='revision')

@@ -2,11 +2,12 @@
 from __future__ import absolute_import, division, print_function
 
 import datetime
-import unittest
 
-import arista.core.inventory as inventory
-from arista.core.inventory import Inventory
-from arista.core.metainventory import MetaInventory, LazyInventory
+from ...tests.testing import unittest
+
+from .. import inventory
+from ..inventory import Inventory
+from ..metainventory import MetaInventory, LazyInventory
 
 class TestFan(inventory.Fan):
    def __init__(self, fanId=1, name="fan1", speed=12345, direction='forward'):
