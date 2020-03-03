@@ -11,6 +11,8 @@ from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
+from ..descs.fan import FanDesc
+
 @registerPlatform()
 class BlackhawkO(Platform):
 
@@ -123,10 +125,10 @@ class BlackhawkO(Platform):
       tehamaFanCpldAddr = cpld.i2cAddr(12, 0x60)
       tehamaFanComponent = cpld.newComponent(TehamaFanCpldComponent,
                                              addr=tehamaFanCpldAddr,
-                                             waitFile='/sys/class/hwmon/hwmon4')
-
-      for fanId in incrange(1, 5):
-         self.inventory.addFan(tehamaFanComponent.createFan(fanId))
+                                             waitFile='/sys/class/hwmon/hwmon4',
+                                             fans=[
+         FanDesc(fanId) for fanId in incrange(1, 5)
+      ])
 
       self.inventory.addPowerCycle(cpld.createPowerCycle())
 

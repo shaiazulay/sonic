@@ -11,6 +11,7 @@ from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
+from ..descs.fan import FanDesc
 from ..descs.led import LedDesc
 
 @registerPlatform()
@@ -133,10 +134,10 @@ class Alhambra(Platform):
 
       laFanCpldAddr = cpld.i2cAddr(12, 0x60)
       laFanComponent = cpld.newComponent(LAFanCpldComponent, addr=laFanCpldAddr,
-                                         waitFile='/sys/class/hwmon/hwmon4')
-
-      for fanId in incrange(1, 4):
-         self.inventory.addFan(laFanComponent.createFan(fanId))
+                                         waitFile='/sys/class/hwmon/hwmon4',
+                                         fans=[
+         FanDesc(fanId) for fanId in incrange(1, 4)
+      ])
 
       cpld.newComponent(I2cKernelComponent, cpld.i2cAddr(15, 0x20), 'rook_leds')
       cpld.newComponent(Lm73, cpld.i2cAddr(15, 0x48),

@@ -10,6 +10,8 @@ from ..components.max6697 import Max6697
 from ..components.psu import UpperlakeMixedPsuComponent, PmbusPsu
 from ..components.scd import Scd
 
+from ..descs.fan import FanDesc
+
 @registerPlatform()
 class Upperlake(Platform):
 
@@ -38,10 +40,10 @@ class Upperlake(Platform):
       crowFanCpldAddr = scd.i2cAddr(1, 0x60)
       crowFanComponent = scd.newComponent(CrowFanCpldComponent,
                                            addr=crowFanCpldAddr,
-                                           waitFile='/sys/class/hwmon/hwmon4')
-
-      for fanId in incrange(1, 4):
-         self.inventory.addFan(crowFanComponent.createFan(fanId))
+                                           waitFile='/sys/class/hwmon/hwmon4',
+                                           fans=[
+         FanDesc(fanId) for fanId in incrange(1, 4)
+      ])
 
       scd.newComponent(Ucd90120A, scd.i2cAddr(1, 0x4e, t=3))
       scd.newComponent(PmbusPsu, scd.i2cAddr(3, 0x58, t=3, datr=2, datw=3))

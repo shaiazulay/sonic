@@ -10,13 +10,15 @@ from .common import PciComponent
 logging = getLogger(__name__)
 
 class ScdFanComponent(PciComponent):
-   def __init__(self, drivers=None, waitFile=None, **kwargs):
+   def __init__(self, drivers=None, waitFile=None, fans=[], **kwargs):
       fanSysfsDriver = FanSysfsDriver(maxPwm=255,
             sysfsPath='/sys/devices/pci0000:00/0000:00:09.0/hwmon/hwmon2',
             waitFile=waitFile)
       ledSysfsDriver = LedSysfsDriver(sysfsPath='/sys/class/leds')
       drivers = drivers or [fanSysfsDriver, ledSysfsDriver]
       super(ScdFanComponent, self).__init__(drivers=drivers, **kwargs)
+      for fan in fans:
+         self.createFan(fan.fanId, ledId=fan.ledId)
 
    def createFan(self, fanId, driver='FanSysfsDriver', ledDriver='LedSysfsDriver',
                  ledId=None, **kwargs):
@@ -24,4 +26,6 @@ class ScdFanComponent(PciComponent):
       driver = self.drivers[driver]
       ledId = ledId or fanId
       led = LedImpl(name='fan%s' % ledId, driver=self.drivers[ledDriver])
-      return FanImpl(fanId=fanId, driver=driver, led=led, **kwargs)
+      fan = FanImpl(fanId=fanId, driver=driver, led=led, **kwargs)
+      self.inventory.addFan(fan)
+      return fan

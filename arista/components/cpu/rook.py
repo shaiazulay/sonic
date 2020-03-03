@@ -49,7 +49,7 @@ class RookLedComponent(Component):
       return led
 
 class LAFanCpldComponent(I2cComponent):
-   def __init__(self, addr=None, drivers=None, waitFile=None, **kwargs):
+   def __init__(self, addr=None, drivers=None, waitFile=None, fans=[], **kwargs):
       if not drivers:
          fanSysfsDriver = I2cKernelFanDriver(name='la_cpld',
                module='rook-fan-cpld', addr=addr, maxPwm=255, waitFile=waitFile)
@@ -57,16 +57,20 @@ class LAFanCpldComponent(I2cComponent):
          drivers = [fanSysfsDriver, ledSysfsDriver]
       super(LAFanCpldComponent, self).__init__(addr=addr, drivers=drivers,
                                                **kwargs)
+      for fan in fans:
+         self.createFan(fan.fanId)
 
    def createFan(self, fanId, driver='I2cKernelFanDriver',
                  ledDriver='LedSysfsDriver', **kwargs):
       logging.debug('creating LA fan %s', fanId)
       driver = self.drivers[driver]
       led = LedImpl(name='fan%s' % fanId, driver=self.drivers[ledDriver])
-      return FanImpl(fanId=fanId, driver=driver, led=led, **kwargs)
+      fan = FanImpl(fanId=fanId, driver=driver, led=led, **kwargs)
+      self.inventory.addFan(fan)
+      return fan
 
 class TehamaFanCpldComponent(I2cComponent):
-   def __init__(self, addr=None, drivers=None, waitFile=None, **kwargs):
+   def __init__(self, addr=None, drivers=None, waitFile=None, fans=[], **kwargs):
       if not drivers:
          fanSysfsDriver = I2cKernelFanDriver(name='tehama_cpld',
                module='rook-fan-cpld', addr=addr, maxPwm=255, waitFile=waitFile)
@@ -74,11 +78,15 @@ class TehamaFanCpldComponent(I2cComponent):
          drivers = [fanSysfsDriver, ledSysfsDriver]
       super(TehamaFanCpldComponent, self).__init__(addr=addr, drivers=drivers,
                                                    **kwargs)
+      for fan in fans:
+         self.createFan(fan.fanId)
 
    def createFan(self, fanId, driver='I2cKernelFanDriver',
                  ledDriver='LedSysfsDriver', **kwargs):
       logging.debug('creating Tehama fan %s', fanId)
       driver = self.drivers[driver]
       led = LedImpl(name='fan%s' % fanId, driver=self.drivers[ledDriver])
-      return FanImpl(fanId=fanId, driver=driver, led=led, **kwargs)
+      fan = FanImpl(fanId=fanId, driver=driver, led=led, **kwargs)
+      self.inventory.addFan(fan)
+      return fan
 

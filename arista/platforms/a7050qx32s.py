@@ -11,6 +11,8 @@ from ..components.psu import PmbusMixedPsuComponent, PmbusPsu
 from ..components.scd import Scd
 from ..components.ds125br import Ds125Br
 
+from ..descs.fan import FanDesc
+
 @registerPlatform()
 class Clearlake(Platform):
 
@@ -43,10 +45,10 @@ class Clearlake(Platform):
       crowFanCpldAddr = scd.i2cAddr(1, 0x60)
       crowFanComponent = scd.newComponent(CrowFanCpldComponent,
                                            addr=crowFanCpldAddr,
-                                           waitFile='/sys/class/hwmon/hwmon4')
-
-      for fanId in incrange(1, 4):
-         self.inventory.addFan(crowFanComponent.createFan(fanId))
+                                           waitFile='/sys/class/hwmon/hwmon4',
+                                           fans=[
+         FanDesc(fanId) for fanId in incrange(1, 4)
+      ])
 
       scd.newComponent(Ucd90120A, scd.i2cAddr(1, 0x4e, t=3))
       scd.newComponent(Ucd90120A, scd.i2cAddr(5, 0x4e, t=3), causes={

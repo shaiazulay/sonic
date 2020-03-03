@@ -11,6 +11,8 @@ from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 from ..components.tmp468 import Tmp468
 
+from ..descs.fan import FanDesc
+
 @registerPlatform()
 class Smartsville(Platform):
 
@@ -128,9 +130,10 @@ class Smartsville(Platform):
       cpld = self.newComponent(Scd, PciAddr(bus=0x00, device=0x09, func=0))
 
       scdFanComponent = cpld.newComponent(ScdFanComponent,
-                                          waitFile='/sys/class/hwmon/hwmon2')
-      for fanId in incrange(1, 6):
-         self.inventory.addFan(scdFanComponent.createFan(fanId, ledId=(fanId-1)/2+1))
+                                          waitFile='/sys/class/hwmon/hwmon2',
+                                          fans=[
+         FanDesc(fanId, ledId=(fanId-1)/2+1) for fanId in incrange(1, 6)
+      ])
 
       cpld.addSmbusMasterRange(0x8000, 2, 0x80, 4)
       cpld.newComponent(Max6658, cpld.i2cAddr(0, 0x4c))

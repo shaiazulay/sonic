@@ -8,6 +8,8 @@ from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
+from ..descs.fan import FanDesc
+
 @registerPlatform()
 class Lodoga(Platform):
 
@@ -34,10 +36,10 @@ class Lodoga(Platform):
 
       crowFanCpldAddr = scd.i2cAddr(0, 0x60)
       crowFanComponent = scd.newComponent(CrowFanCpldComponent, addr=crowFanCpldAddr,
-                                          waitFile='/sys/class/hwmon/hwmon3')
-
-      for fanId in incrange(1, 4):
-         self.inventory.addFan(crowFanComponent.createFan(fanId))
+                                          waitFile='/sys/class/hwmon/hwmon3',
+                                          fans=[
+         FanDesc(fanId) for fanId in incrange(1, 4)
+      ])
 
       scd.newComponent(I2cKernelComponent, scd.i2cAddr(9, 0x4c), 'max6658',
                        '/sys/class/hwmon/hwmon4')

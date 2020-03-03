@@ -11,6 +11,8 @@ from ..components.psu import PmbusMixedPsuComponent
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
 
+from ..descs.fan import FanDesc
+
 @registerPlatform()
 class Cloverdale(Platform):
 
@@ -38,7 +40,10 @@ class Cloverdale(Platform):
       self.inventory.addPowerCycle(scd.createPowerCycle())
 
       ravenFanComponent = scd.newComponent(RavenFanCpldComponent,
-                                           waitFile='/sys/class/hwmon/hwmon1')
+                                           waitFile='/sys/class/hwmon/hwmon1',
+                                           fans=[
+         FanDesc(fanId) for fanId in incrange(1, 4)
+      ])
 
       scd.newComponent(Max6658, scd.i2cAddr(0, 0x4c),
                        waitFile='/sys/class/hwmon/hwmon2')
@@ -54,9 +59,6 @@ class Cloverdale(Platform):
          'watchdog': UcdGpi(3),
          'powerloss': UcdMon(13),
       })
-
-      for fanId in incrange(1, 4):
-         self.inventory.addFan(ravenFanComponent.createFan(fanId))
 
       self.inventory.addLeds(scd.addLeds([
          (0x6050, 'status'),
