@@ -54,7 +54,7 @@ class Component(object):
       component.inventory = self.inventory
       return self
 
-   def iterComponents(self, filters=Priority.defaultFilter):
+   def iterComponents(self, filters=Priority.defaultFilter, recursive=True):
       if filters is None:
          filters = []
       if not hasattr(filters, '__iter__'):
@@ -63,8 +63,9 @@ class Component(object):
 
       for component in filter(allFilters, self.components):
          yield component
-         for sub in component.iterComponents(filters):
-            yield sub
+         if recursive:
+            for sub in component.iterComponents(filters):
+               yield sub
 
    def iterInventory(self, filters=None):
       for component in self.iterComponents(filters=filters):
@@ -97,9 +98,9 @@ class Component(object):
    def finish(self, filters=Priority.defaultFilter):
       # underlying component are initialized recursively but require the parent to
       # be fully initialized
-      for component in self.iterComponents(filters):
+      for component in self.iterComponents(filters, recursive=False):
          component.setup()
-      for component in self.iterComponents():
+      for component in self.iterComponents(recursive=False):
          component.finish(filters)
 
    def refresh(self):
