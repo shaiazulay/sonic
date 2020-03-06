@@ -91,6 +91,8 @@ class FanSysfsDriver(SysfsDriver):
                 **kwargs):
       self.maxPwm = maxPwm
       self.addr = addr
+      if waitFile == utils.WAITFILE_HWMON:
+         waitFile = (self.addr.getSysfsPath(), 'hwmon', 'hwmon\d')
       self.fileWaiter = utils.FileWaiter(waitFile, waitTimeout)
       super(FanSysfsDriver, self).__init__(**kwargs)
 

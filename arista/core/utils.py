@@ -2,6 +2,7 @@ import fcntl
 import json
 import mmap
 import os
+import re
 import time
 
 from datetime import datetime
@@ -128,6 +129,8 @@ class Retrying:
 
       return Iterator(self.interval, self.delay, self.maxAttempts)
 
+WAITFILE_HWMON = 'hwmon'
+
 # Depreciate this object if we want to wait on access instead of waiting at start
 # and potentially failing
 class FileWaiter(object):
@@ -142,7 +145,7 @@ class FileWaiter(object):
       logging.debug('Waiting file %s.', self.waitFile)
 
       for r in Retrying(interval=self.waitTimeout):
-         if os.path.exists(self.waitFile):
+         if self.fileExists():
             return True
          logging.debug('Waiting file %s attempt %d.', self.waitFile, r.attempt)
 
@@ -150,6 +153,33 @@ class FileWaiter(object):
          logging.error('Waiting file %s failed.', self.waitFile)
          return False
       return True
+
+   def fileExists(self):
+      if isinstance(self.waitFile, str):
+         return os.path.exists(self.waitFile)
+      else:
+         def _findFile(directory, patterns):
+            if not os.path.exists(directory):
+               return False
+
+            nextPattern = patterns[0]
+            for filename in os.listdir(directory):
+               if not re.match(nextPattern, filename):
+                  continue
+
+               if len(patterns) == 1:
+                  return True
+
+               subdir = os.path.join(directory, filename)
+               if not os.path.isdir(subdir):
+                  continue
+
+               if _findFile(subdir, patterns[1:]):
+                  return True
+
+            return False
+
+         return _findFile(self.waitFile[0], self.waitFile[1:])
 
 class FileLock:
    def __init__(self, lock_file, auto_release=False):
