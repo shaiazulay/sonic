@@ -9,20 +9,6 @@ from ..core.asic import SwitchChip
 
 from ..drivers.i2c import I2cKernelDriver
 
-class Position(object):
-   INLET = 'inlet'
-   OUTLET = 'outlet'
-   OTHER = 'other'
-
-SensorDesc = namedtuple('SensorDesc', [
-   'diode',
-   'name',
-   'position',
-   'target',
-   'overheat',
-   'critical',
-])
-
 # Do not use this class as it is being depreciated
 class I2cKernelComponent(I2cComponent):
    def __init__(self, addr, name, waitFile=None, waitTimeout=None, **kwargs):
