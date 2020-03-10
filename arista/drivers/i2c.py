@@ -1,10 +1,13 @@
 import os
 
+from contextlib import closing
+
 from .sysfs import FanSysfsDriver
 
 from ..core.driver import Driver, KernelDriver
 from ..core import utils
 from ..core.log import getLogger
+from ..core.utils import SMBus
 
 logging = getLogger(__name__)
 
@@ -112,6 +115,14 @@ class I2cDevDriver(Driver):
       if self.bus_ is not None:
          self.bus_.close()
          self.bus_ = None
+
+   def smbusPing(self):
+      try:
+         with closing(SMBus(self.addr.bus)) as bus:
+            bus.read_byte(self.addr.address)
+      except IOError:
+         return False
+      return True
 
    def read_byte_data(self, reg):
       return self.bus.read_byte_data(self.addr.address, reg)
