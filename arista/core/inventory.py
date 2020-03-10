@@ -118,6 +118,22 @@ class Slot(object):
    def getPresence(self):
       raise NotImplementedError()
 
+class Temp(object):
+   def getTemperature(self):
+      raise NotImplementedError
+
+   def getLowThreshold(self):
+      raise NotImplementedError
+
+   def getHighThreshold(self):
+      raise NotImplementedError
+
+   def setLowThreshold(self):
+      raise NotImplementedError
+
+   def setHighThreshold(self):
+      raise NotImplementedError
+
 class Inventory(object):
    def __init__(self):
       self.sfpRange = []
@@ -152,6 +168,8 @@ class Inventory(object):
       self.phys = []
 
       self.slots = []
+
+      self.temps = []
 
    def freeze(self):
       # XXX: compute the range and some basic information from the various
@@ -296,3 +314,9 @@ class Inventory(object):
 
    def getSlots(self):
       return self.slots
+
+   def addTemp(self, temp):
+      self.temps.append(temp)
+
+   def getTemps(self):
+      return self.temps

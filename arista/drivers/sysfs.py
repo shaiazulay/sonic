@@ -1,4 +1,4 @@
-from __future__ import print_function, with_statement
+from __future__ import division, print_function, with_statement
 
 import os
 
@@ -154,3 +154,35 @@ class LedSysfsDriver(SysfsDriver):
       if value in self.inverseColorDict:
          value = self.inverseColorDict[value]
       self.write(led.name, str(value), path=path)
+
+class TempSysfsDriver(SysfsDriver):
+   def __init__(self, addr, waitFile=None, waitTimeout=None, **kwargs):
+      self.addr = addr
+      self.fileWaiter = utils.FileWaiter(waitFile, waitTimeout)
+      super(TempSysfsDriver, self).__init__(**kwargs)
+
+   def computeSysfsPath(self, diode):
+      if not self.sysfsPath:
+         self.sysfsPath = utils.locateHwmonPath(
+               self.addr.getSysfsPath(), 'temp%s' % diode)
+
+   def getTemperature(self, temp):
+      self.computeSysfsPath(temp.diode)
+      return float(self.read('temp%s_input' % temp.diode)) / 1000
+
+   def getLowThreshold(self, temp):
+      self.computeSysfsPath(temp.diode)
+      return float(self.read('temp%s_min' % temp.diode)) / 1000
+
+   def setLowThreshold(self, temp, value):
+      self.computeSysfsPath(temp.diode)
+      return self.write('temp%s_min' % temp.diode, str(int(value * 1000)))
+
+   def getHighThreshold(self, temp):
+      self.computeSysfsPath(temp.diode)
+      return float(self.read('temp%s_max' % temp.diode)) / 1000
+
+   def setHighThreshold(self, temp, value):
+      self.computeSysfsPath(temp.diode)
+      return self.write('temp%s_max' % temp.diode, str(int(value * 1000)))
+

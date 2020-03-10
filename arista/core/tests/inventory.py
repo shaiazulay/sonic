@@ -195,6 +195,31 @@ class TestXcvr(inventory.Xcvr):
       #    raise FeatureNotSupported()
       return self.reset
 
+class TestTemp(inventory.Temp):
+   def __init__(self, diode=1, temperature=30, lowThreshold=10, highThreshold=50):
+      self.diode = diode
+      self.temperature = temperature
+      self.lowThreshold = lowThreshold
+      self.highThreshold = highThreshold
+
+   def getTemperature(self):
+      return self.temperature
+
+   def getLowThreshold(self):
+      return self.lowThreshold
+
+   def setLowThreshold(self, value):
+      self.lowThreshold = value
+
+   def getHighThreshold(self):
+      return self.highThreshold
+
+   def setHighThreshold(self, value):
+      self.highThreshold = value
+
+   def __eq__(self, value):
+      return isinstance(value, TestTemp) and self.diode == value.diode
+
 class InventoryTest(unittest.TestCase):
    def _populateTestInventory(self, inv):
       inv.addPorts(
@@ -239,6 +264,8 @@ class InventoryTest(unittest.TestCase):
       inv.addInterrupt('intr', TestInterrupt())
       inv.addPhy(TestPhy())
       inv.addSlot(TestSlot())
+      inv.addTemp(TestTemp(diode=1))
+      inv.addTemp(TestTemp(diode=2))
 
    def _populateSmallTestInventory(self, inv):
       inv.addPsus([

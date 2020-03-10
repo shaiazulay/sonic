@@ -9,6 +9,8 @@ from ...accessors.xcvr import XcvrImpl
 
 from ...components.scd import ScdInterruptRegister
 
+from ...descs.sensor import SensorDesc
+
 from ...drivers.i2c import I2cKernelDriver
 from ...drivers.psu import UpperlakePsuDriver
 from ...drivers.scd import ScdKernelDriver
@@ -196,6 +198,29 @@ class MockTest(unittest.TestCase):
             led = fan.getLed()
             assert led == fan.led
             self._testLed(led)
+
+   def testTemps(self):
+      for name, platform in getPlatformSkus().items():
+         if not issubclass(platform, FixedSystem):
+            continue
+         inventory = platform().getInventory()
+         self.logger.info('Testing fans for platform %s', name)
+         for temp in inventory.getTemps():
+            assert isinstance(temp, TempImpl)
+            assert isinstance(temp.driver, Driver)
+            assert isinstance(temp.sensor, SensorDesc)
+            assert isinstance(temp.name, str)
+            assert isinstance(temp.getTemperature(), int)
+            assert ((not temp.getTemperature() < 0) and
+                    (not temp.getTemperature() > 200))
+            assert isinstance(temp.getLowThreshold(), int)
+            assert ((not temp.getLowThreshold() < 0) and
+                    (not temp.getLowThreshold() > 200))
+            temp.setLowThreshold(10)
+            assert isinstance(temp.getHighThreshold(), int)
+            assert ((not temp.getTemperature() < 0) and
+                    (not temp.getTemperature() > 200))
+            temp.setHighThreshold(50)
 
    def testComponents(self):
       def _testSubcomponentPriority(component):
