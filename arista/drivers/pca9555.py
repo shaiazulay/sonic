@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 from .i2c import I2cDevDriver
 from ..core.register import Register
+from ..core.utils import inSimulation
 
 PCA9555_INPUT_REG = 0x0
 PCA9555_OUTPUT_REG = 0x2
@@ -11,12 +12,18 @@ class GpioRegister(Register):
    '''Register's addr is more like offset in GpioRegister, which is 0x0 or 0x1.
    '''
    def readBit(self, bitpos):
+      if inSimulation():
+         return 0
+
       # Always read bits from input registers
       assert 0x0 <= self.addr <= 0x1
       regval = self.parent.read(PCA9555_INPUT_REG + self.addr)
       return (regval >> bitpos) & 1
 
    def writeBit(self, bitpos, value):
+      if inSimulation():
+         return
+
       # Read output registers, update bit, and write back
       # Doing the same for configuration registers,
       # in case they are modified unexpectedly.
