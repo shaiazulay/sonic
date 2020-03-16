@@ -3,12 +3,8 @@ from collections import defaultdict, OrderedDict
 
 from .driver import KernelDriver
 from .metainventory import LazyInventory
-from .utils import flatten
-
-import os
 
 DEFAULT_WAIT_TIMEOUT = 15
-ASIC_YIELD_TIME = os.getenv( 'ASIC_YIELD_TIME', 2 )
 
 class Priority(object):
    DEFAULT = 0
@@ -185,4 +181,15 @@ class Component(object):
       if ctx.recursive:
          output["components"] = [ c.genDiag(ctx) for c in self.iterComponents() ]
       return output
+
+class PciComponent(Component):
+   def __init__(self, **kwargs):
+      super(PciComponent, self).__init__(**kwargs)
+
+class I2cComponent(Component):
+   def __init__(self, **kwargs):
+      super(I2cComponent, self).__init__(**kwargs)
+
+   def __str__(self):
+      return '%s(addr=%s)' % (self.__class__.__name__, self.addr)
 
