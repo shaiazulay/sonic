@@ -78,11 +78,11 @@ class ResetSysfsDriver(SysfsDriver):
 
    def resetComponentIn(self, reset):
       logging.debug('putting %s in reset', reset.name)
-      return self.write('%s_%s' % (reset.name, 'reset'), 1)
+      return self.write('%s_%s' % (reset.name, 'reset'), '1')
 
    def resetComponentOut(self, reset):
       logging.debug('putting %s out of reset', reset.name)
-      return self.write('%s_%s' % (reset.name, 'reset'), 0)
+      return self.write('%s_%s' % (reset.name, 'reset'), '0')
 
 class FanSysfsDriver(SysfsDriver):
    def __init__(self, maxPwm=None, addr=None, waitFile=None, waitTimeout=None,
