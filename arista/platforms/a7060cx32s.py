@@ -129,3 +129,7 @@ class Upperlake(Platform):
          addr += 0x10
          bus += 1
 
+@registerPlatform()
+class UpperlakePlus(Upperlake):
+   SID = ['UpperlakePlus']
+   SKU = ['DCS-7060CX2-32S']
