@@ -17,7 +17,7 @@ def doReset(ctx, args):
       print("{: <20} {: <20}".format('Name', 'Value'))
       for reset in sorted(resets):
          print("{: <20} {: <20}".format(reset, resets[reset].read()))
-      return 1
+      return 0
 
    devices = args.device
    if not devices:
