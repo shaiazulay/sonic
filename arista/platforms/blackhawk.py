@@ -1,20 +1,19 @@
-from ..core.driver import KernelDriver
-from ..core.platform import registerPlatform, Platform
+from ..core.fixed import FixedSystem
+from ..core.platform import registerPlatform
 from ..core.types import NamedGpio, PciAddr, ResetGpio
 from ..core.utils import incrange
 
-from ..components.common import SwitchChip
-from ..components.cpu.rook import TehamaFanCpldComponent, RookSysCpld
+from ..components.asic.xgs.tomahawk3 import Tomahawk3
+from ..components.cpu.rook import TehamaFanCpldComponent
 from ..components.dpm import Ucd90320, UcdGpi
 from ..components.max6581 import Max6581
-from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
-from ..descs.fan import FanDesc
+from .cpu.rook import RookCpu
 
 @registerPlatform()
-class BlackhawkO(Platform):
+class BlackhawkO(FixedSystem):
 
    SID = ['BlackhawkO']
    SKU = ['DCS-7060PX4-32']
@@ -27,11 +26,10 @@ class BlackhawkO(Platform):
 
       self.inventory.addPorts(osfps=self.osfpRange, sfps=self.sfpRange)
 
-      self.addDriver(KernelDriver, 'rook-led-driver')
-
-      self.newComponent(SwitchChip, PciAddr(bus=0x06))
+      self.newComponent(Tomahawk3, PciAddr(bus=0x06))
 
       scd = self.newComponent(Scd, PciAddr(bus=0x07))
+      self.scd = scd
 
       scd.createWatchdog()
 
@@ -106,29 +104,16 @@ class BlackhawkO(Platform):
          addr += 0x10
          bus += 1
 
-      cpld = self.newComponent(Scd, PciAddr(bus=0xff, device=0x0b, func=3))
-
-      cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
-      cpld.newComponent(Max6658, cpld.i2cAddr(0, 0x4c),
-                        waitFile='/sys/class/hwmon/hwmon3')
-      cpld.newComponent(Ucd90320, cpld.i2cAddr(10, 0x11, t=3), causes={
+      cpu = self.newComponent(RookCpu, fanCount=5, mgmtBus=14,
+                              fanCpldCls=TehamaFanCpldComponent)
+      cpu.cpld.newComponent(Ucd90320, cpu.switchDpmAddr(0x11), causes={
          'overtemp': UcdGpi(1),
          'powerloss': UcdGpi(3),
          'watchdog': UcdGpi(5),
          'reboot': UcdGpi(7),
       })
-
-      tehamaFanCpldAddr = cpld.i2cAddr(12, 0x60)
-      tehamaFanComponent = cpld.newComponent(TehamaFanCpldComponent,
-                                             addr=tehamaFanCpldAddr,
-                                             waitFile='/sys/class/hwmon/hwmon4',
-                                             fans=[
-         FanDesc(fanId) for fanId in incrange(1, 5)
-      ])
-
-      cpld.createPowerCycle()
-
-      self.syscpld = self.newComponent(RookSysCpld, cpld.i2cAddr(8, 0x23))
+      self.cpu = cpu
+      self.syscpld = cpu.syscpld
 
 @registerPlatform()
 class BlackhawkDD(BlackhawkO):

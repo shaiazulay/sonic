@@ -14,7 +14,8 @@ class RookCpu(Cpu):
 
    PLATFORM = 'rook'
 
-   def __init__(self, hwmonOffset=3, fanCount=4, fanCpldCls=None, **kwargs):
+   def __init__(self, hwmonOffset=3, fanCount=4, fanCpldCls=None, mgmtBus=15,
+                **kwargs):
       super(RookCpu, self).__init__(**kwargs)
       cpld = self.newComponent(Scd, PciAddr(bus=0xff, device=0x0b, func=3))
       self.cpld = cpld
@@ -28,10 +29,11 @@ class RookCpu(Cpu):
          FanDesc(fanId) for fanId in incrange(1, fanCount)
       ])
 
-      cpld.newComponent(Lm73, cpld.i2cAddr(15, 0x48),
+      cpld.newComponent(Lm73, cpld.i2cAddr(mgmtBus, 0x48),
                         waitFile='/sys/class/hwmon/hwmon%d' % (hwmonOffset + 2))
 
-      self.leds = cpld.newComponent(RookStatusLeds, cpld.i2cAddr(15, 0x20), leds=[
+      self.leds = cpld.newComponent(RookStatusLeds, cpld.i2cAddr(mgmtBus, 0x20),
+                                    leds=[
          LedDesc(name='beacon', colors=['blue']),
          LedDesc(name='fan_status', colors=['green', 'red']),
          LedDesc(name='psu1_status', colors=['green', 'red']),
