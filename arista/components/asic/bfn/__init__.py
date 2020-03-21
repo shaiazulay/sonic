@@ -1,5 +1,5 @@
 
-from ...core.asic import SwitchChip
+from ....core.asic import SwitchChip
 
 class BarefootChip(SwitchChip):
    pass

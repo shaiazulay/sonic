@@ -10,7 +10,7 @@ from ...core.log import getLogger
 from ...core.register import Register, RegBitField
 
 from ...drivers.i2c import I2cKernelFanDriver
-from ...drivers.rook import RookLedSysfsDriver
+from ...drivers.rook import RookLedSysfsDriver, RookStatusLedKernelDriver
 from ...drivers.sysfs import LedSysfsDriver
 
 logging = getLogger(__name__)
@@ -45,6 +45,22 @@ class RookLedComponent(Component):
    def createLed(self, colors=None, name=None):
       led = RookLedImpl(baseName=self.baseName, colors=colors or [], name=name,
                          driver=self.drivers['RookLedSysfsDriver'])
+      self.inventory.addLed(led)
+      return led
+
+class RookStatusLeds(I2cComponent):
+   def __init__(self, addr=None, leds=None, **kwargs):
+      drivers = [
+         RookStatusLedKernelDriver(addr=addr),
+         RookLedSysfsDriver(sysfsPath='/sys/class/leds/'),
+      ]
+      super(RookStatusLeds, self).__init__(addr=addr, drivers=drivers, **kwargs)
+      for led in leds or []:
+         self.createLed(led)
+
+   def createLed(self, led):
+      led = LedImpl(name=led.name, colors=led.colors,
+                    driver=self.drivers['RookLedSysfsDriver'])
       self.inventory.addLed(led)
       return led
 

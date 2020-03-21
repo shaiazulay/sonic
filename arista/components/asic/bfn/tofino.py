@@ -1,5 +1,5 @@
 
-from .bfn import BarefootChip
+from . import BarefootChip
 
 class Tofino(BarefootChip):
    pass
