@@ -1,21 +1,19 @@
-from ..core.platform import registerPlatform, Platform
-from ..core.driver import KernelDriver
+from ..core.fixed import FixedSystem
+from ..core.platform import registerPlatform
 from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 
-from ..components.common import SwitchChip, I2cKernelComponent
-from ..components.cpu.rook import RookLedComponent, LAFanCpldComponent, RookSysCpld
+from ..components.asic.xgs.tomahawk2 import Tomahawk2
+from ..components.cpu.rook import LAFanCpldComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi
-from ..components.lm73 import Lm73
 from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
-from ..descs.fan import FanDesc
-from ..descs.led import LedDesc
+from .cpu.rook import RookCpu
 
 @registerPlatform()
-class Gardena(Platform):
+class Gardena(FixedSystem):
 
    SID = ['Gardena', 'GardenaE']
    SKU = ['DCS-7260CX3-64', 'DCS-7260CX3-64E']
@@ -28,11 +26,10 @@ class Gardena(Platform):
 
       self.inventory.addPorts(qsfps=self.qsfpRange, sfps=self.sfpRange)
 
-      self.addDriver(KernelDriver, 'rook-led-driver')
-
-      self.newComponent(SwitchChip, PciAddr(bus=0x07))
+      self.newComponent(Tomahawk2, PciAddr(bus=0x07))
 
       scd = self.newComponent(Scd, PciAddr(bus=0x06))
+      self.scd = scd
 
       scd.createWatchdog()
 
@@ -57,18 +54,6 @@ class Gardena(Platform):
          NamedGpio(0x5000, 10, True, False, "psu1_ac_status"),
          NamedGpio(0x5000, 11, True, False, "psu2_ac_status"),
       ])
-
-      ledComponent = self.newComponent(RookLedComponent, baseName='rook_leds-88',
-                                       scd=scd, leds=[
-         LedDesc(colors=['blue'], name='beacon'),
-         LedDesc(colors=['green', 'red'], name='fan_status'),
-         LedDesc(colors=['green', 'red'], name='psu1_status'),
-         LedDesc(colors=['green', 'red'], name='psu2_status'),
-         LedDesc(colors=['green', 'red'], name='status'),
-      ])
-
-      scd.createPsu(1, led=self.inventory.getLed('psu1_status'))
-      scd.createPsu(2, led=self.inventory.getLed('psu2_status'))
 
       addr = 0x6100
       for xcvrId in self.qsfpRange:
@@ -110,31 +95,16 @@ class Gardena(Platform):
          addr += 0x10
          bus += 1
 
-      cpld = self.newComponent(Scd, PciAddr(bus=0xff, device=0x0b, func=3),
-                               newDriver=True)
-
-      cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
-      cpld.newComponent(Max6658, cpld.i2cAddr(0, 0x4c),
-                        waitFile='/sys/class/hwmon/hwmon3')
-      cpld.newComponent(Ucd90160, cpld.i2cAddr(1, 0x4e, t=3))
-      cpld.newComponent(Ucd90120A, cpld.i2cAddr(10, 0x34, t=3), causes={
+      cpu = self.newComponent(RookCpu, fanCpldCls=LAFanCpldComponent)
+      cpu.cpld.newComponent(Ucd90160, cpu.cpuDpmAddr())
+      cpu.cpld.newComponent(Ucd90120A, cpu.switchDpmAddr(0x34), causes={
          'powerloss': UcdGpi(1),
          'reboot': UcdGpi(2),
          'watchdog': UcdGpi(3),
          'overtemp': UcdGpi(4),
       })
+      self.cpu = cpu
+      self.syscpld = cpu.syscpld
 
-      laFanCpldAddr = cpld.i2cAddr(12, 0x60)
-      laFanComponent = cpld.newComponent(LAFanCpldComponent, addr=laFanCpldAddr,
-                                         waitFile='/sys/class/hwmon/hwmon4',
-                                         fans=[
-         FanDesc(fanId) for fanId in incrange(1, 4)
-      ])
-
-      cpld.newComponent(I2cKernelComponent, cpld.i2cAddr(15, 0x20), 'rook_leds')
-      cpld.newComponent(Lm73, cpld.i2cAddr(15, 0x48),
-                        waitFile='/sys/class/hwmon/hwmon5')
-
-      cpld.createPowerCycle()
-
-      self.syscpld = self.newComponent(RookSysCpld, cpld.i2cAddr(8, 0x23))
+      scd.createPsu(1, led=cpu.leds.inventory.getLed('psu1_status'))
+      scd.createPsu(2, led=cpu.leds.inventory.getLed('psu2_status'))

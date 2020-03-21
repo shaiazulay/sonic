@@ -3,9 +3,7 @@ from ..cpld import SysCpld, SysCpldCommonRegisters
 
 from ...accessors.fan import FanImpl
 from ...accessors.led import LedImpl
-from ...accessors.rook import RookLedImpl
 
-from ...core.component import Component
 from ...core.log import getLogger
 from ...core.register import Register, RegBitField
 
@@ -32,21 +30,6 @@ class RookSysCpld(SysCpld):
    def __init__(self, addr, drivers=None, registerCls=RookCpldRegisters, **kwargs):
       super(RookSysCpld, self).__init__(addr=addr, drivers=drivers,
                                         registerCls=registerCls, **kwargs)
-
-class RookLedComponent(Component):
-   def __init__(self, baseName=None, scd=None, drivers=None, leds=[], **kwargs):
-      self.baseName = 'rook_leds' # XXX: will be removed soon
-      if not drivers:
-         drivers = [RookLedSysfsDriver(sysfsPath='/sys/class/leds/')]
-      super(RookLedComponent, self).__init__(drivers=drivers, **kwargs)
-      for led in leds:
-         self.createLed(led.colors, led.name)
-
-   def createLed(self, colors=None, name=None):
-      led = RookLedImpl(baseName=self.baseName, colors=colors or [], name=name,
-                         driver=self.drivers['RookLedSysfsDriver'])
-      self.inventory.addLed(led)
-      return led
 
 class RookStatusLeds(I2cComponent):
    def __init__(self, addr=None, leds=None, **kwargs):
