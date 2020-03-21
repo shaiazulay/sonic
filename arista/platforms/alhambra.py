@@ -1,9 +1,11 @@
-from ..core.platform import registerPlatform, Platform
 from ..core.driver import KernelDriver
+from ..core.fixed import FixedSystem
+from ..core.platform import registerPlatform
 from ..core.utils import incrange
 from ..core.types import PciAddr, NamedGpio, ResetGpio
 
-from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.asic.tofino import Tofino
+from ..components.common import I2cKernelComponent
 from ..components.cpu.rook import RookLedComponent, LAFanCpldComponent, RookSysCpld
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi
 from ..components.lm73 import Lm73
@@ -15,22 +17,22 @@ from ..descs.fan import FanDesc
 from ..descs.led import LedDesc
 
 @registerPlatform()
-class Alhambra(Platform):
+class Alhambra(FixedSystem):
 
    SID = ['Alhambra', 'AlhambraSsd']
    SKU = ['DCS-7170-64C', 'DCS-7170-64C-M']
 
-   def __init__(self):
+   def __init__(self, ports=64):
       super(Alhambra, self).__init__()
 
-      self.qsfpRange = incrange(1, 64)
-      self.sfpRange = incrange(65, 66)
+      self.qsfpRange = incrange(1, ports)
+      self.sfpRange = incrange(ports + 1, ports + 2)
 
       self.inventory.addPorts(qsfps=self.qsfpRange, sfps=self.sfpRange)
 
       self.addDriver(KernelDriver, 'rook-led-driver')
 
-      self.newComponent(SwitchChip, PciAddr(bus=0x07))
+      self.newComponent(Tofino, PciAddr(bus=0x07))
 
       scd = self.newComponent(Scd, PciAddr(bus=0x06))
 

@@ -35,7 +35,7 @@ class RookSysCpld(SysCpld):
 
 class RookLedComponent(Component):
    def __init__(self, baseName=None, scd=None, drivers=None, leds=[], **kwargs):
-      self.baseName = baseName
+      self.baseName = 'rook_leds' # XXX: will be removed soon
       if not drivers:
          drivers = [RookLedSysfsDriver(sysfsPath='/sys/class/leds/')]
       super(RookLedComponent, self).__init__(drivers=drivers, **kwargs)
