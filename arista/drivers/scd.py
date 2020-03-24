@@ -6,6 +6,8 @@ from .pci import PciKernelDriver
 from ..core import utils
 from ..core.config import Config
 from ..core.log import getLogger
+from ..core.register import Register
+from ..core.utils import inSimulation
 
 logging = getLogger(__name__)
 
@@ -163,3 +165,24 @@ class ScdKernelDriver(PciKernelDriver):
 
    def resetOut(self):
       self.reset(False)
+
+class ScdResetRegister(Register):
+   def __init__(self, addr, *fields, **kwargs):
+      super(ScdResetRegister, self).__init__(addr, *fields, **kwargs)
+      self.setAddr = addr
+      self.clearAddr = addr + kwargs.get('clearOffset', 0x10)
+
+   def writeBit(self, bitpos, value):
+      if inSimulation():
+         return
+
+      if value:
+         self.parent.write(self.setAddr, 1 << bitpos)
+      else:
+         self.parent.write(self.clearAddr, 1 << bitpos)
+
+   def readBit(self, bitpos):
+      if inSimulation():
+         return 0
+
+      return (self.parent.read(self.setAddr) >> bitpos) & 1

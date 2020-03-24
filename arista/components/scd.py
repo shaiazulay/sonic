@@ -228,10 +228,11 @@ class ScdSmbus(object):
 
 class Scd(PciComponent):
    BusTweak = namedtuple('BusTweak', 'addr, t, datr, datw, ed')
-   def __init__(self, addr, drivers=None, **kwargs):
+   def __init__(self, addr, drivers=None, registerCls=None, **kwargs):
       self.pciSysfs = addr.getSysfsPath()
       drivers = drivers or [KernelDriver(module='scd'),
-                            ScdKernelDriver(scd=self, addr=addr),
+                            ScdKernelDriver(scd=self, addr=addr,
+                                            registerCls=registerCls),
                             LedSysfsDriver(sysfsPath=os.path.join(self.pciSysfs,
                                                                   'leds')),
                             PsuSysfsDriver(sysfsPath=self.pciSysfs),
@@ -256,6 +257,7 @@ class Scd(PciComponent):
       self.mdios = []
       self.msiRearmOffset = None
       super(Scd, self).__init__(addr=addr, drivers=drivers, **kwargs)
+      self.regs = self.drivers['scd-hwmon'].regs
 
    def __str__(self):
       return '%s()' % self.__class__.__name__
