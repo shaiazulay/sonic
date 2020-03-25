@@ -164,7 +164,9 @@ def getPlatform(name=None):
    platform.refresh()
    return platform
 
-def getPlatformSkus():
+def getPlatformSkus(withHwApi=True):
+   if not withHwApi:
+      return {k : v for k, v in platformSkuIndex.items() if not isinstance(k, tuple)}
    return platformSkuIndex
 
 def getPlatformSids():

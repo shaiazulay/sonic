@@ -8,6 +8,6 @@ from ...core.platform import getPlatformSkus, Platform
 @registerAction(platformsParser, needsPlatform=False)
 def doPlatforms(ctx, args):
    print('supported platforms:')
-   for plat, cls in sorted(getPlatformSkus().items()):
+   for plat, cls in sorted(getPlatformSkus(withHwApi=False).items()):
       if issubclass(cls, Platform):
          print(' -', plat)

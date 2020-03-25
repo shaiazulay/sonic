@@ -371,7 +371,7 @@ class InventoryTest(unittest.TestCase):
       for attr in self._iterInventoryGetters():
          metaval = getattr(meta, attr)()
          invval = getattr(inv, attr)()
-         self.assertEquals(metaval, invval)
+         self.assertEqual(metaval, invval)
 
 if __name__ == '__main__':
    unittest.main()

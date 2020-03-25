@@ -67,14 +67,14 @@ class CoreRegisterTest(unittest.TestCase):
       self.assertEqual(self.regs.scratchpad(), 0)
 
       self.regs.scratchpad(0xff)
-      self.assertEquals(self.regs.scratchpad(), 0xff)
+      self.assertEqual(self.regs.scratchpad(), 0xff)
       self.assertEqual(self.regs.bit3(), 1)
 
       self.regs.bit3(0)
-      self.assertEquals(self.regs.scratchpad(), 0xf7)
+      self.assertEqual(self.regs.scratchpad(), 0xf7)
       self.assertEqual(self.regs.bit3(), 0)
       self.regs.bit3(1)
-      self.assertEquals(self.regs.scratchpad(), 0xff)
+      self.assertEqual(self.regs.scratchpad(), 0xff)
       self.assertEqual(self.regs.bit3(), 1)
 
    def testIoError(self):
