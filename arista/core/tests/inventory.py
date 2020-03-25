@@ -209,13 +209,13 @@ class TestTemp(inventory.Temp):
       return self.lowThreshold
 
    def setLowThreshold(self, value):
-      self.lowThreshold = value
+      self.lowThreshold = value * 1000
 
    def getHighThreshold(self):
       return self.highThreshold
 
    def setHighThreshold(self, value):
-      self.highThreshold = value
+      self.highThreshold = value * 1000
 
    def __eq__(self, value):
       return isinstance(value, TestTemp) and self.diode == value.diode

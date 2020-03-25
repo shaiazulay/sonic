@@ -5,6 +5,7 @@ from ...tests.logging import getLogger
 
 from ...accessors.fan import FanImpl
 from ...accessors.led import LedImpl
+from ...accessors.temp import TempImpl
 from ...accessors.xcvr import XcvrImpl
 
 from ...components.scd import ScdInterruptRegister
@@ -210,14 +211,14 @@ class MockTest(unittest.TestCase):
             assert isinstance(temp.driver, Driver)
             assert isinstance(temp.sensor, SensorDesc)
             assert isinstance(temp.name, str)
-            assert isinstance(temp.getTemperature(), int)
+            assert isinstance(temp.getTemperature(), float)
             assert ((not temp.getTemperature() < 0) and
                     (not temp.getTemperature() > 200))
-            assert isinstance(temp.getLowThreshold(), int)
+            assert isinstance(temp.getLowThreshold(), float)
             assert ((not temp.getLowThreshold() < 0) and
                     (not temp.getLowThreshold() > 200))
             temp.setLowThreshold(10)
-            assert isinstance(temp.getHighThreshold(), int)
+            assert isinstance(temp.getHighThreshold(), float)
             assert ((not temp.getTemperature() < 0) and
                     (not temp.getTemperature() > 200))
             temp.setHighThreshold(50)
