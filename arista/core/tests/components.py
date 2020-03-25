@@ -2,8 +2,6 @@
 from __future__ import absolute_import, division, print_function
 
 from ...tests.testing import unittest, patch
-from ...core import component
-from ...core.component import Component
 from ...core.fixed import FixedSystem
 from ...core.platform import loadPlatforms, getPlatforms
 
@@ -22,7 +20,9 @@ class ComponentTest(unittest.TestCase):
          platform.setup()
 
          for mock in mocks:
-            mock.assert_called_once()
+            if hasattr(mock, 'assert_called_once'):
+               # python2 mock version can be outdated, it will be check by py3
+               mock.assert_called_once()
 
 if __name__ == '__main__':
    unittest.main()

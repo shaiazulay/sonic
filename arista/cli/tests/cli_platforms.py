@@ -1,12 +1,17 @@
 from __future__ import absolute_import
 
+from multiprocessing import Process
+
 from ...tests.testing import unittest, patch
 from ...core.platform import loadPlatforms, getPlatforms
 from .. import main
 
 class CliLegacyTest(unittest.TestCase):
    def _runMain(self, args, code=0):
-      self.assertEqual(main(args), code)
+      p = Process(target=main, args=(args,))
+      p.start()
+      p.join()
+      self.assertEqual(p.exitcode, code)
 
    def testSysEeprom(self):
       self._runMain(['syseeprom'])

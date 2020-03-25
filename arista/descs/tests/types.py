@@ -1,7 +1,7 @@
 
 from __future__ import absolute_import, division, print_function
 
-from ...tests.testing import unittest, patch
+from ...tests.testing import unittest
 from ..fan import FanDesc
 from ..led import LedDesc
 from ..sensor import Position, SensorDesc
