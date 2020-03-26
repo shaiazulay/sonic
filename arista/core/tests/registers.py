@@ -98,5 +98,24 @@ class CoreRegisterTest(unittest.TestCase):
    def testDiag(self):
       self.regs.__diag__(DiagContext())
 
+   def testMultipleInstances(self):
+      class FakeDriver2(FakeDriver):
+         def __init__(self):
+            super(FakeDriver2, self).__init__()
+            self.regmap[0x01] = 43
+            self.regmap[0x02] = 0xf
+
+      driver = self.driver
+      regs = self.regs
+
+      driver2 = FakeDriver2()
+      regs2 = FakeRegisterMap(driver2)
+
+      self.assertEqual(regs.revision(), 42)
+      self.assertEqual(regs2.revision(), 43)
+
+      self.assertEqual(regs.bit0(), 0)
+      self.assertEqual(regs2.bit0(), 1)
+
 if __name__ == '__main__':
    unittest.main()
