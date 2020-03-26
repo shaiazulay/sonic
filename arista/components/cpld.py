@@ -33,7 +33,9 @@ class SysCpld(I2cComponent):
       super(SysCpld, self).__init__(addr=addr, drivers=drivers, **kwargs)
 
    def createPowerCycle(self):
-      return SysCpldPowerCycle(self)
+      powerCycle = SysCpldPowerCycle(self)
+      self.inventory.addPowerCycle(powerCycle)
+      return powerCycle
 
    def getPowerCycles(self):
       return self.powerCycles
