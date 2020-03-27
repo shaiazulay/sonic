@@ -350,7 +350,7 @@ class Scd(PciComponent):
    def addGpios(self, gpios):
       self.gpios += gpios
 
-   def _addXcvr(self, xcvrId, xcvrType, bus, interruptLine, leds=None):
+   def _addXcvr(self, xcvrId, xcvrType, bus, interruptLine, leds=None, drvName=None):
       addr = self.i2cAddr(bus, Xcvr.ADDR, t=1, datr=0, datw=3, ed=0)
       reset = None
       if xcvrType != Xcvr.SFP:
@@ -361,22 +361,25 @@ class Scd(PciComponent):
                       addr=addr, interruptLine=interruptLine,
                       reset=reset, leds=leds)
       self.newComponent(I2cComponent, addr=addr,
-                        drivers=[I2cKernelDriver(name='sff8436', addr=addr)])
+                        drivers=[I2cKernelDriver(name=drvName, addr=addr)])
       self.xcvrs.append(xcvr)
       self.inventory.addXcvr(xcvr)
       return xcvr
 
    def addOsfp(self, addr, xcvrId, bus, interruptLine=None, leds=None):
       self.osfps += [(addr, xcvrId)]
-      return self._addXcvr(xcvrId, Xcvr.OSFP, bus, interruptLine, leds=leds)
+      return self._addXcvr(xcvrId, Xcvr.OSFP, bus, interruptLine, leds=leds,
+                           drvName='optoe1')
 
    def addQsfp(self, addr, xcvrId, bus, interruptLine=None, leds=None):
       self.qsfps += [(addr, xcvrId)]
-      return self._addXcvr(xcvrId, Xcvr.QSFP, bus, interruptLine, leds=leds)
+      return self._addXcvr(xcvrId, Xcvr.QSFP, bus, interruptLine, leds=leds,
+                           drvName='optoe1')
 
    def addSfp(self, addr, xcvrId, bus, interruptLine=None, leds=None):
       self.sfps += [(addr, xcvrId)]
-      return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine, leds=leds)
+      return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine, leds=leds,
+                           drvName='optoe2')
 
    # In platforms, should change "statusGpios" to "statusGpio" and make it a boolean
    def createPsu(self, psuId, driver='PsuSysfsDriver', statusGpios=True, led=None,
