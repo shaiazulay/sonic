@@ -24,12 +24,16 @@ both licenses.
 
 ## Purpose
 
-This package contains kernel drivers, a python library and a python script to
-provide platform support for Arista switches.
+This package provides open source hardware support for Arista devices.
+It is mainly targeted at SONiC OS (debian based) but should work on any system.
+For more details visit the [SONiC website](https://azure.github.io/SONiC/)
 
-The `arista` tool will identify the platform on which it is running. It will then
-load and initialize the kernel drivers. Once initialised, the system will expose
-transceivers, leds, fans, temperature sensors and gpios through the sysfs.
+In normal operations, the platform is initialized at boot time via a set of systemd
+services. These services run commands using the `arista` tool.
+
+This tool detects on which platform it is running before loading the appropriate
+kernel drivers. Once the initialization is complete, the system exposes various
+components through the sysfs such as fans, leds, xcvrs, ...
 
 ## Supported platforms
 
@@ -37,36 +41,51 @@ The following platforms are currently supported,
 
  - DCS-7050QX-32
  - DCS-7050QX-32S
+ - DCS-7050CX3-32S
  - DCS-7060CX-32
- - DCS-7060PX4-32
+ - DCS-7060CX2-32
+ - DCS-7060PX4-32 and DCS-7060DX4-32
+ - DCS-7170-32C
+ - DCS-7170-32CD
  - DCS-7170-64C
  - DCS-7260CX3-64
+ - DCS-7280CR3-32P4 and DCS-7280CR3-32D4
 
-Some platforms will require some custom kernel patches.
-They are available on the Azure/sonic-linux-kernel repository.
+Some variants were omitted but might be supported see `arista platforms` for a
+detailed list of supported SKUs.
+
+Some platforms might require custom kernel patches and configs.
+A working configuration is maintained under the [SONiC kernel repository](https://github.com/Azure/sonic-linux-kernel).
+
+## Packaging
+
+The current debian packaging mechanism creates 4 packages.
+ - sonic-platform-arista : system configuration files
+ - drivers-sonic-platform-arista : kernel modules and drivers
+ - python2-sonic-platform-arista : python2 library to manage the hardware
+ - python3-sonic-platform-arista : python3 library to manage the hardware
 
 ## Usage
 
-This repository contains both a `systemd` and `LSB` init script for startup and
-shutdown integration with the operating system.
+At boot time the systemd services under `systemd/` are loaded. When runnable they
+will perform the platform initialization.
 
-Alternatively the `arista` tool can be used in standalone to load and unload
-the platform support.
+The central piece of the platform support is the `arista` entry point.
+It is a python script that load the arista platform library to perform actions.
+This library is python2/python3 compatible.
 
+For more details on the available commands see the help message
 ```
-   arista --help
+arista --help
 ```
 
-Since the python library knows about the current platform, it can provides a
-common and unified implementation of the SONiC plugins.
-Currently supports `eeprom`, `psuutil`, `reboot`, `sfputil` and `led_control`.
-
-All the python code is python2 and python3 compatible.
+The arista python library also possess other entry points for APIs.
+SONiC uses a few like `sonic_platform`, `sfputil`, `sonic_eeprom`, ...
 
 ## Drivers
 
-The kernel drivers in this repository are mainly tested against a 4.9 kernel.
-They have previously been used with 3.16 and 3.18 kernels.
+The kernel drivers in this repository are mostly running on a 4.9 kernel.
+They are also compatible with 4.19 and potentially higher kernel versions.
 
 ### scd-hwmon
 
@@ -94,10 +113,9 @@ Examples shown may differ across platforms but the logic stays the same.
 
 ### LEDs
 
-LED entries can be found under `/sys/class/leds`. Since the sysfs interface
-for LEDs is not very expressive, the brightness field is used here
-to toggle between off and different colors. The brightness to LED
-color mappings are as follows (0 maps to off for all LEDs):
+LED objects can be found under `/sys/class/leds`.The brightness field is used to
+toggle between off and different colors.
+The brightness to LED color mapping is as follows (0 maps to off for all LEDs):
 
 ```
 status, fan_status, psu1, psu2:
@@ -151,16 +169,14 @@ Some power supplies may need kernel patches against the `pmbus` driver.
 The system eeprom contains platform specific information like the `SKU`, the
 `serial number` and the `base mac address`.
 
-The way to read the system eeprom from a platform can differ from one SKU to the
-other.
-The most reliable way to get this information is by issuing `arista syseeprom`
+The location of the eeprom that contains this information vary from one product to
+another. The most reliable way to get this information is to run `arista syseeprom`
 
-In the case of SONiC the module `arista.utils.sonic_eeprom` provide the plugin
-implementation.
+The library implements the SONiC eeprom plugin under `arista.utils.sonic_eeprom`.
 
 ### Transceivers - QSFPs / SFPs
 
-Currently only platforms with QSFP+, SFP+ and OSFP ports are supported.
+Currently only platforms with QSFP+, SFP+, OSFP and QSFPDD ports are supported.
 All transceivers provide 2 kinds of information.
 
 #### Pins
@@ -182,51 +198,12 @@ The second piece of information provided by a transceiver is the content of its
 `eeprom`. It is accessible via `SMBus` at the fixed address `0x50`. Some
 transceivers also exist at other `SMBus` addresses like `0x51` and `0x56`.
 
-On linux, an unoffical module called `sff_8436_eeprom` or `optoe` can handle such
-devices.
-The arista initialisation library takes care of loading the module for all the
-transceivers.
-They should then all be available under
-`/sys/module/sff_8436_eeprom/drivers/i2c:sff8436`
+On linux, an unoffical module called `optoe` manages such devices.
+This library implements the spfutil plugin for SONiC to manage xcvrs.
 
-After instantiation, the EEPROM information can be read like so:
-
-```
-root@sonic# hexdump -C /sys/bus/i2c/devices/19-0050/eeprom
-00000000  0d 00 02 f0 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-00000010  00 00 00 00 00 00 19 5c  00 00 7f 9c 00 00 00 00  |.......\........|
-00000020  00 00 1f cd 20 2e 26 b8  22 94 00 00 00 00 00 00  |.... .&.".......|
-00000030  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-*
-00000070  00 00 00 00 00 04 02 00  00 00 00 00 00 00 00 00  |................|
-00000080  0d 00 0c 04 00 00 00 00  00 00 00 05 67 00 00 32  |............g..2|
-00000090  00 00 00 00 41 72 69 73  74 61 20 4e 65 74 77 6f  |....Arista Netwo|
-000000a0  72 6b 73 20 00 00 1c 73  51 53 46 50 2d 34 30 47  |rks ...sQSFP-40G|
-000000b0  2d 53 52 34 20 20 20 20  30 33 42 68 07 d0 46 0d  |-SR4    03Bh..F.|
-000000c0  00 00 0f de 58 4d 44 31  34 30 34 30 30 35 56 52  |....XMD1404005VR|
-000000d0  20 20 20 20 31 34 30 31  32 36 20 20 08 00 00 d2  |    140126  ....|
-000000e0  10 03 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-000000f0  00 00 00 00 00 00 02 f8  00 00 00 00 98 44 64 d1  |.............Dd.|
-00000100  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-*
-00000180  40 6b a1 2e 3c f4 2b eb  cd c1 e9 51 50 93 bb fe  |@k..<.+....QP...|
-00000190  05 aa 32 3f 1c 4c 00 00  00 00 00 00 00 00 00 00  |..2?.L..........|
-000001a0  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-*
-00000200  4b 00 fb 00 46 00 00 00  00 00 00 00 00 00 00 00  |K...F...........|
-00000210  8d cc 74 04 87 5a 7a 75  00 00 00 00 00 00 00 00  |..t..Zzu........|
-00000220  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-00000230  55 76 01 be 43 e2 04 62  13 88 00 fa 12 8e 01 f4  |Uv..C..b........|
-00000240  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-*
-00000260  00 00 00 00 00 00 00 00  00 00 00 00 33 33 77 77  |............33ww|
-00000270  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-00000280
-```
-
-Before being read, the QSFP+ and OSFP modules must be taken out of reset and
-have their module select signals asserted. This can be done through
-the GPIO interface.
+Before being read, the QSFP+, OSFP and QSFPDD modules must be taken out of reset and
+have their module select signals asserted. This can be done through the GPIO
+interface. The library does it at boot time.
 
 ### QSFP - SFP multiplexing
 
@@ -236,5 +213,5 @@ To choose between one or the other, write into the sysfs file located under
 
 ### GPIOs and resets
 
-Most of the GPIOs are exposed by the `scd-hwmon` and the `sonic-support-driver`.
+Most of the GPIOs of the system are exposed by the `scd-hwmon` driver.
 They should be available under `/sys/module/scd/drivers/pci:scd/.../`.
