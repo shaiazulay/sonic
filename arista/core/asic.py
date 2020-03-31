@@ -5,6 +5,7 @@ import time
 from .component import DEFAULT_WAIT_TIMEOUT, PciComponent
 from .log import getLogger
 from .utils import klog, inSimulation
+from ..libs.pci import pciRescan
 
 logging = getLogger(__name__)
 
@@ -18,9 +19,7 @@ class SwitchChip(PciComponent):
       return '%s(addr=%s)' % (self.__class__.__name__, self.addr)
 
    def pciRescan(self):
-      logging.info('triggering kernel pci rescan')
-      with open('/sys/bus/pci/rescan', 'w') as f:
-         f.write('1\n')
+      pciRescan()
 
    def isInReset(self):
       return self.resetGpio()
