@@ -37,8 +37,9 @@ class Chassis(ChassisBase):
          self._fan_list.append(Fan(fan))
       for psu in self._inventory.getPsus():
          self._psu_list.append(Psu(psu))
-      for sfp in self._inventory.getXcvrs().values():
-         self._sfp_list.append(Sfp(sfp))
+      self._sfp_list = [None] * (inventory.portEnd + 1)
+      for index, sfp in self._inventory.getXcvrs().items():
+         self._sfp_list[index] = Sfp(index, sfp)
       self._watchdog = Watchdog(self._inventory.getWatchdog())
 
       self._interrupt_dict, self._presence_dict = \
@@ -90,6 +91,8 @@ class Chassis(ChassisBase):
       presence_dict = copy.deepcopy(interrupt_dict)
 
       def process_component(component_type, component):
+         if not component:
+            return
          interrupt_file = component.get_interrupt_file()
          if interrupt_file:
             interrupt_dict[component_type][component.get_name()] = \
