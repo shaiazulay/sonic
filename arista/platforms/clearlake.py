@@ -1,9 +1,10 @@
-from ..core.platform import registerPlatform, Platform
-from ..core.utils import incrange
-from ..core.types import I2cAddr, PciAddr, NamedGpio, ResetGpio
 from ..core.component import Priority
+from ..core.fixed import FixedSystem
+from ..core.platform import registerPlatform
+from ..core.types import I2cAddr, PciAddr, NamedGpio, ResetGpio
+from ..core.utils import incrange
 
-from ..components.common import SwitchChip
+from ..components.asic.xgs.trident2 import Trident2
 from ..components.cpu.crow import CrowFanCpldComponent, CrowSysCpld
 from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.max6658 import Max6658
@@ -14,7 +15,7 @@ from ..components.ds125br import Ds125Br
 from ..descs.fan import FanDesc
 
 @registerPlatform()
-class Clearlake(Platform):
+class Clearlake(FixedSystem):
 
    SID = ['Clearlake', 'ClearlakeSsd']
    SKU = ['DCS-7050QX-32S', 'DCS-7050QX-32S-SSD']
@@ -29,7 +30,7 @@ class Clearlake(Platform):
 
       self.inventory.addPorts(sfps=self.sfpRange, qsfps=self.allQsfps)
 
-      self.newComponent(SwitchChip, PciAddr(bus=0x01))
+      self.newComponent(Trident2, PciAddr(bus=0x01))
 
       scd = self.newComponent(Scd, PciAddr(bus=0x02))
 
@@ -42,11 +43,8 @@ class Clearlake(Platform):
       scd.newComponent(Max6658, scd.i2cAddr(1, 0x4c),
                        waitFile='/sys/class/hwmon/hwmon3')
 
-      crowFanCpldAddr = scd.i2cAddr(1, 0x60)
-      crowFanComponent = scd.newComponent(CrowFanCpldComponent,
-                                           addr=crowFanCpldAddr,
-                                           waitFile='/sys/class/hwmon/hwmon4',
-                                           fans=[
+      scd.newComponent(CrowFanCpldComponent, addr=scd.i2cAddr(1, 0x60),
+                       waitFile='/sys/class/hwmon/hwmon4', fans=[
          FanDesc(fanId) for fanId in incrange(1, 4)
       ])
 

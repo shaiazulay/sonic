@@ -1,8 +1,9 @@
-from ..core.platform import registerPlatform, Platform
-from ..core.utils import incrange
+from ..core.fixed import FixedSystem
+from ..core.platform import registerPlatform
 from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
+from ..core.utils import incrange
 
-from ..components.common import SwitchChip
+from ..components.asic.xgs.tomahawk import Tomahawk
 from ..components.cpu.crow import CrowSysCpld, CrowFanCpldComponent
 from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.max6658 import Max6658
@@ -13,7 +14,7 @@ from ..components.scd import Scd
 from ..descs.fan import FanDesc
 
 @registerPlatform()
-class Upperlake(Platform):
+class Upperlake(FixedSystem):
 
    SID = ['Upperlake', 'UpperlakeES', 'UpperlakeSsd']
    SKU = ['DCS-7060CX-32S', 'DCS-7060CX-32S-ES', 'DCS-7060CX-32S-SSD']
@@ -26,7 +27,7 @@ class Upperlake(Platform):
 
       self.inventory.addPorts(sfps=self.sfpRange, qsfps=self.qsfp100gRange)
 
-      self.newComponent(SwitchChip, PciAddr(bus=0x01))
+      self.newComponent(Tomahawk, PciAddr(bus=0x01))
 
       scd = self.newComponent(Scd, PciAddr(bus=0x02))
 
@@ -37,11 +38,8 @@ class Upperlake(Platform):
       scd.newComponent(Max6658, scd.i2cAddr(1, 0x4c),
                        waitFile='/sys/class/hwmon/hwmon3')
 
-      crowFanCpldAddr = scd.i2cAddr(1, 0x60)
-      crowFanComponent = scd.newComponent(CrowFanCpldComponent,
-                                           addr=crowFanCpldAddr,
-                                           waitFile='/sys/class/hwmon/hwmon4',
-                                           fans=[
+      scd.newComponent(CrowFanCpldComponent, addr=scd.i2cAddr(1, 0x60),
+                       waitFile='/sys/class/hwmon/hwmon4', fans=[
          FanDesc(fanId) for fanId in incrange(1, 4)
       ])
 

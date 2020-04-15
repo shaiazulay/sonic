@@ -1,17 +1,19 @@
-from ..core.platform import registerPlatform, Platform
-from ..core.utils import incrange
+from ..core.fixed import FixedSystem
+from ..core.platform import registerPlatform
 from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
+from ..core.utils import incrange
 
-from ..components.common import SwitchChip, I2cKernelComponent
+from ..components.asic.xgs.trident3 import Trident3
 from ..components.cpu.crow import CrowSysCpld, CrowFanCpldComponent
 from ..components.dpm import Ucd90120A, UcdGpi
+from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
 from ..descs.fan import FanDesc
 
 @registerPlatform()
-class Lodoga(Platform):
+class Lodoga(FixedSystem):
 
    SID = ['Lodoga', 'LodogaSsd']
    SKU = ['DCS-7050CX3-32S', 'DCS-7050CX3-32S-SSD']
@@ -24,25 +26,23 @@ class Lodoga(Platform):
 
       self.inventory.addPorts(sfps=self.sfpRange, qsfps=self.qsfp100gRange)
 
-      self.newComponent(SwitchChip, PciAddr(bus=0x01))
+      self.newComponent(Trident3, PciAddr(bus=0x01))
 
       scd = self.newComponent(Scd, PciAddr(bus=0x02))
 
       scd.createWatchdog()
 
-      scd.newComponent(I2cKernelComponent, scd.i2cAddr(0, 0x4c), 'max6658',
-                       '/sys/class/hwmon/hwmon2')
+      scd.newComponent(Max6658, scd.i2cAddr(0, 0x4c),
+                       waitFile='/sys/class/hwmon/hwmon2')
       scd.newComponent(Ucd90120A, scd.i2cAddr(0, 0x4e, t=3))
 
-      crowFanCpldAddr = scd.i2cAddr(0, 0x60)
-      crowFanComponent = scd.newComponent(CrowFanCpldComponent, addr=crowFanCpldAddr,
-                                          waitFile='/sys/class/hwmon/hwmon3',
-                                          fans=[
+      scd.newComponent(CrowFanCpldComponent, addr=scd.i2cAddr(0, 0x60),
+                       waitFile='/sys/class/hwmon/hwmon3', fans=[
          FanDesc(fanId) for fanId in incrange(1, 4)
       ])
 
-      scd.newComponent(I2cKernelComponent, scd.i2cAddr(9, 0x4c), 'max6658',
-                       '/sys/class/hwmon/hwmon4')
+      scd.newComponent(Max6658, scd.i2cAddr(9, 0x4c),
+                       waitFile='/sys/class/hwmon/hwmon4')
       scd.newComponent(PmbusPsu, scd.i2cAddr(11, 0x58, t=3, datr=2, datw=3))
       scd.newComponent(PmbusPsu, scd.i2cAddr(12, 0x58, t=3, datr=2, datw=3))
       scd.newComponent(Ucd90120A, scd.i2cAddr(13, 0x4e, t=3), causes={

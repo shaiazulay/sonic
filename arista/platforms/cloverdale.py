@@ -1,8 +1,9 @@
-from ..core.platform import registerPlatform, Platform
-from ..core.utils import incrange
+from ..core.fixed import FixedSystem
+from ..core.platform import registerPlatform
 from ..core.types import PciAddr, NamedGpio, ResetGpio
+from ..core.utils import incrange
 
-from ..components.common import SwitchChip
+from ..components.asic.xgs.trident2 import Trident2
 from ..components.cpu.raven import RavenFanCpldComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi, UcdMon
 from ..components.lm73 import Lm73
@@ -14,7 +15,7 @@ from ..components.ds460 import Ds460
 from ..descs.fan import FanDesc
 
 @registerPlatform()
-class Cloverdale(Platform):
+class Cloverdale(FixedSystem):
 
    # This platform doesn't have sid= on the cmdline and therefore needs to rely
    # on platform= instead. Alternatively we rely on SKU
@@ -31,7 +32,7 @@ class Cloverdale(Platform):
 
       self.inventory.addPorts(qsfps=self.allQsfps)
 
-      self.newComponent(SwitchChip, PciAddr(bus=0x02))
+      self.newComponent(Trident2, PciAddr(bus=0x02))
 
       scd = self.newComponent(Scd, PciAddr(bus=0x04))
 
@@ -39,9 +40,8 @@ class Cloverdale(Platform):
 
       scd.createPowerCycle()
 
-      ravenFanComponent = scd.newComponent(RavenFanCpldComponent,
-                                           waitFile='/sys/class/hwmon/hwmon1',
-                                           fans=[
+      scd.newComponent(RavenFanCpldComponent, waitFile='/sys/class/hwmon/hwmon1',
+                       fans=[
          FanDesc(fanId) for fanId in incrange(1, 4)
       ])
 

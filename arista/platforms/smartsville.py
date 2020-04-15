@@ -1,6 +1,7 @@
-from ..core.platform import registerPlatform, Platform
-from ..core.utils import incrange
+from ..core.fixed import FixedSystem
+from ..core.platform import registerPlatform
 from ..core.types import PciAddr, NamedGpio, ResetGpio
+from ..core.utils import incrange
 
 from ..components.common import SwitchChip
 from ..components.dpm import Ucd90160, Ucd90320, UcdGpi
@@ -14,7 +15,7 @@ from ..components.tmp468 import Tmp468
 from ..descs.fan import FanDesc
 
 @registerPlatform()
-class Smartsville(Platform):
+class Smartsville(FixedSystem):
 
    SID = ['Smartsville', 'SmartsvilleSsd']
    SKU = ['DCS-7280CR3-32P4', 'DCS-7280CR3-32P4-M']

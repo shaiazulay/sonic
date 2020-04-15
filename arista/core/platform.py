@@ -204,6 +204,3 @@ def registerPlatform():
 
       return cls
    return wrapper
-
-# XXX: This is here for legacy reasons
-Platform = FixedSystem
