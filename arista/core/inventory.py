@@ -1,138 +1,20 @@
 from collections import defaultdict
 
-class Xcvr(object):
-
-   SFP = 0
-   QSFP = 1
-   OSFP = 2
-
-   ADDR = 0x50
-
-   @classmethod
-   def typeStr(cls, typeIndex):
-      return ['sfp', 'qsfp', 'osfp'][typeIndex]
-
-   def getName(self):
-      raise NotImplementedError()
-
-   def getPresence(self):
-      raise NotImplementedError()
-
-   def getLowPowerMode(self):
-      raise NotImplementedError()
-
-   def setLowPowerMode(self, value):
-      raise NotImplementedError()
-
-   def getInterruptLine(self):
-      raise NotImplementedError()
-
-   def getReset(self):
-      raise NotImplementedError()
-
-class Fan(object):
-   def getName(self):
-      raise NotImplementedError()
-
-   def getSpeed(self):
-      raise NotImplementedError()
-
-   def setSpeed(self, speed):
-      raise NotImplementedError()
-
-   def getDirection(self):
-      raise NotImplementedError()
-
-class Psu(object):
-   def getName(self):
-      raise NotImplementedError()
-
-   def getPresence(self):
-      raise NotImplementedError()
-
-   def getStatus(self):
-      raise NotImplementedError()
-
-class Watchdog(object):
-   def arm(self, timeout):
-      raise NotImplementedError()
-
-   def stop(self):
-      raise NotImplementedError()
-
-   def status(self):
-      raise NotImplementedError()
-
-class PowerCycle(object):
-   def powerCycle(self):
-      raise NotImplementedError()
-
-class ReloadCause(object):
-   def getTime(self):
-      raise NotImplementedError()
-
-   def getCause(self):
-      raise NotImplementedError()
-
-class Interrupt(object):
-   def set(self):
-      raise NotImplementedError()
-
-   def clear(self):
-      raise NotImplementedError()
-
-   def getFile(self):
-      raise NotImplementedError()
-
-class Reset(object):
-   def read(self):
-      raise NotImplementedError()
-
-   def resetIn(self):
-      raise NotImplementedError()
-
-   def resetOut(self):
-      raise NotImplementedError()
-
-   def getName(self):
-      raise NotImplementedError()
-
-class Phy(object):
-   def getReset(self):
-      raise NotImplementedError()
-
-class Led(object):
-   def getColor(self):
-      raise NotImplementedError()
-
-   def setColor(self, color):
-      raise NotImplementedError()
-
-   def getName(self):
-      raise NotImplementedError()
-
-   def isStatusLed(self):
-      raise NotImplementedError()
-
-class Slot(object):
-   def getPresence(self):
-      raise NotImplementedError()
-
-class Temp(object):
-   def getTemperature(self):
-      raise NotImplementedError
-
-   def getLowThreshold(self):
-      raise NotImplementedError
-
-   def getHighThreshold(self):
-      raise NotImplementedError
-
-   def setLowThreshold(self):
-      raise NotImplementedError
-
-   def setHighThreshold(self):
-      raise NotImplementedError
+# NOTE: users of inventory should reference the appropriate file directly
+#       these imports are a backward compatibility layer only
+# pylint: disable=unused-import
+from ..inventory.fan import Fan
+from ..inventory.interrupt import Interrupt
+from ..inventory.led import Led
+from ..inventory.phy import Phy
+from ..inventory.powercycle import PowerCycle
+from ..inventory.psu import Psu
+from ..inventory.reloadcause import ReloadCause
+from ..inventory.reset import Reset
+from ..inventory.slot import Slot
+from ..inventory.temp import Temp
+from ..inventory.watchdog import Watchdog
+from ..inventory.xcvr import Xcvr
 
 class Inventory(object):
    def __init__(self):
