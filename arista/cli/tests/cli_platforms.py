@@ -11,7 +11,8 @@ class CliLegacyTest(unittest.TestCase):
       p = Process(target=main, args=(args,))
       p.start()
       p.join()
-      self.assertEqual(p.exitcode, code)
+      self.assertEqual(p.exitcode, code,
+                       msg='Command %s failed with code %s' % (args, code))
 
    def testSysEeprom(self):
       self._runMain(['syseeprom'])
@@ -47,7 +48,12 @@ class CliLegacyTest(unittest.TestCase):
       self._foreachPlatform('reboot-cause')
 
    def testDiag(self):
-      self._foreachPlatform('diag')
+      self._foreachPlatform('diag', '--noIo')
+
+   def testDiagIo(self):
+      # TODO: fix simulation mode
+      #self._foreachPlatform('diag')
+      pass
 
    def testWatchdogStatus(self):
       self._foreachPlatform('watchdog', '--status')

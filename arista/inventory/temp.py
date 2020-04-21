@@ -1,5 +1,7 @@
 
-class Temp(object):
+from . import InventoryInterface
+
+class Temp(InventoryInterface):
    def getTemperature(self):
       raise NotImplementedError
 
@@ -14,3 +16,11 @@ class Temp(object):
 
    def setHighThreshold(self, value):
       raise NotImplementedError
+
+   def __diag__(self, ctx):
+      return {
+         # TODO: SensorDesc info as self.desc.__diag__(ctx)
+         "value": self.getTemperature() if ctx.performIo else None,
+         "low_thresh": self.getLowThreshold(),
+         "high_thresh": self.getHighThreshold(),
+      }

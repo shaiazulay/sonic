@@ -192,3 +192,27 @@ class Inventory(object):
 
    def getTemps(self):
       return self.temps
+
+   def __diag__(self, ctx):
+      return {
+         "version": 1,
+         "name": self.__class__.__name__,
+         # vars
+         "sfp": self.sfpRange,
+         "qsfp": self.qsfpRange,
+         "osfp": self.osfpRange,
+         "port_start": self.portStart,
+         "port_end": self.portEnd,
+         # objects
+         "leds": [ l.genDiag(ctx) for l in self.leds.values() ],
+         # TODO led groups
+         # TODO watchdog
+         "xcvrs": [ x.genDiag(ctx) for x in self.xcvrs.values() ],
+         "psus": [ p.genDiag(ctx) for p in self.psus ],
+         "fans": [ f.genDiag(ctx) for f in self.fans ],
+         "interrupts": [ i.genDiag(ctx) for i in self.interrupts.values() ],
+         "resets" : [ r.genDiag(ctx) for r in self.resets.values() ],
+         "phys" : [ p.genDiag(ctx) for p in self.phys ],
+         "slot" : [ s.genDiag(ctx) for s in self.slots ],
+         "temps" : [ t.genDiag(ctx) for t in self.temps ],
+      }

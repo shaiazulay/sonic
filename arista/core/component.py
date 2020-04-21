@@ -178,8 +178,15 @@ class Component(object):
          "data": self.__diag__(ctx),
          "drivers": [ d.genDiag(ctx) for d in self.drivers.values() ],
       }
+      if self.inventory not in ctx.inventories:
+         output["inventory"] = self.inventory.__diag__(ctx)
+         ctx.inventories.add(self.inventory)
+      else:
+         output["inventory"] = None
       if ctx.recursive:
          output["components"] = [ c.genDiag(ctx) for c in self.iterComponents() ]
+      else:
+         output["components"] = []
       return output
 
 class PciComponent(Component):

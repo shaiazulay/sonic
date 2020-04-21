@@ -1,5 +1,7 @@
 
-class Xcvr(object):
+from . import InventoryInterface
+
+class Xcvr(InventoryInterface):
 
    SFP = 0
    QSFP = 1
@@ -28,3 +30,14 @@ class Xcvr(object):
 
    def getReset(self):
       raise NotImplementedError()
+
+   def __diag__(self, ctx):
+      intr = self.getInterruptLine()
+      reset = self.getReset()
+      return {
+         "name": self.getName(),
+         "presence": self.getPresence() if ctx.performIo else None,
+         "lpmode": self.getLowPowerMode() if ctx.performIo else None,
+         "intr": intr.__diag__(ctx) if intr else None,
+         "reset": reset.__diag__(ctx) if reset else None,
+      }

@@ -1,5 +1,7 @@
 
-class Reset(object):
+from . import InventoryInterface
+
+class Reset(InventoryInterface):
    def read(self):
       raise NotImplementedError()
 
@@ -11,3 +13,9 @@ class Reset(object):
 
    def getName(self):
       raise NotImplementedError()
+
+   def __diag__(self, ctx):
+      return {
+         "name": self.getName(),
+         "value": self.read() if ctx.performIo else None,
+      }
