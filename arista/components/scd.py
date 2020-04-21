@@ -473,6 +473,10 @@ class Scd(PciComponent):
          with open(os.path.join(SYS_UIO_PATH, uio, 'name')) as uioName:
             self.uioMap[uioName.read().strip()] = uio
 
+   def simGetUio(self, reg, bit):
+      return '/dev/uio-%s-%x-%d' % (self.addr, reg, bit)
+
+   @simulateWith(simGetUio)
    def getUio(self, reg, bit):
       if not self.uioMap:
          self.uioMapInit()
