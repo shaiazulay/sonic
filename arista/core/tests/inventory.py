@@ -5,11 +5,23 @@ import datetime
 
 from ...tests.testing import unittest
 
-from .. import inventory
+from ...inventory.fan import Fan
+from ...inventory.interrupt import Interrupt
+from ...inventory.led import Led
+from ...inventory.phy import Phy
+from ...inventory.powercycle import PowerCycle
+from ...inventory.psu import Psu
+from ...inventory.reloadcause import ReloadCause
+from ...inventory.reset import Reset
+from ...inventory.slot import Slot
+from ...inventory.temp import Temp
+from ...inventory.watchdog import Watchdog
+from ...inventory.xcvr import Xcvr
+
 from ..inventory import Inventory
 from ..metainventory import MetaInventory, LazyInventory
 
-class TestFan(inventory.Fan):
+class TestFan(Fan):
    def __init__(self, fanId=1, name="fan1", speed=12345, direction='forward'):
       self.fanId = fanId
       self.name = name
@@ -31,7 +43,7 @@ class TestFan(inventory.Fan):
    def __eq__(self, value):
       return isinstance(value, TestFan) and self.fanId == value.fanId
 
-class TestPsu(inventory.Psu):
+class TestPsu(Psu):
    def __init__(self, psuId=1, name="psu1", presence=True, status=True):
       self.psuId = psuId
       self.name = name
@@ -50,7 +62,7 @@ class TestPsu(inventory.Psu):
    def __eq__(self, value):
       return isinstance(value, TestPsu) and self.psuId == value.psuId
 
-class TestWatchdog(inventory.Watchdog):
+class TestWatchdog(Watchdog):
    def __init__(self, started=True, remaining=100, timeout=300):
       self.started = started
       self.remaining = remaining
@@ -66,7 +78,7 @@ class TestWatchdog(inventory.Watchdog):
    def status(self):
       return self.started
 
-class TestPowerCycle(inventory.PowerCycle):
+class TestPowerCycle(PowerCycle):
    def __init__(self, powered=True):
       self.powered = powered
 
@@ -76,7 +88,7 @@ class TestPowerCycle(inventory.PowerCycle):
    def __eq__(self, value):
       return isinstance(value, TestPowerCycle) and self.powered == value.powered
 
-class TestReloadCause(inventory.ReloadCause):
+class TestReloadCause(ReloadCause):
    def __init__(self, name='unknown', time=datetime.datetime.now()):
       self.name = name
       self.time = time
@@ -87,7 +99,7 @@ class TestReloadCause(inventory.ReloadCause):
    def getCause(self):
       return self.name
 
-class TestInterrupt(inventory.Interrupt):
+class TestInterrupt(Interrupt):
    def __init__(self, name='unknown', status=False):
       self.name = name
       self.status = status
@@ -102,7 +114,7 @@ class TestInterrupt(inventory.Interrupt):
    def getFile(self):
       return self.path
 
-class TestReset(inventory.Reset):
+class TestReset(Reset):
    def __init__(self, name='unknown', reset=False):
       self.name = name
       self.reset = reset
@@ -119,7 +131,7 @@ class TestReset(inventory.Reset):
    def getName(self):
       return self.name
 
-class TestPhy(inventory.Phy):
+class TestPhy(Phy):
    def __init__(self, phyId=1, reset=False):
       self.phyId = phyId
       self.reset = reset
@@ -130,7 +142,7 @@ class TestPhy(inventory.Phy):
    def __eq__(self, value):
       return isinstance(value, TestPhy) and self.phyId == value.phyId
 
-class TestLed(inventory.Led):
+class TestLed(Led):
    def __init__(self, name='unknown', color='green', status=True):
       self.name = name
       self.color = color
@@ -151,7 +163,7 @@ class TestLed(inventory.Led):
    def __eq__(self, value):
       return isinstance(value, TestLed) and self.name == value.name
 
-class TestSlot(inventory.Slot):
+class TestSlot(Slot):
    def __init__(self, name='unknown', present=True):
       self.name = name
       self.present = present
@@ -162,8 +174,8 @@ class TestSlot(inventory.Slot):
    def __eq__(self, value):
       return isinstance(value, TestSlot) and self.name == value.name
 
-class TestXcvr(inventory.Xcvr):
-   def __init__(self, portId=0, xcvrType=inventory.Xcvr.QSFP, name="unknown",
+class TestXcvr(Xcvr):
+   def __init__(self, portId=0, xcvrType=Xcvr.QSFP, name="unknown",
                 presence=True, lpMode=False, intr=None, reset=None):
       self.portId = portId
       self.xcvrId = portId
@@ -195,7 +207,7 @@ class TestXcvr(inventory.Xcvr):
       #    raise FeatureNotSupported()
       return self.reset
 
-class TestTemp(inventory.Temp):
+class TestTemp(Temp):
    def __init__(self, diode=1, temperature=30, lowThreshold=10, highThreshold=50):
       self.diode = diode
       self.temperature = temperature

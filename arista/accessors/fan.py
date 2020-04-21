@@ -1,4 +1,4 @@
-from ..core.inventory import Fan
+from ..inventory.fan import Fan
 
 class FanImpl(Fan):
    def __init__(self, fanId=1, driver=None, led=None, **kwargs):

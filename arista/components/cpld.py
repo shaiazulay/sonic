@@ -1,10 +1,11 @@
 import time
 
-from ..core.inventory import PowerCycle
 from ..core.log import getLogger
 from ..core.register import Register, RegisterMap
 
 from ..drivers.cpld import SysCpldI2cDriver
+
+from ..inventory.powercycle import PowerCycle
 
 from .common import I2cComponent
 

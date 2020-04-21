@@ -17,10 +17,12 @@ from ...drivers.psu import UpperlakePsuDriver
 from ...drivers.scd import ScdKernelDriver
 from ...drivers.sysfs import SysfsDriver
 
+from ...inventory.psu import Psu
+from ...inventory.xcvr import Xcvr
+
 from .. import utils
 from ..driver import Driver
 from ..fixed import FixedSystem
-from ..inventory import Psu, Xcvr
 from ..platform import getPlatformSkus
 from ..types import I2cAddr
 

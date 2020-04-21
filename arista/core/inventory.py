@@ -1,20 +1,10 @@
 from collections import defaultdict
 
-# NOTE: users of inventory should reference the appropriate file directly
-#       these imports are a backward compatibility layer only
+# NOTE: these import are for inventory objects critical to the .core package
 # pylint: disable=unused-import
-from ..inventory.fan import Fan
-from ..inventory.interrupt import Interrupt
-from ..inventory.led import Led
-from ..inventory.phy import Phy
-from ..inventory.powercycle import PowerCycle
-from ..inventory.psu import Psu
 from ..inventory.reloadcause import ReloadCause
-from ..inventory.reset import Reset
 from ..inventory.slot import Slot
-from ..inventory.temp import Temp
 from ..inventory.watchdog import Watchdog
-from ..inventory.xcvr import Xcvr
 
 class Inventory(object):
    def __init__(self):

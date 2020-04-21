@@ -1,7 +1,5 @@
-# Copyright (c) 2018 Arista Networks, Inc.  All rights reserved.
-# Arista Networks, Inc. Confidential and Proprietary.
 
-from ..core.inventory import Phy
+from ..inventory.phy import Phy
 
 class PhyImpl(Phy):
    def __init__(self, phyId, reset=None):

@@ -1,10 +1,11 @@
 from ..accessors.psu import MixedPsuImpl
 
 from ..core.component import Component, Priority
-from ..core.inventory import Psu
 
 from ..drivers.i2c import I2cKernelDriver
 from ..drivers.pmbus import PmbusDriver
+
+from ..inventory.psu import Psu
 
 from .common import I2cComponent
 

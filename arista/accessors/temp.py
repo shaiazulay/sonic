@@ -1,7 +1,5 @@
 
-from __future__ import absolute_import, division, print_function
-
-from ..core.inventory import Temp
+from ..inventory.temp import Temp
 
 class TempImpl(Temp):
    def __init__(self, sensor, driver=None, **kwargs):

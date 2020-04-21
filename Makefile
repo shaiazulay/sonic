@@ -121,6 +121,8 @@ install: install-py2 install-py3 install-drivers install-fs
 # test targets
 #
 
+test-py: test-py3
+
 test-py2:
 	python2 setup.py test
 

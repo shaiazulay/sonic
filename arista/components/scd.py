@@ -11,15 +11,24 @@ from ..accessors.xcvr import XcvrImpl
 
 from ..core.config import Config
 from ..core.driver import KernelDriver
-from ..core.inventory import Interrupt, PowerCycle, Watchdog, Xcvr, Reset
 from ..core.types import I2cAddr, MdioClause, MdioSpeed
 from ..core.utils import FileWaiter, MmapResource, simulateWith, writeConfig
 from ..core.log import getLogger
 
 from ..drivers.i2c import I2cKernelDriver
 from ..drivers.scd import ScdKernelDriver
-from ..drivers.sysfs import LedSysfsDriver, PsuSysfsDriver, ResetSysfsDriver, \
-                            XcvrSysfsDriver
+from ..drivers.sysfs import (
+   LedSysfsDriver,
+   PsuSysfsDriver,
+   ResetSysfsDriver,
+   XcvrSysfsDriver,
+)
+
+from ..inventory.interrupt import Interrupt
+from ..inventory.powercycle import PowerCycle
+from ..inventory.watchdog import Watchdog
+from ..inventory.xcvr import Xcvr
+from ..inventory.reset import Reset
 
 from .common import PciComponent, I2cComponent
 

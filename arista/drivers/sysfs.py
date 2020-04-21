@@ -3,9 +3,10 @@ from __future__ import division, print_function, with_statement
 import os
 
 from ..core.driver import Driver
-from ..core.inventory import Xcvr
 from ..core import utils
 from ..core.log import getLogger
+
+from ..inventory.xcvr import Xcvr
 
 logging = getLogger(__name__)
 
