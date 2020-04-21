@@ -14,6 +14,7 @@ try:
    from arista.utils.sonic_platform.fan import Fan
    from arista.utils.sonic_platform.psu import Psu
    from arista.utils.sonic_platform.sfp import Sfp
+   from arista.utils.sonic_platform.thermalmanager import ThermalManager
    from arista.utils.sonic_platform.watchdog import Watchdog
 except ImportError as e:
    raise ImportError("%s - required module not found" % e)
@@ -201,3 +202,6 @@ class Chassis(ChassisBase):
       epoll.close()
 
       return res_dict
+
+   def get_thermal_manager(self):
+      return ThermalManager
