@@ -16,6 +16,7 @@ class I2cKernelDriver(Driver):
                 module=None, **kwargs):
       self.name = name
       self.addr = addr
+      self.module = module
       if module:
          self.kernelDriver = KernelDriver(module=module, **kwargs)
       else:
@@ -65,6 +66,13 @@ class I2cKernelDriver(Driver):
 
    def __str__(self):
       return '%s(name=%s)' % (self.__class__.__name__, self.name)
+
+   def __diag__(self, ctx):
+      return {
+         "name": self.name,
+         "module": self.module,
+         "sysfs": self.getSysfsPath(),
+      }
 
 class I2cKernelFanDriver(I2cKernelDriver):
    def __init__(self, maxPwm=255, addr=None, waitFile=None, **kwargs):
@@ -138,3 +146,8 @@ class I2cDevDriver(Driver):
 
    def write(self, reg, data):
       return self.write_byte_data(reg, data)
+
+   def __diag__(self, ctx):
+      return {
+         "name": self.name,
+      }
