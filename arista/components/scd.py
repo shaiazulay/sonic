@@ -467,6 +467,8 @@ class Scd(PciComponent):
       for xcvr in self.xcvrs:
          xcvr.setModuleSelect(True)
          xcvr.setTxDisable(False)
+         if xcvr.getLowPowerMode():
+            xcvr.setLowPowerMode(False)
 
    def uioMapInit(self):
       for uio in os.listdir(SYS_UIO_PATH):

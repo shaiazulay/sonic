@@ -19,6 +19,8 @@ class SysfsDriver(Driver):
       return '%s(path=%s)' % (self.__class__.__name__, self.sysfsPath)
 
    def read(self, name, path=None):
+      if utils.inSimulation():
+         return '0'
       path = path or os.path.join(self.sysfsPath, name)
       with open(path, 'r') as f:
          return f.read().rstrip()
