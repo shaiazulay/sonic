@@ -10,5 +10,6 @@ class InventoryInterface(object):
       return {
          "version": 1,
          "name": self.__class__.__name__,
+         "desc": self.desc.__diag__(ctx) if hasattr(self, 'desc') else {},
          "data": self.__diag__(ctx),
       }
