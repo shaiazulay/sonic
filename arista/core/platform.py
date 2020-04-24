@@ -32,11 +32,7 @@ def formatPrefdlData(data):
    for k, v in data.items():
       for kfmt, vfmt in formatDict.items():
          if k in vfmt:
-            if kfmt == "MAC":
-               val = prefdl.showMac(v)
-            else:
-               val = v
-            fdata[kfmt] = val
+            fdata[kfmt] = v
    return fdata
 
 def writeFormattedPrefdl(pfdl, f):
