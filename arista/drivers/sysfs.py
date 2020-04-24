@@ -164,28 +164,35 @@ class TempSysfsDriver(SysfsDriver):
       self.fileWaiter = utils.FileWaiter(waitFile, waitTimeout)
       super(TempSysfsDriver, self).__init__(**kwargs)
 
-   def computeSysfsPath(self, diode):
+   def computeSysfsPath(self, idx):
       if not self.sysfsPath:
          self.sysfsPath = utils.locateHwmonPath(
-               self.addr.getSysfsPath(), 'temp%s' % diode)
+               self.addr.getSysfsPath(), 'temp%s' % idx)
+
+   def readTemp(self, temp, name):
+      # sysfs starts at one, mfg at 0
+      idx = temp.diode + 1
+      self.computeSysfsPath(idx)
+      return self.read('temp%s_%s' % (idx, name))
+
+   def writeTemp(self, temp, name, value):
+      # sysfs starts at one, mfg at 0
+      idx = temp.diode + 1
+      self.computeSysfsPath(idx)
+      return self.write('temp%s_%s' % (idx, name), str(value))
 
    def getTemperature(self, temp):
-      self.computeSysfsPath(temp.diode)
-      return float(self.read('temp%s_input' % temp.diode)) / 1000
+      return float(self.readTemp(temp, 'input')) / 1000
 
    def getLowThreshold(self, temp):
-      self.computeSysfsPath(temp.diode)
-      return float(self.read('temp%s_min' % temp.diode)) / 1000
+      return float(self.readTemp(temp, 'min')) / 1000
 
    def setLowThreshold(self, temp, value):
-      self.computeSysfsPath(temp.diode)
-      return self.write('temp%s_min' % temp.diode, str(int(value * 1000)))
+      return self.writeTemp(temp, 'min', int(value * 1000))
 
    def getHighThreshold(self, temp):
-      self.computeSysfsPath(temp.diode)
-      return float(self.read('temp%s_max' % temp.diode)) / 1000
+      return float(self.readTemp(temp, 'max')) / 1000
 
    def setHighThreshold(self, temp, value):
-      self.computeSysfsPath(temp.diode)
-      return self.write('temp%s_max' % temp.diode, str(int(value * 1000)))
+      return self.writeTemp(temp, 'max', int(value * 1000))
 
