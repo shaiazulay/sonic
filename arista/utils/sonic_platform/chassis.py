@@ -14,6 +14,7 @@ try:
    from arista.utils.sonic_platform.fan import Fan
    from arista.utils.sonic_platform.psu import Psu
    from arista.utils.sonic_platform.sfp import Sfp
+   from arista.utils.sonic_platform.thermal import Thermal
    from arista.utils.sonic_platform.thermalmanager import ThermalManager
    from arista.utils.sonic_platform.watchdog import Watchdog
 except ImportError as e:
@@ -41,6 +42,8 @@ class Chassis(ChassisBase):
       self._sfp_list = [None] * (inventory.portEnd + 1)
       for index, sfp in self._inventory.getXcvrs().items():
          self._sfp_list[index] = Sfp(index, sfp)
+      for thermal in self._inventory.getTemps():
+         self._thermal_list.append(Thermal(thermal))
       self._watchdog = Watchdog(self._inventory.getWatchdog())
 
       self._interrupt_dict, self._presence_dict = \

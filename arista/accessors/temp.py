@@ -7,6 +7,12 @@ class TempImpl(Temp):
       self.name = sensor.name
       self.driver = driver
 
+   def getName(self):
+      return self.name
+
+   def getPresence(self):
+      return self.driver.getPresence(self.sensor)
+
    def getTemperature(self):
       return self.driver.getTemperature(self.sensor)
 

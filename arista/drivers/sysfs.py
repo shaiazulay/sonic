@@ -184,6 +184,10 @@ class TempSysfsDriver(SysfsDriver):
    def getTemperature(self, temp):
       return float(self.readTemp(temp, 'input')) / 1000
 
+   def getPresence(self, temp):
+      # Currently just rely on a valid temp reading
+      return self.getTemperature(temp) > 0.0
+
    def getLowThreshold(self, temp):
       return float(self.readTemp(temp, 'min')) / 1000
 
