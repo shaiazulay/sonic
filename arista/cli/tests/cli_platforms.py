@@ -12,7 +12,7 @@ class CliLegacyTest(unittest.TestCase):
       p.start()
       p.join()
       self.assertEqual(p.exitcode, code,
-                       msg='Command %s failed with code %s' % (args, code))
+                       msg='Command %s failed with code %s' % (args, p.exitcode))
 
    def testSysEeprom(self):
       self._runMain(['syseeprom'])
