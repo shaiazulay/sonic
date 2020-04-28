@@ -10,11 +10,40 @@ from functools import wraps
 from struct import pack, unpack
 
 from .log import getLogger
+from ..libs.python import isinteger
 
 logging = getLogger(__name__)
 
 FLASH_MOUNT = '/host'
 TMPFS_MOUNT = '/run'
+
+class HwApi(object):
+   def __init__(self, *values):
+      self.values = [int(v) for v in values]
+
+   def __gt__(self, other):
+      if not isinstance(other, HwApi):
+         return False
+      return self.values > other.values
+
+   def __lt__(self, other):
+      if not isinstance(other, HwApi):
+         return False
+      return self.values < other.values
+
+   def __eq__(self, other):
+      if not isinstance(other, HwApi):
+         return False
+      return self.values == other.values
+
+   def __str__(self):
+      return 'HwApi(%s)' % '.'.join(str(v) for v in self.values)
+
+   @classmethod
+   def parse(cls, value):
+      if isinteger(value):
+         return HwApi(value)
+      return HwApi((int(v) for v in value.split('.')))
 
 class MmapResource(object):
    """Resource implementation for a directly-mapped memory region."""
