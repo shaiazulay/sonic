@@ -3,7 +3,6 @@ from __future__ import print_function
 import os
 
 from .exception import UnknownPlatformError
-from .fixed import FixedSystem
 from .utils import simulateWith, getCmdlineDict
 from .driver import modprobe
 from .log import getLogger
@@ -90,7 +89,10 @@ def readPrefdl():
 
 def getPrefdlDataSim():
    logging.debug('bypass prefdl reading by returning default values')
-   return {'SKU': 'simulation'}
+   return {
+      'SKU': 'simulation',
+      'HwApi': '42',
+   }
 
 @simulateWith(getPrefdlDataSim)
 def getPrefdlData():
@@ -187,13 +189,13 @@ def registerPlatform():
       for sid in cls.SID:
          if hasattr(cls, 'HWAPI') and cls.HWAPI:
             for hwApi in cls.HWAPI:
-               platformSidIndex[(sid,hwApi)] = cls
+               platformSidIndex[(sid, hwApi)] = cls
          else:
             platformSidIndex[sid] = cls
       for sku in cls.SKU:
          if hasattr(cls, 'HWAPI') and cls.HWAPI:
             for hwApi in cls.HWAPI:
-               platformSkuIndex[(sku,hwApi)] = cls
+               platformSkuIndex[(sku, hwApi)] = cls
          else:
             platformSkuIndex[sku] = cls
 

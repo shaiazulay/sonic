@@ -1,5 +1,5 @@
 
-from .component import Component
+from .sku import Sku
 
-class Cpu(Component):
+class Cpu(Sku):
    pass
