@@ -8,11 +8,11 @@ from ..components.cpu.raven import RavenFanCpldComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi, UcdMon
 from ..components.lm73 import Lm73
 from ..components.max6658 import Max6658
-from ..components.psu import PmbusMixedPsuComponent
 from ..components.scd import Scd
 from ..components.ds460 import Ds460
 
 from ..descs.fan import FanDesc
+from ..descs.psu import PsuDesc
 
 @registerPlatform()
 class Cloverdale(FixedSystem):
@@ -69,23 +69,19 @@ class Cloverdale(FixedSystem):
       ])
 
       # PSU
-      psu1Addr = scd.i2cAddr(3, 0x58, t=3, datr=3, datw=3, ed=0)
-      ds460Psu1 = scd.newComponent(Ds460, psu1Addr, '/sys/class/hwmon/hwmon4')
-      psu2Addr = scd.i2cAddr(4, 0x58, t=3, datr=3, datw=3, ed=0)
-      ds460Psu2 = scd.newComponent(Ds460, psu2Addr, '/sys/class/hwmon/hwmon5')
+      scd.addPsu(Ds460, addr=scd.i2cAddr(3, 0x58, t=3, datr=3, datw=3, ed=0),
+                 waitFile='/sys/class/hwmon/hwmon4', psus=[
+         PsuDesc(psuId=1, led=self.inventory.getLed('psu1')),
+      ])
+      scd.addPsu(Ds460, addr=scd.i2cAddr(4, 0x58, t=3, datr=3, datw=3, ed=0),
+                 waitFile='/sys/class/hwmon/hwmon5', psus=[
+         PsuDesc(psuId=2, led=self.inventory.getLed('psu2')),
+      ])
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
       ])
-
-      psu1 = self.newComponent(PmbusMixedPsuComponent, presenceComponent=scd,
-                               statusComponent=ds460Psu1)
-      psu2 = self.newComponent(PmbusMixedPsuComponent, presenceComponent=scd,
-                               statusComponent=ds460Psu2)
-
-      psu1.createPsu(psuId=1, led=self.inventory.getLed('psu1'))
-      psu2.createPsu(psuId=2, led=self.inventory.getLed('psu2'))
 
       scd.addSmbusMasterRange(0x8000, 5)
 

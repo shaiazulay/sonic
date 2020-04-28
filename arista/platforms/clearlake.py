@@ -8,11 +8,12 @@ from ..components.asic.xgs.trident2 import Trident2
 from ..components.cpu.crow import CrowFanCpldComponent, CrowSysCpld
 from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.max6658 import Max6658
-from ..components.psu import PmbusMixedPsuComponent, PmbusPsu
+from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 from ..components.ds125br import Ds125Br
 
 from ..descs.fan import FanDesc
+from ..descs.psu import PsuDesc
 
 @registerPlatform()
 class Clearlake(FixedSystem):
@@ -70,25 +71,20 @@ class Clearlake(FixedSystem):
 
       self.syscpld = self.newComponent(CrowSysCpld, I2cAddr(1, 0x23))
 
-      pmbusPsu1 = scd.newComponent(PmbusPsu,
-                                   scd.i2cAddr(3, 0x58, t=3, datr=3, datw=3),
-                                   '/sys/class/hwmon/hwmon5')
-      pmbusPsu2 = scd.newComponent(PmbusPsu,
-                                   scd.i2cAddr(4, 0x58, t=3, datr=3, datw=3),
-                                   '/sys/class/hwmon/hwmon6')
+      scd.addPsu(PmbusPsu, addr=scd.i2cAddr(3, 0x58, t=3, datr=3, datw=3),
+                 waitFile='/sys/class/hwmon/hwmon5', psus=[
+         PsuDesc(psuId=1, led=self.inventory.getLed('psu1')),
+      ])
+      scd.addPsu(PmbusPsu, addr=scd.i2cAddr(4, 0x58, t=3, datr=3, datw=3),
+                 waitFile='/sys/class/hwmon/hwmon6', psus=[
+         PsuDesc(psuId=2, led=self.inventory.getLed('psu2')),
+      ])
+
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
          NamedGpio(0x5000, 1, True, False, "psu2_present"),
          NamedGpio(0x6940, 0, False, False, "mux"), # FIXME: oldSetup order/name
       ])
-
-      psu1 = scd.newComponent(PmbusMixedPsuComponent, presenceComponent=scd,
-                              statusComponent=pmbusPsu1)
-      psu2 = scd.newComponent(PmbusMixedPsuComponent, presenceComponent=scd,
-                              statusComponent=pmbusPsu2)
-
-      psu1.createPsu(psuId=1, led=self.inventory.getLed('psu1'))
-      psu2.createPsu(psuId=2, led=self.inventory.getLed('psu2'))
 
       addr = 0x6100
       for xcvrId in self.qsfp40gAutoRange:

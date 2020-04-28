@@ -8,10 +8,11 @@ from ..components.cpu.crow import CrowSysCpld, CrowFanCpldComponent
 from ..components.dpm import Ucd90120A, UcdGpi
 from ..components.max6658 import Max6658
 from ..components.max6697 import Max6697
-from ..components.psu import UpperlakeMixedPsuComponent, PmbusPsu
+from ..components.psu import UpperlakePsuComponent
 from ..components.scd import Scd
 
 from ..descs.fan import FanDesc
+from ..descs.psu import PsuDesc
 
 @registerPlatform()
 class Upperlake(FixedSystem):
@@ -33,9 +34,9 @@ class Upperlake(FixedSystem):
 
       scd.createWatchdog()
 
-      scd.newComponent(Max6697, scd.i2cAddr(0, 0x1a),
+      scd.newComponent(Max6697, addr=scd.i2cAddr(0, 0x1a),
                        waitFile='/sys/class/hwmon/hwmon2')
-      scd.newComponent(Max6658, scd.i2cAddr(1, 0x4c),
+      scd.newComponent(Max6658, addr=scd.i2cAddr(1, 0x4c),
                        waitFile='/sys/class/hwmon/hwmon3')
 
       scd.newComponent(CrowFanCpldComponent, addr=scd.i2cAddr(1, 0x60),
@@ -44,8 +45,6 @@ class Upperlake(FixedSystem):
       ])
 
       scd.newComponent(Ucd90120A, scd.i2cAddr(1, 0x4e, t=3))
-      scd.newComponent(PmbusPsu, scd.i2cAddr(3, 0x58, t=3, datr=2, datw=3))
-      scd.newComponent(PmbusPsu, scd.i2cAddr(4, 0x58, t=3, datr=2, datw=3))
       scd.newComponent(Ucd90120A, scd.i2cAddr(5, 0x4e, t=3), causes={
          'reboot': UcdGpi(1),
          'watchdog': UcdGpi(2),
@@ -77,12 +76,16 @@ class Upperlake(FixedSystem):
       cpld = self.syscpld
       cpld.createPowerCycle()
 
-      psuComponent = self.newComponent(UpperlakeMixedPsuComponent,
-                                       presenceComponent=scd,
-                                       statusComponent=cpld)
-
-      psuComponent.createPsu(psuId=1, led=self.inventory.getLed('psu1'))
-      psuComponent.createPsu(psuId=2, led=self.inventory.getLed('psu2'))
+      scd.addPsu(UpperlakePsuComponent,
+                 addr=scd.i2cAddr(3, 0x58, t=3, datr=2, datw=3),
+                 waitFile='/sys/class/hwmon/hwmon5', cpld=cpld, psus=[
+         PsuDesc(psuId=1, led=self.inventory.getLed('psu1')),
+      ])
+      scd.addPsu(UpperlakePsuComponent,
+                 addr=scd.i2cAddr(4, 0x58, t=3, datr=2, datw=3),
+                 waitFile='/sys/class/hwmon/hwmon6', cpld=cpld, psus=[
+         PsuDesc(psuId=2, led=self.inventory.getLed('psu2')),
+      ])
 
       addr = 0x6100
       for xcvrId in self.sfpRange:

@@ -401,6 +401,13 @@ class Scd(PciComponent):
       return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine, leds=leds,
                            drvName='optoe2')
 
+   def addPsu(self, componentCls, drivers=None, **kwargs):
+      drivers = drivers or []
+      drivers.extend([PsuSysfsDriver(driverName='psuPresenceDriver',
+                                     sysfsPath=self.pciSysfs)])
+      self.newComponent(componentCls, drivers=drivers, **kwargs)
+
+   # this is being deprecated
    def createPsu(self, psuId, driver='PsuSysfsDriver', led=None, **kwargs):
       psu = PsuImpl(psuId=psuId, driver=self.drivers[driver], led=led, **kwargs)
       self.inventory.addPsus([psu])
