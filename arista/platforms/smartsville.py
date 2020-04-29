@@ -5,14 +5,12 @@ from ..core.utils import incrange
 
 from ..components.common import SwitchChip
 from ..components.dpm import Ucd90160, Ucd90320, UcdGpi
-from ..components.fan import ScdFanComponent
-from ..components.max6658 import Max6658
 from ..components.phy import Babbage
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 from ..components.tmp468 import Tmp468
 
-from ..descs.fan import FanDesc
+from .cpu.woodpecker import WoodpeckerCpu
 
 @registerPlatform()
 class Smartsville(FixedSystem):
@@ -22,6 +20,15 @@ class Smartsville(FixedSystem):
 
    def __init__(self):
       super(Smartsville, self).__init__()
+
+      self.cpu = self.newComponent(WoodpeckerCpu)
+      self.cpu.cpld.newComponent(Ucd90160, self.cpu.cpuDpmAddr())
+      self.cpu.cpld.newComponent(Ucd90320, self.cpu.switchDpmAddr(),  causes={
+         'powerloss': UcdGpi(1),
+         'reboot': UcdGpi(2),
+         'watchdog': UcdGpi(3),
+         'overtemp': UcdGpi(4),
+      })
 
       self.qsfpRange = incrange(1, 32)
       self.osfpRange = incrange(33, 36)
@@ -35,7 +42,7 @@ class Smartsville(FixedSystem):
       scd.createWatchdog()
 
       scd.newComponent(Tmp468, scd.i2cAddr(0, 0x48),
-                       waitFile='/sys/class/hwmon/hwmon3')
+                       waitFile='/sys/class/hwmon/hwmon4')
       scd.newComponent(PmbusPsu, scd.i2cAddr(6, 0x58, t=3, datr=3, datw=3))
       scd.newComponent(PmbusPsu, scd.i2cAddr(7, 0x58, t=3, datr=3, datw=3))
 
@@ -122,27 +129,6 @@ class Smartsville(FixedSystem):
          mdios = [scd.addMdio(i, 0), scd.addMdio(i, 1)]
          phy = Babbage(phyId, mdios, reset=reset)
          self.inventory.addPhy(phy)
-
-      cpld = self.newComponent(Scd, PciAddr(bus=0x00, device=0x09, func=0))
-
-      scdFanComponent = cpld.newComponent(ScdFanComponent,
-                                          waitFile='/sys/class/hwmon/hwmon2',
-                                          fans=[
-         FanDesc(fanId, ledId=(fanId-1)/2+1) for fanId in incrange(1, 6)
-      ])
-
-      cpld.addSmbusMasterRange(0x8000, 2, 0x80, 4)
-      cpld.newComponent(Max6658, cpld.i2cAddr(0, 0x4c))
-      cpld.newComponent(Ucd90160, cpld.i2cAddr(1, 0x4e, t=3))
-      cpld.newComponent(Ucd90320, cpld.i2cAddr(5, 0x11, t=3), causes={
-         'powerloss': UcdGpi(1),
-         'reboot': UcdGpi(2),
-         'watchdog': UcdGpi(3),
-         'overtemp': UcdGpi(4),
-      })
-      cpld.addFanGroup(0x9000, 3, 3)
-
-      cpld.createPowerCycle()
 
 @registerPlatform()
 class SmartsvilleBK(Smartsville):
