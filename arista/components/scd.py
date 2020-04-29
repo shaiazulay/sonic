@@ -325,8 +325,8 @@ class Scd(PciComponent):
          'bus': bus,
       }
 
-   def addSmbusMasterRange(self, addr, count, spacing=0x100, bus=8):
-      addrs = range(addr, addr + (count + 1) * spacing, spacing)
+   def addSmbusMasterRange(self, addrStart, count, spacing=0x100, bus=8):
+      addrs = range(addrStart, addrStart + (count + 1) * spacing, spacing)
       for i, addr in enumerate(addrs, 0):
          self.addSmbusMaster(addr, i, bus)
 
