@@ -10,10 +10,14 @@ from ..inventory.psu import Psu
 from .common import I2cComponent
 
 class MixedPsuComponent(Component):
-   def __init__(self, presenceComponent=None, statusComponent=None, **kwargs):
+   def __init__(self, presenceComponent=None, statusComponent=None, psus=None,
+                **kwargs):
       self.presenceComponent=presenceComponent
       self.statusComponent=statusComponent
       super(MixedPsuComponent, self).__init__(**kwargs)
+      psus = psus or []
+      for psu in psus:
+         self.createPsu(psuId=psu.psuId, led=psu.led)
 
    def createPsu(self, psuId=1, led=None, presenceDriver=None, statusDriver=None):
       psu = MixedPsuImpl(psuId=psuId,

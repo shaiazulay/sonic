@@ -4,6 +4,7 @@ from __future__ import absolute_import, division, print_function
 from ...tests.testing import unittest
 from ..fan import FanDesc
 from ..led import LedDesc
+from ..psu import PsuDesc
 from ..sensor import Position, SensorDesc
 
 class DescTest(unittest.TestCase):
@@ -19,6 +20,9 @@ class DescTest(unittest.TestCase):
    def testLedDesc(self):
       self._testAttributes(LedDesc, name='led', colors=[ 'blue', 'red' ],
                            extra='blah')
+
+   def testPsuDesc(self):
+      self._testAttributes(PsuDesc, psuId=1, extra='blah')
 
    def testSensorDesc(self):
       self._testAttributes(SensorDesc, diode=3, name='sensor',

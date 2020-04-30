@@ -37,9 +37,7 @@ class PsuSysfsDriver(SysfsDriver):
       return self.read('psu%d_%s' % (psu.psuId, 'present')) == '1'
 
    def getPsuStatus(self, psu):
-      if psu.statusGpio:
-         return self.read('psu%d_%s' % (psu.psuId, 'status')) == '1'
-      return self.getPsuPresence(psu)
+      return self.read('psu%d_%s' % (psu.psuId, 'status')) == '1'
 
 class XcvrSysfsDriver(SysfsDriver):
    def getXcvrPresence(self, xcvr):

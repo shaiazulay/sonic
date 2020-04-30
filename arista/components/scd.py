@@ -401,11 +401,8 @@ class Scd(PciComponent):
       return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine, leds=leds,
                            drvName='optoe2')
 
-   # In platforms, should change "statusGpios" to "statusGpio" and make it a boolean
-   def createPsu(self, psuId, driver='PsuSysfsDriver', statusGpios=True, led=None,
-                 **kwargs):
-      psu = PsuImpl(psuId=psuId, driver=self.drivers[driver],
-                     statusGpio=statusGpios, led=led, **kwargs)
+   def createPsu(self, psuId, driver='PsuSysfsDriver', led=None, **kwargs):
+      psu = PsuImpl(psuId=psuId, driver=self.drivers[driver], led=led, **kwargs)
       self.inventory.addPsus([psu])
       return psu
 

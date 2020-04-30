@@ -4,7 +4,6 @@ class PsuImpl(Psu):
    def __init__(self, psuId=1, driver=None, led=None, **kwargs):
       self.psuId = psuId
       self.driver = driver
-      self.statusGpio = True
       self.led = led
       self.__dict__.update(kwargs)
 

@@ -118,6 +118,9 @@ class Inventory(object):
    def getLedGroups(self):
       return self.ledGroups
 
+   def addPsu(self, psu):
+      self.psus.append(psu)
+
    def addPsus(self, psus):
       self.psus.extend(psus)
 
