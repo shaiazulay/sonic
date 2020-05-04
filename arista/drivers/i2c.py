@@ -1,10 +1,13 @@
 import os
 
+from contextlib import closing
+
 from .sysfs import FanSysfsDriver
 
 from ..core.driver import Driver, KernelDriver
 from ..core import utils
 from ..core.log import getLogger
+from ..core.utils import SMBus
 
 logging = getLogger(__name__)
 
@@ -13,10 +16,13 @@ class I2cKernelDriver(Driver):
                 module=None, **kwargs):
       self.name = name
       self.addr = addr
+      self.module = module
       if module:
          self.kernelDriver = KernelDriver(module=module, **kwargs)
       else:
          self.kernelDriver = None
+      if waitFile == utils.WAITFILE_HWMON:
+         waitFile = (self.getSysfsPath(), 'hwmon', 'hwmon\d')
       self.fileWaiter = utils.FileWaiter(waitFile, waitTimeout)
       super(I2cKernelDriver, self).__init__(**kwargs)
 
@@ -60,6 +66,13 @@ class I2cKernelDriver(Driver):
 
    def __str__(self):
       return '%s(name=%s)' % (self.__class__.__name__, self.name)
+
+   def __diag__(self, ctx):
+      return {
+         "name": self.name,
+         "module": self.module,
+         "sysfs": self.getSysfsPath(),
+      }
 
 class I2cKernelFanDriver(I2cKernelDriver):
    def __init__(self, maxPwm=255, addr=None, waitFile=None, **kwargs):
@@ -111,6 +124,14 @@ class I2cDevDriver(Driver):
          self.bus_.close()
          self.bus_ = None
 
+   def smbusPing(self):
+      try:
+         with closing(SMBus(self.addr.bus)) as bus:
+            bus.read_byte(self.addr.address)
+      except IOError:
+         return False
+      return True
+
    def read_byte_data(self, reg):
       return self.bus.read_byte_data(self.addr.address, reg)
 
@@ -125,3 +146,8 @@ class I2cDevDriver(Driver):
 
    def write(self, reg, data):
       return self.write_byte_data(reg, data)
+
+   def __diag__(self, ctx):
+      return {
+         "name": self.name,
+      }

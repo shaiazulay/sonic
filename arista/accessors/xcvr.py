@@ -1,4 +1,4 @@
-from ..core.inventory import Xcvr
+from ..inventory.xcvr import Xcvr
 
 class XcvrImpl(Xcvr):
    def __init__(self, driver=None, interruptLine=None, reset=None, leds=None,

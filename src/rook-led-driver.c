@@ -133,8 +133,7 @@ static void set_led_name(struct i2c_client *client, char *name, const char *colo
 {
 	struct pca9555_chip *chip = dev_get_drvdata(&client->dev);
 
-	scnprintf(name, LED_NAME_MAX_SZ, "%s-%d:%s:%s", chip->dev_name,
-		  client->adapter->nr, color, fun);
+	scnprintf(name, LED_NAME_MAX_SZ, "%s:%s:%s", chip->dev_name, color, fun);
 }
 
 static void led_init(struct pca9555_led *led, struct i2c_client *client,

@@ -31,11 +31,16 @@ except ImportError:
 def showMac( m ):
    return ":".join([m[0:2], m[2:4], m[4:6], m[6:8], m[8:10], m[10:12]])
 
+def showHwApi( h ):
+   # Keep only major
+   return h.split('.')[0]
+
 typeMap = {
    "END" : ( "00", None, None, None, False ),
    "SKU" : ( "03", None, None, None, False ),
    "ASY" : ( "04", None, None, None, False ),
    "MAC" : ( "05", None, showMac, None, False ),
+   "HwApi" : ( "0A", None, showHwApi, None, False ),
    "SerialNumber" : ( "0E", None, None, None, False ),
 }
 

@@ -3,12 +3,8 @@ from collections import defaultdict, OrderedDict
 
 from .driver import KernelDriver
 from .metainventory import LazyInventory
-from .utils import flatten
-
-import os
 
 DEFAULT_WAIT_TIMEOUT = 15
-ASIC_YIELD_TIME = os.getenv( 'ASIC_YIELD_TIME', 2 )
 
 class Priority(object):
    DEFAULT = 0
@@ -16,14 +12,22 @@ class Priority(object):
    BACKGROUND = 1
    POWER = 1
 
+   def priorityFilter(*priorities):
+      return staticmethod(lambda component: component.priority in priorities)
+
+   defaultFilter = priorityFilter(DEFAULT)
+   backgroundFilter = priorityFilter(BACKGROUND)
+
 class Component(object):
    def __init__(self, addr=None, priority=Priority.DEFAULT, drivers=None,
-                inventoryCls=LazyInventory, **kwargs):
-      self.components = defaultdict(list)
+                inventoryCls=None, inventory=None, **kwargs):
+      self.components = []
       self.addr = addr
       self.priority = priority
       self.drivers = OrderedDict()
-      self.inventory = inventoryCls()
+      self.inventory = inventory
+      if not inventory and inventoryCls:
+         self.inventory = inventoryCls()
       self.addDrivers(drivers)
       self.__dict__.update(kwargs)
 
@@ -35,26 +39,37 @@ class Component(object):
       assert all(isinstance(c, Component) for c in components)
       for component in components:
          component.priority = max(component.priority, self.priority)
-         self.components[component.priority].append(component)
+         self.components.append(component)
+         component.inventory = self.inventory
       return self
 
    def addComponent(self, component):
       assert isinstance(component, Component)
       component.priority = max(component.priority, self.priority)
-      self.components[component.priority].append(component)
+      self.components.append(component)
+      component.inventory = self.inventory
       return self
 
-   def iterComponents(self, priority=None):
-      for level, components in self.components.items():
-         if priority is not None and level != priority:
-            continue
-         for component in components:
-            yield component
-            for sub in component.iterComponents():
+   def newComponent(self, cls, *args, **kwargs):
+      component = cls(inventory=self.inventory, *args, **kwargs)
+      self.addComponent(component)
+      return component
+
+   def iterComponents(self, filters=Priority.defaultFilter, recursive=True):
+      if filters is None:
+         filters = []
+      if not hasattr(filters, '__iter__'):
+         filters = [filters]
+      allFilters = lambda x: all(f(x) for f in filters)
+
+      for component in filter(allFilters, self.components):
+         yield component
+         if recursive:
+            for sub in component.iterComponents(filters):
                yield sub
 
-   def iterInventory(self, priority=None):
-      for component in self.iterComponents(priority=priority):
+   def iterInventory(self, filters=None):
+      for component in self.iterComponents(filters=filters):
          yield component.inventory
 
    def addDrivers(self, drivers):
@@ -81,28 +96,28 @@ class Component(object):
       for driver in self.drivers.values():
          driver.finish()
 
-   def finish(self, priority=Priority.DEFAULT):
+   def finish(self, filters=Priority.defaultFilter):
       # underlying component are initialized recursively but require the parent to
       # be fully initialized
-      for component in self.components[priority]:
+      for component in self.iterComponents(filters, recursive=False):
          component.setup()
-      for component in self.components[Priority.DEFAULT]:
-         component.finish(priority)
+      for component in self.iterComponents(recursive=False):
+         component.finish(filters)
 
    def refresh(self):
-      for component in flatten(self.components.values()):
+      for component in self.components:
          component.refresh()
       for driver in self.drivers.values():
          driver.refresh()
 
    def clean(self):
-      for component in flatten(self.components.values()):
+      for component in self.components:
          component.clean()
       for driver in reversed(self.drivers.values()):
          driver.clean()
 
    def resetIn(self):
-      for component in flatten(self.components.values()):
+      for component in self.components:
          component.resetIn()
       for driver in reversed(self.drivers.values()):
          driver.resetIn()
@@ -110,19 +125,19 @@ class Component(object):
    def resetOut(self):
       for driver in self.drivers.values():
          driver.resetOut()
-      for component in flatten(self.components.values()):
+      for component in self.components:
          component.resetOut()
 
    def getReloadCauses(self, clear=False):
       causes = []
       for driver in self.drivers.values():
          causes.extend(driver.getReloadCauses(clear=clear))
-      for component in flatten(self.components.values()):
+      for component in self.components:
          causes.extend(component.getReloadCauses(clear=clear))
       return causes
 
    def waitForIt(self, timeout=DEFAULT_WAIT_TIMEOUT):
-      for component in flatten(self.components.values()):
+      for component in self.components:
          component.waitForIt(timeout)
 
    def _dumpDrivers(self, depth, prefix):
@@ -141,7 +156,7 @@ class Component(object):
       if self.drivers.values():
          self._dumpDrivers(depth, prefix)
       print('%s%scomponents:' % (spacer, prefix))
-      for component in flatten(self.components.values()):
+      for component in self.components:
          component.dump(depth + 1)
 
    def dump(self, depth=0, prefix=' - '):
@@ -163,7 +178,25 @@ class Component(object):
          "data": self.__diag__(ctx),
          "drivers": [ d.genDiag(ctx) for d in self.drivers.values() ],
       }
+      if self.inventory not in ctx.inventories:
+         output["inventory"] = self.inventory.__diag__(ctx)
+         ctx.inventories.add(self.inventory)
+      else:
+         output["inventory"] = None
       if ctx.recursive:
          output["components"] = [ c.genDiag(ctx) for c in self.iterComponents() ]
+      else:
+         output["components"] = []
       return output
+
+class PciComponent(Component):
+   def __init__(self, **kwargs):
+      super(PciComponent, self).__init__(**kwargs)
+
+class I2cComponent(Component):
+   def __init__(self, **kwargs):
+      super(I2cComponent, self).__init__(**kwargs)
+
+   def __str__(self):
+      return '%s(addr=%s)' % (self.__class__.__name__, self.addr)
 

@@ -1,6 +1,7 @@
 
 from __future__ import absolute_import, division, print_function
 
+import copy
 import logging
 
 class HardwareHandle(object):
@@ -107,7 +108,7 @@ class RegisterMap(object):
       for key in dir(self):
          attr = getattr(self, key)
          if isinstance(attr, Register):
-            self._updateAttributes(attr)
+            self._updateAttributes(copy.deepcopy(attr))
 
    def _updateAttributes(self, reg):
       attrs = reg.generateAttributes(self.parent_)

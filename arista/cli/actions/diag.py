@@ -6,6 +6,7 @@ import json
 from . import registerAction
 from ..args.diag import diagParser
 from ...core.diag import DiagContext
+from ...libs.pyshell import pyshell
 
 @registerAction(diagParser)
 def doDiag(ctx, args):
@@ -21,6 +22,8 @@ def doDiag(ctx, args):
       for component in ctx.platform.iterComponents():
          diagInfo.append(component.genDiag(diagCtx))
 
-   ident = 3 if args.pretty else None
-   print(json.dumps(diagInfo, indent=ident))
-
+   if args.pyshell:
+      pyshell()
+   else:
+      ident = 3 if args.pretty else None
+      print(json.dumps(diagInfo, indent=ident))

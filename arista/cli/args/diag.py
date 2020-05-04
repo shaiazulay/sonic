@@ -13,3 +13,5 @@ def diagParser(parser):
       help='generate a recursive output rather than a flat one')
    parser.add_argument('-p', '--pretty', action='store_true',
       help='generate a pretty json output')
+   parser.add_argument('--pyshell', action='store_true',
+      help='start a pyshell instead of printing output')

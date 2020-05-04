@@ -105,6 +105,7 @@
 #include <linux/version.h>
 #include <asm/nmi.h>
 #include <linux/sched.h>
+#include <linux/regulator/machine.h>
 
 #define SCD_MODULE_NAME "scd"
 
@@ -1915,6 +1916,9 @@ static int __init scd_init(void)
       printk(KERN_ERR "class_register failed\n");
       goto out_class_fail;
    }
+
+   // for devm_regulator_get() in lm90.c when acpi=off
+   regulator_has_full_constraints();
 
    return err;
 

@@ -1,10 +1,11 @@
 import time
 
-from ..core.inventory import PowerCycle
 from ..core.log import getLogger
 from ..core.register import Register, RegisterMap
 
 from ..drivers.cpld import SysCpldI2cDriver
+
+from ..inventory.powercycle import PowerCycle
 
 from .common import I2cComponent
 
@@ -33,7 +34,9 @@ class SysCpld(I2cComponent):
       super(SysCpld, self).__init__(addr=addr, drivers=drivers, **kwargs)
 
    def createPowerCycle(self):
-      return SysCpldPowerCycle(self)
+      powerCycle = SysCpldPowerCycle(self)
+      self.inventory.addPowerCycle(powerCycle)
+      return powerCycle
 
    def getPowerCycles(self):
       return self.powerCycles

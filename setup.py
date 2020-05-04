@@ -14,6 +14,7 @@ package_exclude = [
    "tests",
 ]
 file_exclude = []
+tests_require = []
 
 if sys.version_info.major == 2:
    # these sources are python3 only, they raise SyntaxError on python2
@@ -23,6 +24,9 @@ if sys.version_info.major == 2:
    ])
    file_exclude.extend([
       '*/daemon.py',
+   ])
+   tests_require.extend([
+      'mock<=3.0.5', # for python2, version >=4.0.0 drops support for py2
    ])
 
 class build_py_with_exclude(build_py):
@@ -40,6 +44,7 @@ setup(
    description='Module to initialize arista platforms',
    install_requires=['pyyaml'],
    packages=find_packages(exclude=package_exclude),
-   test_suite='tests',
+   test_suite='arista.tests.selftest.allTests',
+   tests_require=tests_require,
    cmdclass={'build_py': build_py_with_exclude},
 )

@@ -1,4 +1,4 @@
-from ..core.inventory import Led
+from ..inventory.led import Led
 
 class LedImpl(Led):
    def __init__(self, name=None, driver=None, **kwargs):

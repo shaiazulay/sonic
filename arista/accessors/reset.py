@@ -1,4 +1,4 @@
-from ..core.inventory import Reset
+from ..inventory.reset import Reset
 
 class ResetImpl(Reset):
    def __init__(self, name=None, driver=None, **kwargs):

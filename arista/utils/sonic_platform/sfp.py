@@ -36,8 +36,10 @@ class Sfp(SfpBase):
 
    RESET_DELAY = 1
 
-   def __init__(self, sfp):
+   def __init__(self, index, sfp):
+      self._index = index
       self._sfp = sfp
+      self._sfputil = None
 
    def get_name(self):
       return self._sfp.getName()
@@ -89,3 +91,19 @@ class Sfp(SfpBase):
       if intr:
          return intr.getFile()
       return None
+
+   # Some Sfp functionalities still come from sfputil
+   def _get_sfputil(self):
+      if not self._sfputil:
+         import arista.utils.sonic_sfputil
+         self._sfputil = arista.utils.sonic_sfputil.getSfpUtil()()
+      return self._sfputil
+
+   def get_transceiver_info(self):
+      return self._get_sfputil().get_transceiver_info_dict(self._index)
+
+   def get_transceiver_bulk_status(self):
+      return self._get_sfputil().get_transceiver_dom_info_dict(self._index)
+
+   def get_transceiver_threshold_info(self):
+      return self._get_sfputil().get_transceiver_dom_threshold_info_dict(self._index)

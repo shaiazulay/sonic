@@ -21,6 +21,7 @@ class Psu(PsuBase):
 
    def __init__(self, psu):
       self._psu = psu
+      super(Psu, self).__init__()
 
    def get_name(self):
       return self._psu.getName()

@@ -1,10 +1,11 @@
 from ..accessors.psu import MixedPsuImpl
 
 from ..core.component import Component, Priority
-from ..core.inventory import Psu
 
 from ..drivers.i2c import I2cKernelDriver
 from ..drivers.pmbus import PmbusDriver
+
+from ..inventory.psu import Psu
 
 from .common import I2cComponent
 
@@ -15,9 +16,10 @@ class MixedPsuComponent(Component):
       super(MixedPsuComponent, self).__init__(**kwargs)
 
    def createPsu(self, psuId=1, led=None, presenceDriver=None, statusDriver=None):
-      return MixedPsuImpl(psuId=psuId,
+      psu = MixedPsuImpl(psuId=psuId,
                   presenceDriver=self.presenceComponent.drivers[presenceDriver],
                   statusDriver=self.statusComponent.drivers[statusDriver], led=led)
+      self.inventory.addPsus([psu])
 
 class PmbusMixedPsuComponent(MixedPsuComponent):
    def createPsu(self, presenceDriver='PsuSysfsDriver', statusDriver='PmbusDriver',

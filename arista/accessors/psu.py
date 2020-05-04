@@ -1,4 +1,4 @@
-from ..core.inventory import Psu
+from ..inventory.psu import Psu
 
 class PsuImpl(Psu):
    def __init__(self, psuId=1, driver=None, led=None, **kwargs):

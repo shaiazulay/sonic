@@ -19,7 +19,10 @@ static const unsigned short normal_i2c[] = { 0x48, 0x49, 0x4a, 0x4b,
 	I2C_CLIENT_END
 };
 
-enum chips { tmp468 };
+enum chips {
+	tmp464,
+	tmp468,
+};
 
 /*
  * The TMP468 registers
@@ -65,6 +68,7 @@ static const u16 TMP468_STATUS_MASKS[] = {
 
 /* Manufacturer and Device ID */
 #define TMP468_MANUFACTURER_ID			0x5449
+#define TMP464_DEVICE_ID			0x0464
 #define TMP468_DEVICE_ID			0x0468
 
 /*
@@ -72,6 +76,7 @@ static const u16 TMP468_STATUS_MASKS[] = {
  */
 
 static const struct i2c_device_id tmp468_id[] = {
+	{ "tmp464", tmp464 },
 	{ "tmp468", tmp468 },
 	{ }
 };
@@ -428,6 +433,9 @@ static int tmp468_detect(struct i2c_client *client,
 	switch (reg) {
 	case TMP468_DEVICE_ID:
 		kind = tmp468;
+		break;
+	case TMP464_DEVICE_ID:
+		kind = tmp464;
 		break;
 	default:
 		return -ENODEV;

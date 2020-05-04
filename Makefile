@@ -1,17 +1,150 @@
-SHELL = /bin/bash
-.ONESHELL:
-.SHELLFLAGS += -e
+# tools
+PYTHON2 ?= python2
+PYTHON3 ?= python3
+MKDIR ?= mkdir
+CP ?= cp
 
-MAIN_TARGET = $(ARISTA_PLATFORM_MODULE)
-EXTRA_TARGETS = $(ARISTA_PLATFORM_MODULE_DRIVERS) \
-		$(ARISTA_PLATFORM_MODULE_PYTHON2) \
-		$(ARISTA_PLATFORM_MODULE_PYTHON3)
+# envs
+KVERSION       ?= $(shell uname -r)
+KERNEL_SRC     ?= /lib/modules/$(KVERSION)/build
+KERNEL_DST     := /lib/modules/$(KVERSION)
+BASE_DIR       ?= $(CURDIR)
+MODULE_SRC     := $(BASE_DIR)/src
+TEST_DIR       := $(BASE_DIR)/tests
+BUILD_DIR      := $(BASE_DIR)/build
 
-$(addprefix $(DEST)/, $(MAIN_TARGET)): $(DEST)/% :
-	# Build the package
-	export PYBUILD_INSTALL_ARGS_python2=--install-scripts=/dev/null
-	dpkg-buildpackage -rfakeroot -b -us -uc -j$(SONIC_CONFIG_MAKE_JOBS)
+# sources
+BIN_SRC        := $(wildcard $(BASE_DIR)/utils/*)
+RULE_SRC       := $(wildcard $(BASE_DIR)/udev/*)
+SERVICE_SRC    := $(wildcard $(BASE_DIR)/systemd/*)
 
-	mv $(addprefix ../, $* $(EXTRA_TARGETS)) $(DEST)/
+# packaging
+PACKAGE_NAME ?= arista
+PY2_PACKAGE_NAME ?= $(PACKAGE_NAME)
+PY3_PACKAGE_NAME ?= $(PACKAGE_NAME)
 
-$(addprefix $(DEST)/, $(EXTRA_TARGETS)): $(DEST)/% : $(DEST)/$(MAIN_TARGET)
+DESTDIR         ?= $(CURDIR)/install
+BIN_DESTDIR     ?= $(DESTDIR)/usr/bin
+DRV_DESTDIR     ?= $(DESTDIR)/$(KERNEL_DST)/$(INSTALL_MOD_DIR)
+PY2_DESTDIR     ?= $(DESTDIR)
+PY3_DESTDIR     ?= $(DESTDIR)
+RULE_DESTDIR    ?= $(DESTDIR)/etc/udev/rules.d
+SYSTEMD_DESTDIR ?= $(DESTDIR)/lib/systemd/system
+
+# build
+PY_BUILD_ARGS ?=
+PY2_BUILD_ARGS ?= $(PY_BUILD_ARGS) --build-base=$(BUILD_DIR)/python2
+PY3_BUILD_ARGS ?= $(PY_BUILD_ARGS) --build-base=$(BUILD_DIR)/python3
+
+# scd
+ARISTA_SCD_DRIVER_CONFIG ?= m
+export ARISTA_SCD_DRIVER_CONFIG
+EXTRA_SYMBOLS := /lib/modules/$(KVERSION)/extra/scd-Module.symvers
+export EXTRA_SYMBOLS
+
+# dev
+PY2_VENV_PATH ?= venv2
+PY3_VENV_PATH ?= venv3
+
+all:
+	@echo "Nothing to do."
+#
+# build targets
+#
+
+build-drivers:
+	EXTRA_SYMBOLS=$(EXTRA_SYMBOLS) $(MAKE) -C $(KERNEL_SRC) M=$(MODULE_SRC)
+
+build-py2:
+	$(PYTHON2) setup.py build $(PY2_BUILD_ARGS)
+
+build-py3:
+	$(PYTHON3) setup.py build $(PY3_BUILD_ARGS)
+
+build: build-drivers build-py2 build-py3
+
+#
+# clean targets
+#
+
+clean-drivers:
+	$(RM) $(MODULE_SRC)/*.o $(MODULE_SRC)/*.ko $(MODULE_SRC)/*.mod.c $(MODULE_SRC)/.*.cmd
+	$(RM) $(MODULE_SRC)/Module.markers $(MODULE_SRC)/Module.symvers $(MODULE_SRC)/modules.order
+	$(RM) -r $(MODULE_SRC)/.tmp_versions
+
+clean-py2:
+	$(PYTHON2) setup.py clean $(PY2_BUILD_ARGS)
+	find $(BASE_DIR)/arista -name '*.pyc' -delete
+
+clean-py3:
+	$(PYTHON3) setup.py clean $(PY3_BUILD_ARGS)
+	find $(BASE_DIR)/arista -name '__pycache__' -exec rm -rf {} +
+
+clean: clean-py2 clean-py3 clean-drivers
+
+distclean: clean
+	$(RM) -r $(BASE_DIR)/*.egg-info $(BASE_DIR)/build $(BASE_DIR)/install
+
+#
+# install targets
+#
+
+install-py2:
+	$(MKDIR) -p $(PY2_DESTDIR)
+	$(PYTHON2) setup.py install --root=$(PY2_DESTDIR) $(PY_INSTALL_ARGS)
+
+install-py3:
+	$(MKDIR) -p $(PY3_DESTDIR)
+	$(PYTHON3) setup.py install --root=$(PY3_DESTDIR) $(PY_INSTALL_ARGS)
+
+install-drivers:
+	$(MKDIR) -p $(DRV_DESTDIR)
+	$(CP) $(MODULE_SRC)/*.ko $(DRV_DESTDIR)
+
+install-bin:
+	$(MKDIR) -p $(BIN_DESTDIR)
+	$(CP) $(BIN_SRC) $(BIN_DESTDIR)
+
+install-systemd:
+	$(MKDIR) -p $(SYSTEMD_DESTDIR)
+	$(CP) $(SERVICE_SRC) $(SYSTEMD_DESTDIR)
+
+install-udev:
+	$(MKDIR) -p $(RULE_DESTDIR)
+	$(CP) $(RULE_SRC) $(RULE_DESTDIR)
+
+install-fs: install-bin install-systemd install-udev
+
+install: install-py2 install-py3 install-drivers install-fs
+
+#
+# test targets
+#
+
+test-py: test-py3
+
+test-py2:
+	python2 setup.py test
+
+test-py3:
+	python3 setup.py test
+
+test: test-py2 test-py3
+
+#
+# dev tools
+#
+
+$(PY2_VENV_PATH):
+	virtualenv $@
+	@echo "source $@/bin/activate"
+	@echo "python setup.py develop"
+
+$(PY3_VENV_PATH):
+	$(PYTHON3) -m venv $@
+	@echo "source $@/bin/activate"
+	@echo "python setup.py develop"
+
+print-%:
+	@echo $($*)
+

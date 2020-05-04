@@ -11,15 +11,24 @@ from ..accessors.xcvr import XcvrImpl
 
 from ..core.config import Config
 from ..core.driver import KernelDriver
-from ..core.inventory import Interrupt, PowerCycle, Watchdog, Xcvr, Reset
 from ..core.types import I2cAddr, MdioClause, MdioSpeed
 from ..core.utils import FileWaiter, MmapResource, simulateWith, writeConfig
 from ..core.log import getLogger
 
 from ..drivers.i2c import I2cKernelDriver
 from ..drivers.scd import ScdKernelDriver
-from ..drivers.sysfs import LedSysfsDriver, PsuSysfsDriver, ResetSysfsDriver, \
-                            XcvrSysfsDriver
+from ..drivers.sysfs import (
+   LedSysfsDriver,
+   PsuSysfsDriver,
+   ResetSysfsDriver,
+   XcvrSysfsDriver,
+)
+
+from ..inventory.interrupt import Interrupt
+from ..inventory.powercycle import PowerCycle
+from ..inventory.watchdog import Watchdog
+from ..inventory.xcvr import Xcvr
+from ..inventory.reset import Reset
 
 from .common import PciComponent, I2cComponent
 
@@ -228,10 +237,11 @@ class ScdSmbus(object):
 
 class Scd(PciComponent):
    BusTweak = namedtuple('BusTweak', 'addr, t, datr, datw, ed')
-   def __init__(self, addr, drivers=None, **kwargs):
+   def __init__(self, addr, drivers=None, registerCls=None, **kwargs):
       self.pciSysfs = addr.getSysfsPath()
       drivers = drivers or [KernelDriver(module='scd'),
-                            ScdKernelDriver(scd=self, addr=addr),
+                            ScdKernelDriver(scd=self, addr=addr,
+                                            registerCls=registerCls),
                             LedSysfsDriver(sysfsPath=os.path.join(self.pciSysfs,
                                                                   'leds')),
                             PsuSysfsDriver(sysfsPath=self.pciSysfs),
@@ -256,6 +266,7 @@ class Scd(PciComponent):
       self.mdios = []
       self.msiRearmOffset = None
       super(Scd, self).__init__(addr=addr, drivers=drivers, **kwargs)
+      self.regs = self.drivers['scd-hwmon'].regs
 
    def __str__(self):
       return '%s()' % self.__class__.__name__
@@ -266,13 +277,16 @@ class Scd(PciComponent):
    def createPowerCycle(self, reg=0x7000, wr=0xDEAD):
       powerCycle = ScdPowerCycle(self, reg=reg, wr=wr)
       self.powerCycles.append(powerCycle)
+      self.inventory.addPowerCycle(powerCycle)
       return powerCycle
 
    def getPowerCycles(self):
       return self.powerCycles
 
    def createWatchdog(self, reg=0x0120):
-      return ScdWatchdog(self, reg=reg)
+      watchdog = ScdWatchdog(self, reg=reg)
+      self.inventory.addWatchdog(watchdog)
+      return watchdog
 
    def createInterrupt(self, addr, num, mask=0xffffffff):
       interrupt = ScdInterruptRegister(self, addr, num, mask)
@@ -329,12 +343,15 @@ class Scd(PciComponent):
    def addReset(self, gpio):
       scdReset = ScdReset(self.pciSysfs, gpio)
       self.resets += [scdReset]
+      self.inventory.addReset(scdReset)
       return scdReset
 
    def addResets(self, gpios):
       scdResets = [ScdReset(self.pciSysfs, gpio) for gpio in gpios]
       self.resets += scdResets
-      return {reset.getName(): reset for reset in scdResets}
+      resetDict = {reset.getName(): reset for reset in scdResets}
+      self.inventory.addResets(resetDict)
+      return resetDict
 
    def addGpio(self, gpio):
       self.gpios += [gpio]
@@ -342,7 +359,7 @@ class Scd(PciComponent):
    def addGpios(self, gpios):
       self.gpios += gpios
 
-   def _addXcvr(self, xcvrId, xcvrType, bus, interruptLine, leds=None):
+   def _addXcvr(self, xcvrId, xcvrType, bus, interruptLine, leds=None, drvName=None):
       addr = self.i2cAddr(bus, Xcvr.ADDR, t=1, datr=0, datw=3, ed=0)
       reset = None
       if xcvrType != Xcvr.SFP:
@@ -352,28 +369,34 @@ class Scd(PciComponent):
                       driver=self.drivers['XcvrSysfsDriver'],
                       addr=addr, interruptLine=interruptLine,
                       reset=reset, leds=leds)
-      self.addComponent(I2cComponent(addr=addr,
-                           drivers=[I2cKernelDriver(name='sff8436', addr=addr)]))
+      self.newComponent(I2cComponent, addr=addr,
+                        drivers=[I2cKernelDriver(name=drvName, addr=addr)])
       self.xcvrs.append(xcvr)
+      self.inventory.addXcvr(xcvr)
       return xcvr
 
    def addOsfp(self, addr, xcvrId, bus, interruptLine=None, leds=None):
       self.osfps += [(addr, xcvrId)]
-      return self._addXcvr(xcvrId, Xcvr.OSFP, bus, interruptLine, leds=leds)
+      return self._addXcvr(xcvrId, Xcvr.OSFP, bus, interruptLine, leds=leds,
+                           drvName='optoe1')
 
    def addQsfp(self, addr, xcvrId, bus, interruptLine=None, leds=None):
       self.qsfps += [(addr, xcvrId)]
-      return self._addXcvr(xcvrId, Xcvr.QSFP, bus, interruptLine, leds=leds)
+      return self._addXcvr(xcvrId, Xcvr.QSFP, bus, interruptLine, leds=leds,
+                           drvName='optoe1')
 
    def addSfp(self, addr, xcvrId, bus, interruptLine=None, leds=None):
       self.sfps += [(addr, xcvrId)]
-      return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine, leds=leds)
+      return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine, leds=leds,
+                           drvName='optoe2')
 
    # In platforms, should change "statusGpios" to "statusGpio" and make it a boolean
    def createPsu(self, psuId, driver='PsuSysfsDriver', statusGpios=True, led=None,
                  **kwargs):
-      return PsuImpl(psuId=psuId, driver=self.drivers[driver],
+      psu = PsuImpl(psuId=psuId, driver=self.drivers[driver],
                      statusGpio=statusGpios, led=led, **kwargs)
+      self.inventory.addPsus([psu])
+      return psu
 
    def addMdioMaster(self, addr, masterId, busCount=1, speed=MdioSpeed.S2_5):
       self.mdioMasters[addr] = {
@@ -444,12 +467,18 @@ class Scd(PciComponent):
       for xcvr in self.xcvrs:
          xcvr.setModuleSelect(True)
          xcvr.setTxDisable(False)
+         if xcvr.getLowPowerMode():
+            xcvr.setLowPowerMode(False)
 
    def uioMapInit(self):
       for uio in os.listdir(SYS_UIO_PATH):
          with open(os.path.join(SYS_UIO_PATH, uio, 'name')) as uioName:
             self.uioMap[uioName.read().strip()] = uio
 
+   def simGetUio(self, reg, bit):
+      return '/dev/uio-%s-%x-%d' % (self.addr, reg, bit)
+
+   @simulateWith(simGetUio)
    def getUio(self, reg, bit):
       if not self.uioMap:
          self.uioMapInit()

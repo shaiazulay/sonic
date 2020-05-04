@@ -1,122 +1,10 @@
 from collections import defaultdict
 
-class Xcvr(object):
-
-   SFP = 0
-   QSFP = 1
-   OSFP = 2
-
-   ADDR = 0x50
-
-   @classmethod
-   def typeStr(cls, typeIndex):
-      return ['sfp', 'qsfp', 'osfp'][typeIndex]
-
-   def getName(self):
-      raise NotImplementedError()
-
-   def getPresence(self):
-      raise NotImplementedError()
-
-   def getLowPowerMode(self):
-      raise NotImplementedError()
-
-   def setLowPowerMode(self, value):
-      raise NotImplementedError()
-
-   def getInterruptLine(self):
-      raise NotImplementedError()
-
-   def getReset(self):
-      raise NotImplementedError()
-
-class Fan(object):
-   def getName(self):
-      raise NotImplementedError()
-
-   def getSpeed(self):
-      raise NotImplementedError()
-
-   def setSpeed(self, speed):
-      raise NotImplementedError()
-
-   def getDirection(self):
-      raise NotImplementedError()
-
-class Psu(object):
-   def getName(self):
-      raise NotImplementedError()
-
-   def getPresence(self):
-      raise NotImplementedError()
-
-   def getStatus(self):
-      raise NotImplementedError()
-
-class Watchdog(object):
-   def arm(self, timeout):
-      raise NotImplementedError()
-
-   def stop(self):
-      raise NotImplementedError()
-
-   def status(self):
-      raise NotImplementedError()
-
-class PowerCycle(object):
-   def powerCycle(self):
-      raise NotImplementedError()
-
-class ReloadCause(object):
-   def getTime(self):
-      raise NotImplementedError()
-
-   def getCause(self):
-      raise NotImplementedError()
-
-class Interrupt(object):
-   def set(self):
-      raise NotImplementedError()
-
-   def clear(self):
-      raise NotImplementedError()
-
-   def getFile(self):
-      raise NotImplementedError()
-
-class Reset(object):
-   def read(self):
-      raise NotImplementedError()
-
-   def resetIn(self):
-      raise NotImplementedError()
-
-   def resetOut(self):
-      raise NotImplementedError()
-
-   def getName(self):
-      raise NotImplementedError()
-
-class Phy(object):
-   def getReset(self):
-      raise NotImplementedError()
-
-class Led(object):
-   def getColor(self):
-      raise NotImplementedError()
-
-   def setColor(self, color):
-      raise NotImplementedError()
-
-   def getName(self):
-      raise NotImplementedError()
-
-   def isStatusLed(self):
-      raise NotImplementedError()
-
-class Slot(object):
-   def getPresence(self):
-      raise NotImplementedError()
+# NOTE: these import are for inventory objects critical to the .core package
+# pylint: disable=unused-import
+from ..inventory.reloadcause import ReloadCause
+from ..inventory.slot import Slot
+from ..inventory.watchdog import Watchdog
 
 class Inventory(object):
    def __init__(self):
@@ -152,6 +40,8 @@ class Inventory(object):
       self.phys = []
 
       self.slots = []
+
+      self.temps = []
 
    def freeze(self):
       # XXX: compute the range and some basic information from the various
@@ -296,3 +186,33 @@ class Inventory(object):
 
    def getSlots(self):
       return self.slots
+
+   def addTemp(self, temp):
+      self.temps.append(temp)
+
+   def getTemps(self):
+      return self.temps
+
+   def __diag__(self, ctx):
+      return {
+         "version": 1,
+         "name": self.__class__.__name__,
+         # vars
+         "sfp": self.sfpRange,
+         "qsfp": self.qsfpRange,
+         "osfp": self.osfpRange,
+         "port_start": self.portStart,
+         "port_end": self.portEnd,
+         # objects
+         "leds": [ l.genDiag(ctx) for l in self.leds.values() ],
+         # TODO led groups
+         # TODO watchdog
+         "xcvrs": [ x.genDiag(ctx) for x in self.xcvrs.values() ],
+         "psus": [ p.genDiag(ctx) for p in self.psus ],
+         "fans": [ f.genDiag(ctx) for f in self.fans ],
+         "interrupts": [ i.genDiag(ctx) for i in self.interrupts.values() ],
+         "resets" : [ r.genDiag(ctx) for r in self.resets.values() ],
+         "phys" : [ p.genDiag(ctx) for p in self.phys ],
+         "slot" : [ s.genDiag(ctx) for s in self.slots ],
+         "temps" : [ t.genDiag(ctx) for t in self.temps ],
+      }
