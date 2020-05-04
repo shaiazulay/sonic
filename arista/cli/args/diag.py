@@ -2,9 +2,9 @@
 from __future__ import absolute_import, division, print_function
 
 from . import registerParser
-from .platform import platformParser
+from .default import defaultPlatformParser
 
-@registerParser('diag', parent=platformParser,
+@registerParser('diag', parent=defaultPlatformParser,
                 help='dump diag information on this platform')
 def diagParser(parser):
    parser.add_argument('-n', '--noIo', action='store_true',

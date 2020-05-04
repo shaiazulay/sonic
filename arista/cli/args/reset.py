@@ -2,9 +2,9 @@
 from __future__ import absolute_import, division, print_function
 
 from . import registerParser
-from .platform import platformParser
+from .default import defaultPlatformParser
 
-@registerParser('reset', parent=platformParser,
+@registerParser('reset', parent=defaultPlatformParser,
                 help='put devices in or out reset')
 def resetParser(parser):
    parser.add_argument('device', nargs='*',

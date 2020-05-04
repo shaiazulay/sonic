@@ -1,8 +1,8 @@
 
 from .. import registerParser
-from ..platform import platformParser
+from ..default import defaultPlatformParser
 
-@registerParser('show', parent=platformParser,
+@registerParser('show', parent=defaultPlatformParser,
                 help='Show commands')
 def showParser(parser):
    parser.add_argument('-j', '--json', action='store_true',
