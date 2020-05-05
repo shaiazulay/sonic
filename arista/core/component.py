@@ -1,8 +1,8 @@
 from __future__ import print_function
-from collections import defaultdict, OrderedDict
+
+from collections import OrderedDict
 
 from .driver import KernelDriver
-from .metainventory import LazyInventory
 
 DEFAULT_WAIT_TIMEOUT = 15
 
@@ -20,12 +20,13 @@ class Priority(object):
 
 class Component(object):
    def __init__(self, addr=None, priority=Priority.DEFAULT, drivers=None,
-                inventoryCls=None, inventory=None, **kwargs):
+                inventoryCls=None, inventory=None, parent=None, **kwargs):
       self.components = []
       self.addr = addr
       self.priority = priority
       self.drivers = OrderedDict()
       self.inventory = inventory
+      self.parent = parent
       if not inventory and inventoryCls:
          self.inventory = inventoryCls()
       self.addDrivers(drivers)
@@ -51,7 +52,7 @@ class Component(object):
       return self
 
    def newComponent(self, cls, *args, **kwargs):
-      component = cls(inventory=self.inventory, *args, **kwargs)
+      component = cls(inventory=self.inventory, *args, parent=self, **kwargs)
       self.addComponent(component)
       return component
 
