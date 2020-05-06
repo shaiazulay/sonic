@@ -7,7 +7,6 @@ class Sku(Component):
    PLATFORM = None
    SID = None
    SKU = None
-   HWAPI = None
 
    DEFAULT_HWAPI = '0'
 
