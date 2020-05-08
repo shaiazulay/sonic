@@ -21,6 +21,7 @@ class Priority(object):
 class Component(object):
    def __init__(self, addr=None, priority=Priority.DEFAULT, drivers=None,
                 inventoryCls=None, inventory=None, parent=None, **kwargs):
+      super(Component, self).__init__()
       self.components = []
       self.addr = addr
       self.priority = priority
