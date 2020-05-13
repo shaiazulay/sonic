@@ -1,5 +1,5 @@
 
-from ..inventory.phy import Phy
+from ...inventory.phy import Phy
 
 class PhyImpl(Phy):
    def __init__(self, phyId, reset=None):
@@ -16,6 +16,3 @@ class MdioPhy(PhyImpl):
 
    def getMdios(self):
       return self.mdios
-
-class Babbage(MdioPhy):
-   pass

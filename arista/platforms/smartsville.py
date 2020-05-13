@@ -5,7 +5,7 @@ from ..core.utils import incrange
 
 from ..components.common import SwitchChip
 from ..components.dpm import Ucd90160, Ucd90320, UcdGpi
-from ..components.phy import Babbage
+from ..components.phy.babbage import Babbage
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 from ..components.tmp468 import Tmp468
