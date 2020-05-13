@@ -6,6 +6,7 @@ from ..core.utils import incrange
 from ..components.asic.xgs.trident2 import Trident2
 from ..components.cpu.raven import RavenFanCpldComponent
 from ..components.dpm import Ucd90120A, Ucd90160, UcdGpi, UcdMon
+from ..components.cpu.amd.k10temp import K10Temp
 from ..components.lm73 import Lm73
 from ..components.max6658 import Max6658
 from ..components.scd import Scd
@@ -13,6 +14,7 @@ from ..components.ds460 import Ds460
 
 from ..descs.fan import FanDesc
 from ..descs.psu import PsuDesc
+from ..descs.sensor import Position, SensorDesc
 
 @registerPlatform()
 class Cloverdale(FixedSystem):
@@ -40,15 +42,28 @@ class Cloverdale(FixedSystem):
 
       scd.createPowerCycle()
 
+      self.newComponent(K10Temp, sensors=[
+         SensorDesc(diode=0, name='Cpu temp sensor',
+                    position=Position.OTHER, target=62, overheat=95, critical=100),
+      ])
+
       scd.newComponent(RavenFanCpldComponent, waitFile='/sys/class/hwmon/hwmon1',
                        fans=[
          FanDesc(fanId) for fanId in incrange(1, 4)
       ])
 
       scd.newComponent(Max6658, scd.i2cAddr(0, 0x4c),
-                       waitFile='/sys/class/hwmon/hwmon2')
+                       waitFile='/sys/class/hwmon/hwmon2', sensors=[
+         SensorDesc(diode=0, name='Board sensor',
+                    position=Position.OTHER, target=36, overheat=55, critical=70),
+         SensorDesc(diode=1, name='Front-panel temp sensor',
+                    position=Position.INLET, target=42, overheat=65, critical=75),
+      ])
       scd.newComponent(Lm73, scd.i2cAddr(1, 0x48),
-                       waitFile='/sys/class/hwmon/hwmon3')
+                       waitFile='/sys/class/hwmon/hwmon3', sensors=[
+         SensorDesc(diode=0, name='Rear temp sensor',
+                    position=Position.OUTLET, target=42, overheat=65, critical=75),
+      ])
       # Due to a risk of an unrecoverable firmware corruption when a pmbus
       # transaction is done at the same moment of the poweroff, the handling of
       # the DPM is disabled. If you want rail information use it at your own risk
@@ -69,14 +84,20 @@ class Cloverdale(FixedSystem):
       ])
 
       # PSU
-      scd.addPsu(Ds460, addr=scd.i2cAddr(3, 0x58, t=3, datr=3, datw=3, ed=0),
-                 waitFile='/sys/class/hwmon/hwmon4', psus=[
-         PsuDesc(psuId=1, led=self.inventory.getLed('psu1')),
-      ])
-      scd.addPsu(Ds460, addr=scd.i2cAddr(4, 0x58, t=3, datr=3, datw=3, ed=0),
-                 waitFile='/sys/class/hwmon/hwmon5', psus=[
-         PsuDesc(psuId=2, led=self.inventory.getLed('psu2')),
-      ])
+      for psuId in incrange(1, 2):
+         scd.addPsu(Ds460,
+                    addr=scd.i2cAddr(2 + psuId, 0x58, t=3, datr=3, datw=3, ed=0),
+                    waitFile='/sys/class/hwmon/hwmon%d' % (3 + psuId), psus=[
+            PsuDesc(psuId=psuId, led=self.inventory.getLed('psu%d' % psuId),
+                    sensors=[
+               SensorDesc(diode=0, name='Power supply %d inlet temp sensor' % psuId,
+                          position=Position.INLET,
+                          target=39, overheat=60, critical=70),
+               SensorDesc(diode=1, name='Power supply %d internal sensor' % psuId,
+                          position=Position.OTHER,
+                          target=55, overheat=80, critical=150),
+            ]),
+         ])
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
