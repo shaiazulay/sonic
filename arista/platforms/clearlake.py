@@ -7,6 +7,7 @@ from ..core.utils import incrange
 from ..components.asic.xgs.trident2 import Trident2
 from ..components.cpu.crow import CrowFanCpldComponent, CrowSysCpld
 from ..components.dpm import Ucd90120A, UcdGpi
+from ..components.cpu.amd.k10temp import K10Temp
 from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
@@ -14,6 +15,7 @@ from ..components.ds125br import Ds125Br
 
 from ..descs.fan import FanDesc
 from ..descs.psu import PsuDesc
+from ..descs.sensor import Position, SensorDesc
 
 @registerPlatform()
 class Clearlake(FixedSystem):
@@ -39,10 +41,25 @@ class Clearlake(FixedSystem):
 
       scd.createPowerCycle()
 
+      self.newComponent(K10Temp, sensors=[
+         SensorDesc(diode=0, name='Cpu temp sensor',
+                    position=Position.OTHER, target=60, overheat=90, critical=95),
+      ])
+
       scd.newComponent(Max6658, scd.i2cAddr(0, 0x4c),
-                       waitFile='/sys/class/hwmon/hwmon2')
+                       waitFile='/sys/class/hwmon/hwmon2', sensors=[
+         SensorDesc(diode=0, name='Board Sensor',
+                    position=Position.OTHER, target=36, overheat=55, critical=70),
+         SensorDesc(diode=1, name='Front-panel temp sensor',
+                    position=Position.INLET, target=42, overheat=65, critical=75),
+      ])
       scd.newComponent(Max6658, scd.i2cAddr(1, 0x4c),
-                       waitFile='/sys/class/hwmon/hwmon3')
+                       waitFile='/sys/class/hwmon/hwmon3', sensors=[
+         SensorDesc(diode=0, name='Cpu board temp sensor',
+                    position=Position.OTHER, target=55, overheat=75, critical=80),
+         SensorDesc(diode=1, name='Back-panel temp sensor',
+                    position=Position.OUTLET, target=50, overheat=75, critical=80),
+      ])
 
       scd.newComponent(CrowFanCpldComponent, addr=scd.i2cAddr(1, 0x60),
                        waitFile='/sys/class/hwmon/hwmon4', fans=[
@@ -71,14 +88,22 @@ class Clearlake(FixedSystem):
 
       self.syscpld = self.newComponent(CrowSysCpld, I2cAddr(1, 0x23))
 
-      scd.addPsu(PmbusPsu, addr=scd.i2cAddr(3, 0x58, t=3, datr=3, datw=3),
-                 waitFile='/sys/class/hwmon/hwmon5', psus=[
-         PsuDesc(psuId=1, led=self.inventory.getLed('psu1')),
-      ])
-      scd.addPsu(PmbusPsu, addr=scd.i2cAddr(4, 0x58, t=3, datr=3, datw=3),
-                 waitFile='/sys/class/hwmon/hwmon6', psus=[
-         PsuDesc(psuId=2, led=self.inventory.getLed('psu2')),
-      ])
+      for psuId in incrange(1, 2):
+         scd.addPsu(PmbusPsu, addr=scd.i2cAddr(2 + psuId, 0x58, t=3, datr=3, datw=3),
+                    waitFile='/sys/class/hwmon/hwmon%d' % (4 + psuId), psus=[
+            PsuDesc(psuId=psuId, led=self.inventory.getLed('psu%d' % psuId),
+                    sensors=[
+               SensorDesc(diode=0, name='Power supply %d hotspot sensor' % psuId,
+                          position=Position.OTHER,
+                          target=80, overheat=95, critical=100),
+               SensorDesc(diode=1, name='Power supply %d inlet temp sensor' % psuId,
+                          position=Position.INLET,
+                          target=55, overheat=70, critical=75),
+               SensorDesc(diode=2, name='Power supply %d sensor' % psuId,
+                          position=Position.OTHER,
+                          target=80, overheat=108, critical=113),
+            ]),
+         ])
 
       scd.addGpios([
          NamedGpio(0x5000, 0, True, False, "psu1_present"),
@@ -135,4 +160,3 @@ class Clearlake(FixedSystem):
 class ClearlakePlus(Clearlake):
    SID = ['ClearlakePlus', 'ClearlakePlusSsd']
    SKU = ['DCS-7050QX2-32S', 'DCS-7050QX2-32S-SSD']
-
