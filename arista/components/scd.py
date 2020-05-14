@@ -16,7 +16,7 @@ from ..core.utils import FileWaiter, MmapResource, simulateWith, writeConfig
 from ..core.log import getLogger
 
 from ..drivers.i2c import I2cKernelDriver
-from ..drivers.scd import ScdKernelDriver
+from ..drivers.scd import ScdI2cDevDriver, ScdKernelDriver
 from ..drivers.sysfs import (
    LedSysfsDriver,
    PsuSysfsDriver,
@@ -492,3 +492,11 @@ class Scd(PciComponent):
          self.uioMapInit()
       return '/dev/%s' % self.uioMap[
             'uio-%s-%x-%d' % (getattr(self, 'addr'), reg, bit)]
+
+class I2cScd(I2cComponent):
+   # XXX: This class should probably be part of the Scd but since it's already a pci
+   #      device, another class is necessary until we find a better model.
+   def __init__(self, addr, drivers=None, registerCls=None, **kwargs):
+      if not drivers:
+         drivers = [ScdI2cDevDriver(addr=addr, registerCls=registerCls)]
+      super(I2cScd, self).__init__(addr=addr, drivers=drivers, **kwargs)

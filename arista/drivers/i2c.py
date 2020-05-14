@@ -150,4 +150,5 @@ class I2cDevDriver(Driver):
    def __diag__(self, ctx):
       return {
          "name": self.name,
+         "regs": self.regs.__diag__(ctx) if self.regs else None,
       }
