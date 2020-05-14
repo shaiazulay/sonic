@@ -4,6 +4,8 @@ from __future__ import absolute_import, division, print_function
 import copy
 import logging
 
+from ..libs.integer import iterBits
+
 class HardwareHandle(object):
 
    def __str__(self):
@@ -55,6 +57,7 @@ class Register(HardwareHandle):
       self.fields = fields
       self.name = kwargs.get('name')
       self.ro = kwargs.get('ro')
+      self.default = kwargs.get('default')
 
    def __str__(self):
       return 'Register(%s, %s)' % (self.addr, self.name)
@@ -87,6 +90,9 @@ class Register(HardwareHandle):
          regval &= ~(1 << bitpos)
       return self.write(regval)
 
+   def generateFieldAttributes(self, attrs, field):
+      attrs[field.name] = field.getAttribute(self)
+
    def generateAttributes(self, parent=None):
       if parent is not None:
          self.parent = parent
@@ -97,9 +103,35 @@ class Register(HardwareHandle):
          attrs[self.name] = self.readWrite
       for field in self.fields:
          if hasattr(field, 'getAttribute'):
-            attrs[field.name] = field.getAttribute(self)
-
+            self.generateFieldAttributes(attrs, field)
       return attrs
+
+class ClearOnReadRegister(Register):
+   def __init__(self, addr, *fields, **kwargs):
+      super(ClearOnReadRegister, self).__init__(addr, *fields, **kwargs)
+      self.cache = 0
+
+   def readBit(self, bitpos):
+      bit = super(ClearOnReadRegister, self).readBit(bitpos)
+      self.cache &= ~(1 << bitpos)
+      return bit
+
+   def read(self):
+      value = super(ClearOnReadRegister, self).read()
+      for bitpos, val in enumerate(iterBits(value)):
+         self.cache |= val << bitpos
+      # NOTE: clear on read behavior for users only happens via a readBit
+      return self.cache
+
+class SetClearRegister(Register):
+   def __init__(self, addrSet, addrClear, *fields, **kwargs):
+      super(SetClearRegister, self).__init__(addrSet, *fields, **kwargs)
+      self.addrSet = addrSet
+      self.addrClear = addrClear
+
+   def writeBit(self, bitpos, value):
+      addr = self.addrSet if value else self.addrClear
+      self.parent.write(addr, 1 << bitpos)
 
 class RegisterMap(object):
    def __init__(self, parent):

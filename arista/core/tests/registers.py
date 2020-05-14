@@ -3,7 +3,13 @@ from __future__ import absolute_import, division, print_function
 from ...tests.testing import unittest
 
 from ..diag import DiagContext
-from ..register import RegisterMap, Register, RegBitField
+from ..register import (
+   ClearOnReadRegister,
+   RegisterMap,
+   Register,
+   RegBitField,
+   SetClearRegister,
+)
 
 class FakeRegisterMap(RegisterMap):
    REVISION = Register(0x01, name='revision')
@@ -24,6 +30,15 @@ class FakeRegisterMap(RegisterMap):
       RegBitField(3, 'bit3', ro=False),
       name='scratchpad', ro=False,
    )
+   CLEAR_ON_READ = ClearOnReadRegister(0x06,
+      RegBitField(0, name='clear0'),
+      RegBitField(1, name='clear1'),
+   )
+   SET_CLEAR = SetClearRegister(0x07, 0x08,
+      RegBitField(0, name='interrupt0', ro=False),
+      RegBitField(1, name='interrupt1', ro=False),
+   )
+   # 0x08 is implicitely reserverd by SetClearRegister
 
 class FakeDriver(object):
    def __init__(self):
@@ -33,16 +48,29 @@ class FakeDriver(object):
          0x03: 0b1010,
          0x04: 0, # should IOError
          0x05: 0,
+         0x06: 0, # clear on read
+         0x07: 0, # set
+         0x08: 0, # clear returns value of 0x07
       }
 
    def read(self, reg):
       if reg == 0x04:
          raise IOError(self, reg)
-      return self.regmap[reg]
+      elif reg == 0x08:
+         reg = 0x07
+      value = self.regmap[reg]
+      if reg == 0x06:
+         self.regmap[reg] = 0
+      return value
 
    def write(self, reg, value):
       if reg == 0x04:
          raise IOError(self, reg)
+      elif reg == 0x07:
+         value |= self.regmap[reg]
+      elif reg == 0x08:
+         reg = 0x07
+         value = self.regmap[reg] & ~value
       self.regmap[reg] = value
       return value
 
@@ -116,6 +144,61 @@ class CoreRegisterTest(unittest.TestCase):
 
       self.assertEqual(regs.bit0(), 0)
       self.assertEqual(regs2.bit0(), 1)
+
+   def testClearOnRead(self):
+      driver = self.driver
+      regs = self.regs
+      addr = regs.CLEAR_ON_READ.addr
+
+      self.assertEqual(regs.clear0(), 0)
+      self.assertEqual(regs.clear1(), 0)
+
+      driver.regmap[addr] = 0x1
+      self.assertEqual(regs.clear1(), 0)
+      self.assertEqual(driver.regmap[addr], 0)
+      self.assertEqual(regs.clear0(), 1)
+      self.assertEqual(regs.clear0(), 0)
+
+      driver.regmap[addr] = 0x2
+      self.assertEqual(regs.clear0(), 0)
+      self.assertEqual(driver.regmap[addr], 0)
+      self.assertEqual(regs.clear1(), 1)
+      self.assertEqual(regs.clear1(), 0)
+
+      driver.regmap[addr] = 0x3
+      self.assertEqual(regs.clear0(), 1)
+      self.assertEqual(driver.regmap[addr], 0)
+      self.assertEqual(regs.clear0(), 0)
+      self.assertEqual(regs.clear1(), 1)
+      self.assertEqual(regs.clear1(), 0)
+
+   def testSetClear(self):
+      driver = self.driver
+      regs = self.regs
+      addr = regs.SET_CLEAR.addr
+
+      self.assertEqual(regs.interrupt0(), 0)
+      self.assertEqual(regs.interrupt1(), 0)
+
+      regs.interrupt0(1)
+      self.assertEqual(driver.regmap[addr], 0x01)
+      self.assertEqual(regs.interrupt0(), 1)
+      self.assertEqual(regs.interrupt1(), 0)
+
+      regs.interrupt1(1)
+      self.assertEqual(driver.regmap[addr], 0x03)
+      self.assertEqual(regs.interrupt0(), 1)
+      self.assertEqual(regs.interrupt1(), 1)
+
+      regs.interrupt0(0)
+      self.assertEqual(driver.regmap[addr], 0x02)
+      self.assertEqual(regs.interrupt0(), 0)
+      self.assertEqual(regs.interrupt1(), 1)
+
+      regs.interrupt1(0)
+      self.assertEqual(driver.regmap[addr], 0x00)
+      self.assertEqual(regs.interrupt0(), 0)
+      self.assertEqual(regs.interrupt1(), 0)
 
 if __name__ == '__main__':
    unittest.main()
