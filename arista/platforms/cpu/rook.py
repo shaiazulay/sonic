@@ -9,6 +9,7 @@ from ...components.max6658 import Max6658
 
 from ...descs.fan import FanDesc
 from ...descs.led import LedDesc
+from ...descs.sensor import Position, SensorDesc
 
 class RookCpu(Cpu):
 
@@ -22,7 +23,13 @@ class RookCpu(Cpu):
 
       cpld.addSmbusMasterRange(0x8000, 4, 0x80, 4)
       cpld.newComponent(Max6658, cpld.i2cAddr(0, 0x4c),
-                        waitFile='/sys/class/hwmon/hwmon%d' % hwmonOffset)
+                        waitFile='/sys/class/hwmon/hwmon%d' % hwmonOffset, sensors=[
+         SensorDesc(diode=0, name='CPU board temp sensor',
+                    position=Position.OTHER, target=70, overheat=80, critical=85),
+         SensorDesc(diode=1, name='Back-panel temp sensor',
+                    position=Position.OUTLET, target=55, overheat=65, critical=75),
+      ])
+
       cpld.newComponent(fanCpldCls, cpld.i2cAddr(12, 0x60),
                         waitFile='/sys/class/hwmon/hwmon%d' % (hwmonOffset + 1),
                         fans=[
@@ -30,7 +37,11 @@ class RookCpu(Cpu):
       ])
 
       cpld.newComponent(Lm73, cpld.i2cAddr(mgmtBus, 0x48),
-                        waitFile='/sys/class/hwmon/hwmon%d' % (hwmonOffset + 2))
+                        waitFile='/sys/class/hwmon/hwmon%d' % (hwmonOffset + 2),
+                        sensors=[
+         SensorDesc(diode=0, name='Front-panel temp sensor',
+                    position=Position.OTHER, target=55, overheat=75, critical=85),
+      ])
 
       self.leds = cpld.newComponent(RookStatusLeds, cpld.i2cAddr(mgmtBus, 0x20),
                                     leds=[
