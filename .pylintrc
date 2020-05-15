@@ -11,7 +11,8 @@ disable=invalid-name,
         bad-continuation,
         no-self-use,
         fixme,
-        no-absolute-import
+        no-absolute-import,
+        too-many-arguments
 
 [BASIC]
 bad-functions=apply,input
