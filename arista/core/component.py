@@ -77,8 +77,9 @@ class Component(object):
    def addDrivers(self, drivers):
       if drivers:
          for drv in drivers:
-            self.drivers[getattr(drv, 'driverName', None) or
-                         drv.__class__.__name__] = drv
+            key = getattr(drv, 'driverName', drv.__class__.__name__)
+            if key not in self.drivers:
+               self.drivers[key] = drv
 
    # Compatibility function for platform code
    def addDriver(self, driver, *args, **kwargs):
