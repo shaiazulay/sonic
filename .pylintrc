@@ -12,7 +12,9 @@ disable=invalid-name,
         no-self-use,
         fixme,
         no-absolute-import,
-        too-many-arguments
+        too-many-arguments,
+        too-many-statements,
+        too-many-locals
 
 [BASIC]
 bad-functions=apply,input
