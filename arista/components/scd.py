@@ -4,6 +4,7 @@ import os
 
 from collections import OrderedDict, namedtuple
 
+from ..accessors.gpio import GpioImpl
 from ..accessors.led import LedImpl
 from ..accessors.psu import PsuImpl
 from ..accessors.reset import ResetImpl
@@ -365,10 +366,18 @@ class Scd(PciComponent):
       return resetDict
 
    def addGpio(self, gpio):
-      self.gpios += [gpio]
+      scdGpio = GpioImpl(self.pciSysfs, gpio.name, gpio.addr, gpio.bit, ro=gpio.ro,
+                         activeLow=gpio.activeLow)
+      self.gpios.append(scdGpio)
+      self.inventory.addGpio(scdGpio)
+      return scdGpio
 
    def addGpios(self, gpios):
-      self.gpios += gpios
+      gpioDict = {}
+      for gpio in gpios:
+         scdGpio = self.addGpio(gpio)
+         gpioDict[scdGpio.getName()] = scdGpio
+      return gpioDict
 
    def _addXcvr(self, xcvrId, xcvrType, bus, interruptLine, leds=None, drvName=None):
       addr = self.i2cAddr(bus, Xcvr.ADDR, t=1, datr=0, datw=3, ed=0)
@@ -443,7 +452,7 @@ class Scd(PciComponent):
          res = []
          for data in entries.values():
             for name, gpio in zip(gpio_names, data['gpios']):
-               res += [ ("%s%d_%s" % (xcvrType, data['id'], name), gpio.ro) ]
+               res += [("%s%d_%s" % (xcvrType, data['id'], name), gpio.isRo())]
          return res
 
       sfp_names = [
@@ -465,8 +474,8 @@ class Scd(PciComponent):
       gpios += zipXcvr("sfp", sfp_names, self.sfps)
       gpios += zipXcvr("qsfp", qsfp_names, self.qsfps)
       gpios += zipXcvr("osfp", osfp_names, self.osfps)
-      gpios += [ (gpio.name, gpio.ro) for gpio in self.gpios ]
-      gpios += [ (reset.name, False) for reset in self.resets ]
+      gpios += [(gpio.getName(), gpio.isRo()) for gpio in self.gpios]
+      gpios += [(reset.name, False) for reset in self.resets]
 
       return gpios
 
