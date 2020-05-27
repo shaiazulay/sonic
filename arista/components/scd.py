@@ -447,38 +447,6 @@ class Scd(PciComponent):
       self.mdios.append(mdio)
       return mdio
 
-   def allGpios(self):
-      def zipXcvr(xcvrType, gpio_names, entries):
-         res = []
-         for data in entries.values():
-            for name, gpio in zip(gpio_names, data['gpios']):
-               res += [("%s%d_%s" % (xcvrType, data['id'], name), gpio.isRo())]
-         return res
-
-      sfp_names = [
-         "rxlos", "txfault", "present", "rxlos_changed", "txfault_changed",
-         "present_changed", "txdisable", "rate_select0", "rate_select1",
-      ]
-
-      qsfp_names = [
-         "interrupt", "present", "interrupt_changed", "present_changed",
-         "lp_mode", "reset", "modsel",
-      ]
-
-      osfp_names = [
-         "interrupt", "present", "interrupt_changed", "present_changed",
-         "lp_mode", "reset", "modsel",
-      ]
-
-      gpios = []
-      gpios += zipXcvr("sfp", sfp_names, self.sfps)
-      gpios += zipXcvr("qsfp", qsfp_names, self.qsfps)
-      gpios += zipXcvr("osfp", osfp_names, self.osfps)
-      gpios += [(gpio.getName(), gpio.isRo()) for gpio in self.gpios]
-      gpios += [(reset.name, False) for reset in self.resets]
-
-      return gpios
-
    def getSysfsResetNameList(self, xcvrs=True):
       entries = [reset.name for reset in self.resets]
       if xcvrs:
