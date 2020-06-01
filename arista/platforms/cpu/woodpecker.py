@@ -7,6 +7,7 @@ from ...components.max6658 import Max6658
 from ...components.scd import Scd
 
 from ...descs.fan import FanDesc
+from ...descs.sensor import Position, SensorDesc
 
 class WoodpeckerCpu(Cpu):
 
@@ -27,7 +28,13 @@ class WoodpeckerCpu(Cpu):
 
       cpld.addSmbusMasterRange(0x8000, 2, 0x80, 4)
       cpld.newComponent(Max6658, cpld.i2cAddr(0, 0x4c),
-                        waitFile='/sys/class/hwmon/hwmon%d' % (hwmonOffset + 1))
+                        waitFile='/sys/class/hwmon/hwmon%d' % (hwmonOffset + 1),
+                        sensors=[
+         SensorDesc(diode=0, name='CPU board temp sensor',
+                    position=Position.OTHER, target=55, overheat=75, critical=85),
+         SensorDesc(diode=1, name='Back-panel temp sensor',
+                    position=Position.OUTLET, target=55, overheat=75, critical=85),
+      ])
 
       cpld.createPowerCycle()
 
