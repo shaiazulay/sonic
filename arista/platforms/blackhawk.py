@@ -4,6 +4,8 @@ from ..core.types import NamedGpio, PciAddr, ResetGpio
 from ..core.utils import incrange
 
 from ..components.asic.xgs.tomahawk3 import Tomahawk3
+from ..components.coretemp import Coretemp
+from ..components.cpu.intel.pch import Pch
 from ..components.cpu.rook import TehamaFanCpldComponent
 from ..components.dpm import Ucd90320, UcdGpi
 from ..components.max6581 import Max6581
@@ -11,6 +13,9 @@ from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
 from .cpu.rook import RookCpu
+
+from ..descs.psu import PsuDesc
+from ..descs.sensor import Position, SensorDesc
 
 @registerPlatform()
 class BlackhawkO(FixedSystem):
@@ -33,10 +38,35 @@ class BlackhawkO(FixedSystem):
 
       scd.createWatchdog()
 
-      scd.newComponent(Max6581, scd.i2cAddr(8, 0x4d),
-                       waitFile='/sys/class/hwmon/hwmon2')
-      scd.newComponent(PmbusPsu, scd.i2cAddr(11, 0x58, t=3, datr=2, datw=3))
-      scd.newComponent(PmbusPsu, scd.i2cAddr(12, 0x58, t=3, datr=2, datw=3))
+      self.newComponent(Pch, sensors=[
+         SensorDesc(diode=0, name='PCH temp sensor',
+                    position=Position.OTHER, target=65, overheat=75, critical=85),
+      ])
+
+      self.newComponent(Coretemp, sensors=[
+         SensorDesc(diode=0, name='Physical id 0',
+                    position=Position.OTHER, target=82, overheat=95, critical=105),
+         SensorDesc(diode=1, name='CPU core0 temp sensor',
+                    position=Position.OTHER, target=82, overheat=95, critical=105),
+         SensorDesc(diode=2, name='CPU core1 temp sensor',
+                    position=Position.OTHER, target=82, overheat=95, critical=105),
+      ])
+
+      scd.newComponent(Max6581, addr=scd.i2cAddr(8, 0x4d),
+                       waitFile='/sys/class/hwmon/hwmon2', sensors=[
+         SensorDesc(diode=0, name='Board sensor',
+                    position=Position.OTHER, target=65, overheat=75, critical=85),
+         SensorDesc(diode=1, name='Switch board middle sensor',
+                    position=Position.OTHER, target=55, overheat=65, critical=75),
+         SensorDesc(diode=2, name='Switch board left sensor',
+                    position=Position.OTHER, target=55, overheat=65, critical=75),
+         SensorDesc(diode=3, name='Front-panel temp sensor',
+                    position=Position.INLET, target=55, overheat=65, critical=75),
+         SensorDesc(diode=6, name='Switch chip diode 1 sensor',
+                    position=Position.OTHER, target=75, overheat=110, critical=125),
+         SensorDesc(diode=7, name='Switch chip diode 2 sensor',
+                    position=Position.OTHER, target=75, overheat=110, critical=125),
+      ])
 
       scd.addSmbusMasterRange(0x8000, 8, 0x80)
 
@@ -64,8 +94,28 @@ class BlackhawkO(FixedSystem):
          NamedGpio(0x5000, 11, True, False, "psu1_ac_status"),
       ])
 
-      scd.createPsu(1, led=self.inventory.getLed('psu1'))
-      scd.createPsu(2, led=self.inventory.getLed('psu2'))
+      for psuId in list(range(2, 0, -1)):
+         scd.addPsu(PmbusPsu,
+                    addr=scd.i2cAddr(10 + psuId, 0x58, t=3, datr=2, datw=3),
+                    # PSU 1 is on hwmon7 and PSU 2 is on hwmon6
+                    waitFile="/sys/class/hwmon/hwmon%d" % (8 - psuId),
+                    psus=[
+            PsuDesc(psuId=psuId,
+                    led=scd.inventory.getLed('psu%d' % psuId), sensors=[
+               SensorDesc(diode=0,
+                          name='Power supply %d hotspot sensor' % psuId,
+                          position=Position.OTHER,
+                          target=86, overheat=92, critical=98),
+               SensorDesc(diode=1,
+                          name='Power supply %d inlet temp sensor' % psuId,
+                          position=Position.INLET,
+                          target=52, overheat=60, critical=65),
+               SensorDesc(diode=2,
+                          name='Power supply %d exhaust temp sensor' % psuId,
+                          position=Position.OUTLET,
+                          target=86, overheat=92, critical=98),
+            ]),
+         ])
 
       addr = 0x6100
       for xcvrId in self.osfpRange:
