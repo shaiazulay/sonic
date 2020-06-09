@@ -1,6 +1,6 @@
 from ..core.fixed import FixedSystem
 from ..core.platform import registerPlatform
-from ..core.types import PciAddr, I2cAddr, NamedGpio, ResetGpio
+from ..core.types import PciAddr, I2cAddr, ResetGpio
 from ..core.utils import incrange
 
 from ..components.asic.xgs.trident3 import Trident3
@@ -12,6 +12,7 @@ from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
 from ..descs.fan import FanDesc
+from ..descs.gpio import GpioDesc
 from ..descs.psu import PsuDesc
 from ..descs.sensor import Position, SensorDesc
 
@@ -110,12 +111,12 @@ class Lodoga(FixedSystem):
       cpld = self.syscpld
       cpld.createPowerCycle()
       scd.addGpios([
-         NamedGpio(0x5000, 1, True, False, "psu1_present"),
-         NamedGpio(0x5000, 0, True, False, "psu2_present"),
-         NamedGpio(0x5000, 9, True, False, "psu1_status"),
-         NamedGpio(0x5000, 8, True, False, "psu2_status"),
-         NamedGpio(0x5000, 11, True, False, "psu1_ac_status"),
-         NamedGpio(0x5000, 10, True, False, "psu2_ac_status"),
+         GpioDesc("psu1_present", 0x5000, 1, ro=True),
+         GpioDesc("psu2_present", 0x5000, 0, ro=True),
+         GpioDesc("psu1_status", 0x5000, 9, ro=True),
+         GpioDesc("psu2_status", 0x5000, 8, ro=True),
+         GpioDesc("psu1_ac_status", 0x5000, 11, ro=True),
+         GpioDesc("psu2_ac_status", 0x5000, 10, ro=True),
       ])
 
       addr = 0x6100
