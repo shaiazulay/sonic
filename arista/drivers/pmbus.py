@@ -33,11 +33,20 @@ class PmbusDriver(Driver):
    def getPsuStatus(self, psu):
       # At least one sensor is expected to exist, otherwise treat it as a failure.
       # Check input and output values of current and voltage are in the range.
+
+      # The PMBus PSU will be temporarily used as a generic PSU, so we will fallback
+      # to relying on psu presence if the PSU model does not use PMBus
+      sensorExists = False
+
       for sensor in self.sensors:
          nonZero = False
          # The value must be non zero.
          value, exists = self.readSensor('%s_input' % sensor)
-         if not exists or not value:
+         if exists:
+            sensorExists = True
+         else:
+            continue
+         if not value:
             continue
          nonZero = True
 
@@ -55,4 +64,6 @@ class PmbusDriver(Driver):
          if nonZero:
             return True
 
-      return False
+      if sensorExists:
+         return False
+      return psu.getPresence()

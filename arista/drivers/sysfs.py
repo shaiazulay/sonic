@@ -28,6 +28,8 @@ class SysfsDriver(Driver):
    def read(self, name, path=None):
       if utils.inSimulation():
          return '0'
+      if not path and not self.sysfsPath:
+         raise AttributeError
       path = path or os.path.join(self.sysfsPath, name)
       with open(path, 'r') as f:
          return f.read().rstrip()
@@ -35,6 +37,8 @@ class SysfsDriver(Driver):
    def write(self, name, value, path=None):
       if utils.inSimulation():
          return None
+      if not path and not self.sysfsPath:
+         raise AttributeError
       path = path or os.path.join(self.sysfsPath, name)
       with open(path, 'w') as f:
          return f.write(value)
@@ -186,7 +190,10 @@ class TempSysfsDriver(SysfsDriver):
 
    def getPresence(self, temp):
       # Currently just rely on a valid temp reading
-      return self.getTemperature(temp) > 0.0
+      try:
+         return self.getTemperature(temp) > 0.0
+      except AttributeError:
+         return False
 
    def getLowThreshold(self, temp):
       try:
@@ -207,4 +214,3 @@ class TempSysfsDriver(SysfsDriver):
 
    def setHighThreshold(self, temp, value):
       return self.writeTemp(temp, 'max', int(value * 1000))
-

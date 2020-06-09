@@ -6,6 +6,7 @@ class TempImpl(Temp):
       self.sensor = sensor
       self.name = sensor.name
       self.driver = driver
+      self.__dict__.update(kwargs)
 
    def getName(self):
       return self.name
@@ -27,4 +28,3 @@ class TempImpl(Temp):
 
    def setHighThreshold(self, value):
       return self.driver.setHighThreshold(self.sensor, value)
-
