@@ -1,7 +1,7 @@
 from ..core.fixed import FixedSystem
 from ..core.platform import registerPlatform
 from ..core.utils import incrange
-from ..core.types import PciAddr, NamedGpio, ResetGpio
+from ..core.types import PciAddr, ResetGpio
 
 from ..components.asic.xgs.tomahawk2 import Tomahawk2
 from ..components.coretemp import Coretemp
@@ -12,6 +12,7 @@ from ..components.max6658 import Max6658
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
+from ..descs.gpio import GpioDesc
 from ..descs.psu import PsuDesc
 from ..descs.sensor import Position, SensorDesc
 
@@ -67,12 +68,12 @@ class Gardena(FixedSystem):
       ])
 
       scd.addGpios([
-         NamedGpio(0x5000, 0, True, False, "psu1_present"),
-         NamedGpio(0x5000, 1, True, False, "psu2_present"),
-         NamedGpio(0x5000, 8, True, False, "psu1_status"),
-         NamedGpio(0x5000, 9, True, False, "psu2_status"),
-         NamedGpio(0x5000, 10, True, False, "psu1_ac_status"),
-         NamedGpio(0x5000, 11, True, False, "psu2_ac_status"),
+         GpioDesc("psu1_present", 0x5000, 0, ro=True),
+         GpioDesc("psu2_present", 0x5000, 1, ro=True),
+         GpioDesc("psu1_status", 0x5000, 8, ro=True),
+         GpioDesc("psu2_status", 0x5000, 9, ro=True),
+         GpioDesc("psu1_ac_status", 0x5000, 10, ro=True),
+         GpioDesc("psu2_ac_status", 0x5000, 11, ro=True),
       ])
 
       cpu = self.newComponent(RookCpu, fanCpldCls=LAFanCpldComponent)
