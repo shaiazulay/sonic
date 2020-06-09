@@ -1,6 +1,6 @@
 from ..core.fixed import FixedSystem
 from ..core.platform import registerPlatform
-from ..core.types import PciAddr, NamedGpio, ResetGpio
+from ..core.types import PciAddr, ResetGpio
 from ..core.utils import incrange
 
 from ..components.common import SwitchChip
@@ -13,6 +13,7 @@ from ..components.tmp468 import Tmp468
 
 from .cpu.woodpecker import WoodpeckerCpu
 
+from ..descs.gpio import GpioDesc
 from ..descs.psu import PsuDesc
 from ..descs.sensor import Position, SensorDesc
 
@@ -81,19 +82,19 @@ class Smartsville(FixedSystem):
       ])
 
       scd.addGpios([
-         NamedGpio(0x5000, 0, True, False, "psu1_present"),
-         NamedGpio(0x5000, 1, True, False, "psu2_present"),
-         NamedGpio(0x5000, 8, True, False, "psu1_status"),
-         NamedGpio(0x5000, 9, True, False, "psu2_status"),
-         NamedGpio(0x5000, 10, True, False, "psu1_ac_status"),
-         NamedGpio(0x5000, 11, True, False, "psu2_ac_status"),
+         GpioDesc("psu1_present", 0x5000, 0, ro=True),
+         GpioDesc("psu2_present", 0x5000, 1, ro=True),
+         GpioDesc("psu1_status", 0x5000, 8, ro=True),
+         GpioDesc("psu2_status", 0x5000, 9, ro=True),
+         GpioDesc("psu1_ac_status", 0x5000, 10, ro=True),
+         GpioDesc("psu2_ac_status", 0x5000, 11, ro=True),
 
-         NamedGpio(0x5000, 16, False, False, "psu1_present_changed"),
-         NamedGpio(0x5000, 17, False, False, "psu2_present_changed"),
-         NamedGpio(0x5000, 18, False, False, "psu1_status_changed"),
-         NamedGpio(0x5000, 19, False, False, "psu2_status_changed"),
-         NamedGpio(0x5000, 20, False, False, "psu1_ac_status_changed"),
-         NamedGpio(0x5000, 21, False, False, "psu2_ac_status_changed"),
+         GpioDesc("psu1_present_changed", 0x5000, 16),
+         GpioDesc("psu2_present_changed", 0x5000, 17),
+         GpioDesc("psu1_status_changed", 0x5000, 18),
+         GpioDesc("psu2_status_changed", 0x5000, 19),
+         GpioDesc("psu1_ac_status_changed", 0x5000, 20),
+         GpioDesc("psu2_ac_status_changed", 0x5000, 21),
       ])
 
       for psuId in incrange(1, 2):
