@@ -1,6 +1,6 @@
 from ..core.fixed import FixedSystem
 from ..core.platform import registerPlatform
-from ..core.types import PciAddr, NamedGpio, ResetGpio
+from ..core.types import PciAddr, ResetGpio
 from ..core.utils import incrange
 
 from ..components.asic.xgs.trident2 import Trident2
@@ -13,6 +13,7 @@ from ..components.scd import Scd
 from ..components.ds460 import Ds460
 
 from ..descs.fan import FanDesc
+from ..descs.gpio import GpioDesc
 from ..descs.psu import PsuDesc
 from ..descs.sensor import Position, SensorDesc
 
@@ -100,8 +101,8 @@ class Cloverdale(FixedSystem):
          ])
 
       scd.addGpios([
-         NamedGpio(0x5000, 0, True, False, "psu1_present"),
-         NamedGpio(0x5000, 1, True, False, "psu2_present"),
+         GpioDesc("psu1_present", 0x5000, 0, ro=True),
+         GpioDesc("psu2_present", 0x5000, 1, ro=True),
       ])
 
       scd.addSmbusMasterRange(0x8000, 5)
