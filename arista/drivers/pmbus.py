@@ -19,7 +19,7 @@ class PmbusDriver(Driver):
    def readSensor(self, name):
       path = self.sensorPath(name)
       if not os.path.exists(path):
-         logging.info('hwmon sensor %s does not exist', path)
+         logging.debug('hwmon sensor %s does not exist', path)
          return 0, False
       logging.debug('hwmon-read %s', path)
       with open(path, 'r') as f:

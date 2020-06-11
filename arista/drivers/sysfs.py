@@ -168,6 +168,7 @@ class LedSysfsDriver(SysfsDriver):
 
 class TempSysfsDriver(SysfsDriver):
    DEFAULT_MIN_VALUE = -20.0
+   DEFAULT_MAX_VALUE = 120.0
 
    def __init__(self, waitFile=None, waitTimeout=None, **kwargs):
       self.fileWaiter = utils.FileWaiter(waitFile, waitTimeout)
@@ -207,10 +208,18 @@ class TempSysfsDriver(SysfsDriver):
          return self.writeTemp(temp, 'min', int(value * 1000))
       except IOError:
          logging.debug('no temp%d_min' % (temp.diode + 1))
-         return self.DEFAULT_MIN_VALUE
+         return 0
 
    def getHighThreshold(self, temp):
-      return float(self.readTemp(temp, 'max')) / 1000
+      try:
+         return float(self.readTemp(temp, 'max')) / 1000
+      except IOError:
+         logging.debug('no temp%d_crit' % (temp.diode + 1))
+         return self.DEFAULT_MAX_VALUE
 
    def setHighThreshold(self, temp, value):
-      return self.writeTemp(temp, 'max', int(value * 1000))
+      try:
+         return self.writeTemp(temp, 'max', int(value * 1000))
+      except IOError:
+         logging.debug('no temp%d_crit' % (temp.diode + 1))
+         return 0
