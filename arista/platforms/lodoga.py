@@ -119,7 +119,7 @@ class Lodoga(FixedSystem):
          GpioDesc("psu2_ac_status", 0x5000, 10, ro=True),
       ])
 
-      addr = 0x6100
+      addr = 0x6120
       for xcvrId in self.sfpRange:
          name = "sfp%d" % xcvrId
          scd.addLedGroup(name, [(addr, name)])
