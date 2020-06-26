@@ -26,6 +26,8 @@ class Chassis(ChassisBase):
       'overtemp': ChassisBase.REBOOT_CAUSE_THERMAL_OVERLOAD_OTHER,
       'reboot': ChassisBase.REBOOT_CAUSE_NON_HARDWARE,
       'watchdog': ChassisBase.REBOOT_CAUSE_WATCHDOG,
+      'under-voltage': ChassisBase.REBOOT_CAUSE_HARDWARE_OTHER,
+      'over-voltage': ChassisBase.REBOOT_CAUSE_HARDWARE_OTHER,
    }
 
    # Intervals in milliseconds
@@ -39,9 +41,11 @@ class Chassis(ChassisBase):
          self._fan_list.append(Fan(fan))
       for psu in self._inventory.getPsus():
          self._psu_list.append(Psu(psu))
-      self._sfp_list = [None] * (inventory.portEnd + 1)
-      for index, sfp in self._inventory.getXcvrs().items():
-         self._sfp_list[index] = Sfp(index, sfp)
+      self._sfp_list = []
+      if inventory and inventory.portEnd:
+         self._sfp_list = [None] * (inventory.portEnd + 1)
+         for index, sfp in self._inventory.getXcvrs().items():
+            self._sfp_list[index] = Sfp(index, sfp)
       for thermal in self._inventory.getTemps():
          self._thermal_list.append(Thermal(thermal))
       self._watchdog = Watchdog(self._inventory.getWatchdog())

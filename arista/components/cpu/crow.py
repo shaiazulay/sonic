@@ -37,7 +37,7 @@ class CrowSysCpld(SysCpld):
    def __init__(self, addr, drivers=None, registerCls=CrowCpldRegisters, **kwargs):
       self.psus = []
       if not drivers:
-         drivers = [UpperlakePsuDriver(addr=addr),
+         drivers = [UpperlakePsuDriver(driverName='psuStatusDriver', addr=addr),
                     SysCpldI2cDriver(addr=addr, registerCls=registerCls)]
       super(CrowSysCpld, self).__init__(addr=addr, drivers=drivers,
                                         registerCls=registerCls, **kwargs)

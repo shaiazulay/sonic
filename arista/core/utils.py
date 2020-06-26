@@ -10,11 +10,40 @@ from functools import wraps
 from struct import pack, unpack
 
 from .log import getLogger
+from ..libs.python import isinteger
 
 logging = getLogger(__name__)
 
 FLASH_MOUNT = '/host'
 TMPFS_MOUNT = '/run'
+
+class HwApi(object):
+   def __init__(self, *values):
+      self.values = [int(v) for v in values]
+
+   def __gt__(self, other):
+      if not isinstance(other, HwApi):
+         return False
+      return self.values > other.values
+
+   def __lt__(self, other):
+      if not isinstance(other, HwApi):
+         return False
+      return self.values < other.values
+
+   def __eq__(self, other):
+      if not isinstance(other, HwApi):
+         return False
+      return self.values == other.values
+
+   def __str__(self):
+      return 'HwApi(%s)' % '.'.join(str(v) for v in self.values)
+
+   @classmethod
+   def parse(cls, value):
+      if isinteger(value):
+         return HwApi(value)
+      return HwApi((int(v) for v in value.split('.')))
 
 class MmapResource(object):
    """Resource implementation for a directly-mapped memory region."""
@@ -224,11 +253,14 @@ class NoopObj(object):
 CMDLINE_PATH = '/proc/cmdline'
 
 class StoredData(object):
-   def __init__(self, name, lifespan='temporary'):
+   def __init__(self, name, lifespan='temporary', path=None):
       self.name = name
       self.lifespan = lifespan
-      self.path = os.path.join(TMPFS_MOUNT, name) if lifespan == 'temporary' \
-            else os.path.join(FLASH_MOUNT, name)
+      if path is None:
+         self.path = os.path.join(TMPFS_MOUNT, name) if lifespan == 'temporary' \
+               else os.path.join(FLASH_MOUNT, name)
+      else:
+         self.path = path
 
    def exist(self):
       return os.path.isfile(self.path)
@@ -252,9 +284,12 @@ class StoredData(object):
          os.remove(self.path)
 
 class JsonStoredData(StoredData):
+
+   DEFAULT_VALUE = []
+
    @staticmethod
    def _createObj(data, dataType):
-      obj = dataType.__new__(dataType)
+      obj = dataType()
       obj.__dict__.update(data)
       return obj
 
@@ -266,7 +301,7 @@ class JsonStoredData(StoredData):
       res = super(JsonStoredData, self).read()
       if res:
          return json.loads(res)
-      return {}
+      return self.DEFAULT_VALUE
 
    def readObj(self, dataType):
       return self._createObj(self.read(), dataType)
@@ -345,16 +380,14 @@ def writeConfig(path, data):
 
 # Hwmon directories that need to be navigated
 # Keeps trying to get path to show up, or search in searchPath
-def locateHwmonPath(searchPath, prefix, timeout=1.0):
-   for r in Retrying(interval=timeout):
-      for root, _, files in os.walk(os.path.join(searchPath, 'hwmon')):
-         for name in files:
-            if name.startswith(prefix):
-               path = root
-               logging.debug('got hwmon path for %s as %s', searchPath,
-                             path)
-               return path
-      logging.debug('Locate hwmon path attempt %d.', r.attempt)
+def locateHwmonPath(searchPath, prefix):
+   for root, _, files in os.walk(os.path.join(searchPath, 'hwmon')):
+      for name in files:
+         if name.startswith(prefix):
+            path = root
+            logging.debug('got hwmon path for %s as %s', searchPath,
+                          path)
+            return path
 
    logging.error('could not locate hwmon path for %s', searchPath)
    return None

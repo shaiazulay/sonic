@@ -1,8 +1,8 @@
 from __future__ import print_function
-from collections import defaultdict, OrderedDict
+
+from collections import OrderedDict
 
 from .driver import KernelDriver
-from .metainventory import LazyInventory
 
 DEFAULT_WAIT_TIMEOUT = 15
 
@@ -20,12 +20,14 @@ class Priority(object):
 
 class Component(object):
    def __init__(self, addr=None, priority=Priority.DEFAULT, drivers=None,
-                inventoryCls=None, inventory=None, **kwargs):
+                inventoryCls=None, inventory=None, parent=None, **kwargs):
+      super(Component, self).__init__()
       self.components = []
       self.addr = addr
       self.priority = priority
       self.drivers = OrderedDict()
       self.inventory = inventory
+      self.parent = parent
       if not inventory and inventoryCls:
          self.inventory = inventoryCls()
       self.addDrivers(drivers)
@@ -51,7 +53,7 @@ class Component(object):
       return self
 
    def newComponent(self, cls, *args, **kwargs):
-      component = cls(inventory=self.inventory, *args, **kwargs)
+      component = cls(inventory=self.inventory, *args, parent=self, **kwargs)
       self.addComponent(component)
       return component
 
@@ -75,8 +77,9 @@ class Component(object):
    def addDrivers(self, drivers):
       if drivers:
          for drv in drivers:
-            self.drivers[getattr(drv, 'driverName', None) or
-                         drv.__class__.__name__] = drv
+            key = getattr(drv, 'driverName', drv.__class__.__name__)
+            if key not in self.drivers:
+               self.drivers[key] = drv
 
    # Compatibility function for platform code
    def addDriver(self, driver, *args, **kwargs):

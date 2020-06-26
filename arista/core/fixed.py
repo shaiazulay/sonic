@@ -1,16 +1,12 @@
-from .cause import ReloadCauseEntry
-from .component import Component, Priority
-from .config import Config
+from .cause import ReloadCauseDataStore
+from .component import Priority
 from .driver import KernelDriver
 from .inventory import Inventory
-from .utils import inSimulation, JsonStoredData
+from .platform import getSysEeprom
+from .sku import Sku
+from .utils import inSimulation
 
-class FixedSystem(Component):
-
-   PLATFORM = None
-   SID = None
-   SKU = None
-   HWAPI = None
+class FixedSystem(Sku):
 
    def __init__(self, drivers=None, inventory=None, **kwargs):
       drivers = drivers or [KernelDriver(module='eeprom'),
@@ -18,6 +14,9 @@ class FixedSystem(Component):
       inventory = inventory or Inventory()
       super(FixedSystem, self).__init__(drivers=drivers, inventory=inventory,
                                         **kwargs)
+
+   def getEeprom(self):
+      return getSysEeprom()
 
    def setup(self, filters=Priority.defaultFilter):
       super(FixedSystem, self).setup()
@@ -29,8 +28,8 @@ class FixedSystem(Component):
    def getReloadCauses(self, clear=False):
       if inSimulation():
          return []
-      rebootCauses = JsonStoredData('%s' % Config().reboot_cause_file)
+      rebootCauses = ReloadCauseDataStore()
       if not rebootCauses.exist():
          causes = super(FixedSystem, self).getReloadCauses(clear=clear)
          rebootCauses.writeList(causes)
-      return rebootCauses.readList(ReloadCauseEntry)
+      return rebootCauses.readCauses()

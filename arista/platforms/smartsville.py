@@ -1,18 +1,21 @@
 from ..core.fixed import FixedSystem
 from ..core.platform import registerPlatform
-from ..core.types import PciAddr, NamedGpio, ResetGpio
+from ..core.types import PciAddr, ResetGpio
 from ..core.utils import incrange
 
 from ..components.common import SwitchChip
+from ..components.cpu.amd.k10temp import K10Temp
 from ..components.dpm import Ucd90160, Ucd90320, UcdGpi
-from ..components.fan import ScdFanComponent
-from ..components.max6658 import Max6658
-from ..components.phy import Babbage
+from ..components.phy.babbage import Babbage
 from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 from ..components.tmp468 import Tmp468
 
-from ..descs.fan import FanDesc
+from .cpu.woodpecker import WoodpeckerCpu
+
+from ..descs.gpio import GpioDesc
+from ..descs.psu import PsuDesc
+from ..descs.sensor import Position, SensorDesc
 
 @registerPlatform()
 class Smartsville(FixedSystem):
@@ -22,6 +25,15 @@ class Smartsville(FixedSystem):
 
    def __init__(self):
       super(Smartsville, self).__init__()
+
+      self.cpu = self.newComponent(WoodpeckerCpu)
+      self.cpu.cpld.newComponent(Ucd90160, self.cpu.cpuDpmAddr())
+      self.cpu.cpld.newComponent(Ucd90320, self.cpu.switchDpmAddr(), causes={
+         'powerloss': UcdGpi(1),
+         'reboot': UcdGpi(2),
+         'watchdog': UcdGpi(3),
+         'overtemp': UcdGpi(4),
+      })
 
       self.qsfpRange = incrange(1, 32)
       self.osfpRange = incrange(33, 36)
@@ -34,20 +46,34 @@ class Smartsville(FixedSystem):
 
       scd.createWatchdog()
 
+      self.newComponent(K10Temp, waitFile='/sys/class/hwmon/hwmon1', sensors=[
+         SensorDesc(diode=0, name='Cpu temp sensor',
+                    position=Position.OTHER, target=70, overheat=95, critical=115),
+      ])
+
       scd.newComponent(Tmp468, scd.i2cAddr(0, 0x48),
-                       waitFile='/sys/class/hwmon/hwmon3')
-      scd.newComponent(PmbusPsu, scd.i2cAddr(6, 0x58, t=3, datr=3, datw=3))
-      scd.newComponent(PmbusPsu, scd.i2cAddr(7, 0x58, t=3, datr=3, datw=3))
+                       waitFile='/sys/class/hwmon/hwmon4', sensors=[
+         SensorDesc(diode=0, name='Board Sensor',
+                    position=Position.OTHER, target=65, overheat=75, critical=80),
+         SensorDesc(diode=1, name='Front Air',
+                    position=Position.INLET, target=55, overheat=65, critical=75),
+         SensorDesc(diode=2, name='Rear Air',
+                    position=Position.OTHER, target=55, overheat=65, critical=75),
+         SensorDesc(diode=7, name='Fap 0 Core 0',
+                    position=Position.OTHER, target=85, overheat=100, critical=110),
+         SensorDesc(diode=8, name='Fap 0 Core 1',
+                    position=Position.OTHER, target=85, overheat=100, critical=110),
+      ])
 
       scd.addSmbusMasterRange(0x8000, 5, 0x80)
 
-      self.inventory.addLeds(scd.addLeds([
+      scd.addLeds([
          (0x6050, 'status'),
          (0x6060, 'fan_status'),
          (0x6070, 'psu1'),
          (0x6080, 'psu2'),
          (0x6090, 'beacon'),
-      ]))
+      ])
 
       scd.addResets([
          ResetGpio(0x4000, 0, False, 'switch_chip_reset'),
@@ -56,36 +82,56 @@ class Smartsville(FixedSystem):
       ])
 
       scd.addGpios([
-         NamedGpio(0x5000, 0, True, False, "psu1_present"),
-         NamedGpio(0x5000, 1, True, False, "psu2_present"),
-         NamedGpio(0x5000, 8, True, False, "psu1_status"),
-         NamedGpio(0x5000, 9, True, False, "psu2_status"),
-         NamedGpio(0x5000, 10, True, False, "psu1_ac_status"),
-         NamedGpio(0x5000, 11, True, False, "psu2_ac_status"),
+         GpioDesc("psu1_present", 0x5000, 0, ro=True),
+         GpioDesc("psu2_present", 0x5000, 1, ro=True),
+         GpioDesc("psu1_status", 0x5000, 8, ro=True),
+         GpioDesc("psu2_status", 0x5000, 9, ro=True),
+         GpioDesc("psu1_ac_status", 0x5000, 10, ro=True),
+         GpioDesc("psu2_ac_status", 0x5000, 11, ro=True),
 
-         NamedGpio(0x5000, 16, False, False, "psu1_present_changed"),
-         NamedGpio(0x5000, 17, False, False, "psu2_present_changed"),
-         NamedGpio(0x5000, 18, False, False, "psu1_status_changed"),
-         NamedGpio(0x5000, 19, False, False, "psu2_status_changed"),
-         NamedGpio(0x5000, 20, False, False, "psu1_ac_status_changed"),
-         NamedGpio(0x5000, 21, False, False, "psu2_ac_status_changed"),
+         GpioDesc("psu1_present_changed", 0x5000, 16),
+         GpioDesc("psu2_present_changed", 0x5000, 17),
+         GpioDesc("psu1_status_changed", 0x5000, 18),
+         GpioDesc("psu2_status_changed", 0x5000, 19),
+         GpioDesc("psu1_ac_status_changed", 0x5000, 20),
+         GpioDesc("psu2_ac_status_changed", 0x5000, 21),
       ])
-      scd.createPsu(1, led=self.inventory.getLed('psu1'))
-      scd.createPsu(2, led=self.inventory.getLed('psu2'))
+
+      for psuId in incrange(1, 2):
+         scd.addPsu(PmbusPsu,
+                    addr=scd.i2cAddr(5 + psuId, 0x58, t=3, datr=3, datw=3),
+                    waitFile="/sys/class/hwmon/hwmon%d" % (4 + psuId),
+                    psus=[
+            PsuDesc(psuId=psuId,
+                    led=scd.inventory.getLed('psu%d' % psuId), sensors=[
+               SensorDesc(diode=0,
+                          name='Power supply %d inlet temp sensor' % psuId,
+                          position=Position.INLET,
+                          target=60, overheat=75, critical=85),
+               SensorDesc(diode=1,
+                          name='Power supply %d secondary hotspot sensor' % psuId,
+                          position=Position.OTHER,
+                          target=70, overheat=105, critical=110),
+               SensorDesc(diode=2,
+                          name='Power supply %d primary hotspot sensor' % psuId,
+                          position=Position.OTHER,
+                          target=70, overheat=95, critical=100),
+            ]),
+         ])
 
       addr = 0x6100
       for xcvrId in self.qsfpRange:
          leds = []
          for laneId in incrange(1, 4):
             name = "qsfp%d_%d" % (xcvrId, laneId)
-            leds.append(scd.addLed(addr, name))
+            leds.append((addr, name))
             addr += 0x10
-         self.inventory.addLedGroup("qsfp%d" % xcvrId, leds)
+         scd.addLedGroup("qsfp%d" % xcvrId, leds)
 
       addr = 0x6900
       for xcvrId in self.osfpRange:
          name = "osfp%d" % xcvrId
-         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
+         scd.addLedGroup(name, [(addr, name)])
          addr += 0x40
 
       intrRegs = [
@@ -122,27 +168,6 @@ class Smartsville(FixedSystem):
          mdios = [scd.addMdio(i, 0), scd.addMdio(i, 1)]
          phy = Babbage(phyId, mdios, reset=reset)
          self.inventory.addPhy(phy)
-
-      cpld = self.newComponent(Scd, PciAddr(bus=0x00, device=0x09, func=0))
-
-      scdFanComponent = cpld.newComponent(ScdFanComponent,
-                                          waitFile='/sys/class/hwmon/hwmon2',
-                                          fans=[
-         FanDesc(fanId, ledId=(fanId-1)/2+1) for fanId in incrange(1, 6)
-      ])
-
-      cpld.addSmbusMasterRange(0x8000, 2, 0x80, 4)
-      cpld.newComponent(Max6658, cpld.i2cAddr(0, 0x4c))
-      cpld.newComponent(Ucd90160, cpld.i2cAddr(1, 0x4e, t=3))
-      cpld.newComponent(Ucd90320, cpld.i2cAddr(5, 0x11, t=3), causes={
-         'powerloss': UcdGpi(1),
-         'reboot': UcdGpi(2),
-         'watchdog': UcdGpi(3),
-         'overtemp': UcdGpi(4),
-      })
-      cpld.addFanGroup(0x9000, 3, 3)
-
-      cpld.createPowerCycle()
 
 @registerPlatform()
 class SmartsvilleBK(Smartsville):

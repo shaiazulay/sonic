@@ -48,7 +48,7 @@ class CliLegacyTest(unittest.TestCase):
       self._foreachPlatform('reboot-cause')
 
    def testDiag(self):
-      self._foreachPlatform('diag', '--noIo')
+      self._foreachPlatform('platform', 'diag', '--noIo')
 
    def testDiagIo(self):
       # TODO: fix simulation mode

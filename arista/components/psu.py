@@ -1,59 +1,39 @@
 from ..accessors.psu import MixedPsuImpl
 
-from ..core.component import Component, Priority
+from ..core.component import I2cComponent, Priority
 
 from ..drivers.i2c import I2cKernelDriver
 from ..drivers.pmbus import PmbusDriver
+from ..drivers.sysfs import TempSysfsDriver
 
-from ..inventory.psu import Psu
+from .mixin import TempComponentMixin
 
-from .common import I2cComponent
+class PmbusPsu(I2cComponent, TempComponentMixin):
+   def __init__(self, addr=None, waitFile=None, name='pmbus', drivers=None,
+                waitTimeout=25.0, priority=Priority.BACKGROUND, psus=None, **kwargs):
+      gpios = ['curr1', 'curr2', 'curr3', 'in1', 'in2']
+      drivers = drivers or []
+      drivers.extend([I2cKernelDriver(name=name, addr=addr, waitFile=waitFile,
+                                      waitTimeout=waitTimeout),
+                      TempSysfsDriver(driverName='tempDriver', addr=addr),
+                      PmbusDriver(driverName='psuStatusDriver', addr=addr,
+                                  hwmonDir=waitFile, sensors=gpios)])
+      super(PmbusPsu, self).__init__(addr=addr, waitFile=waitFile, name=name,
+                                     drivers=drivers, waitTimeout=waitTimeout,
+                                     priority=priority, psus=psus, **kwargs)
+      psus = psus or []
+      for psu in psus:
+         self.createPsu(psuId=psu.psuId, led=psu.led, sensors=psu.sensors)
 
-class MixedPsuComponent(Component):
-   def __init__(self, presenceComponent=None, statusComponent=None, **kwargs):
-      self.presenceComponent=presenceComponent
-      self.statusComponent=statusComponent
-      super(MixedPsuComponent, self).__init__(**kwargs)
+   def createPsu(self, psuId=1, led=None, sensors=None):
+      self.addTempSensors(sensors)
+      self.inventory.addPsu(MixedPsuImpl(psuId=psuId,
+         presenceDriver=self.drivers['psuPresenceDriver'],
+         statusDriver=self.drivers['psuStatusDriver'], led=led))
 
-   def createPsu(self, psuId=1, led=None, presenceDriver=None, statusDriver=None):
-      psu = MixedPsuImpl(psuId=psuId,
-                  presenceDriver=self.presenceComponent.drivers[presenceDriver],
-                  statusDriver=self.statusComponent.drivers[statusDriver], led=led)
-      self.inventory.addPsus([psu])
-
-class PmbusMixedPsuComponent(MixedPsuComponent):
-   def createPsu(self, presenceDriver='PsuSysfsDriver', statusDriver='PmbusDriver',
-                 **kwargs):
-      return super(PmbusMixedPsuComponent, self).createPsu(
-            presenceDriver=presenceDriver, statusDriver=statusDriver, **kwargs)
-
-class UpperlakeMixedPsuComponent(MixedPsuComponent):
-   def createPsu(self, presenceDriver='PsuSysfsDriver',
-                 statusDriver='UpperlakePsuDriver', **kwargs):
-      return super(UpperlakeMixedPsuComponent, self).createPsu(
-            presenceDriver=presenceDriver, statusDriver=statusDriver, **kwargs)
-
-class ScdPmbusPsu(Psu):
-   def __init__(self, scd, pmbus):
-      self.psuId = scd.psuId
-      self.scd_ = scd
-      self.pmbus_ = pmbus
-
-   def getPresence(self):
-      return self.scd_.getPresence()
-
-   def getStatus(self):
-      return self.pmbus_.getStatus()
-
-class PmbusPsu(I2cComponent):
-   def __init__(self, addr, hwmonDir=None, name='pmbus', drivers=None,
-                waitTimeout=25.0, priority=Priority.BACKGROUND, **kwargs):
-      sensors = ['curr1', 'curr2', 'curr3', 'in1', 'in2']
-      if not drivers:
-         drivers = [I2cKernelDriver(name=name, addr=addr, waitFile=hwmonDir,
-                                    waitTimeout=waitTimeout)]
-         if hwmonDir is not None:
-            drivers.append(PmbusDriver(addr=addr, hwmonDir=hwmonDir,
-                                       sensors=sensors))
-      super(PmbusPsu, self).__init__(addr=addr, name="pmbus", drivers=drivers,
-                                     waitFile=hwmonDir, priority=priority, **kwargs)
+class UpperlakePsuComponent(PmbusPsu):
+   def __init__(self, cpld=None, drivers=None, **kwargs):
+      drivers = drivers or []
+      drivers.extend([cpld.drivers['psuStatusDriver']])
+      super(UpperlakePsuComponent, self).__init__(cpld=cpld, drivers=drivers,
+                                                  **kwargs)

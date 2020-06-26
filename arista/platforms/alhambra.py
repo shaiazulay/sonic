@@ -1,7 +1,7 @@
 from ..core.fixed import FixedSystem
 from ..core.platform import registerPlatform
 from ..core.utils import incrange
-from ..core.types import PciAddr, NamedGpio, ResetGpio
+from ..core.types import PciAddr, ResetGpio
 
 from ..components.asic.bfn.tofino import Tofino
 from ..components.cpu.rook import LAFanCpldComponent
@@ -11,6 +11,8 @@ from ..components.psu import PmbusPsu
 from ..components.scd import Scd
 
 from .cpu.rook import RookCpu
+
+from ..descs.gpio import GpioDesc
 
 @registerPlatform()
 class Alhambra(FixedSystem):
@@ -49,12 +51,12 @@ class Alhambra(FixedSystem):
       ])
 
       scd.addGpios([
-         NamedGpio(0x5000, 0, True, False, "psu1_present"),
-         NamedGpio(0x5000, 1, True, False, "psu2_present"),
-         NamedGpio(0x5000, 8, True, False, "psu1_status"),
-         NamedGpio(0x5000, 9, True, False, "psu2_status"),
-         NamedGpio(0x5000, 10, True, False, "psu1_ac_status"),
-         NamedGpio(0x5000, 11, True, False, "psu2_ac_status"),
+         GpioDesc("psu1_present", 0x5000, 0, ro=True),
+         GpioDesc("psu2_present", 0x5000, 1, ro=True),
+         GpioDesc("psu1_status", 0x5000, 8, ro=True),
+         GpioDesc("psu2_status", 0x5000, 9, ro=True),
+         GpioDesc("psu1_ac_status", 0x5000, 10, ro=True),
+         GpioDesc("psu2_ac_status", 0x5000, 11, ro=True),
       ])
 
       addr = 0x6100
@@ -62,14 +64,14 @@ class Alhambra(FixedSystem):
          leds = []
          for laneId in incrange(1, 4):
             name = "qsfp%d_%d" % (xcvrId, laneId)
-            leds.append(scd.addLed(addr, name))
+            leds.append((addr, name))
             addr += 0x10
-         self.inventory.addLedGroup("qsfp%d" % xcvrId, leds)
+         scd.addLedGroup("qsfp%d" % xcvrId, leds)
 
       addr = 0x7200
       for xcvrId in self.sfpRange:
          name = "sfp%d" % xcvrId
-         self.inventory.addLedGroup(name, [scd.addLed(addr, name)])
+         scd.addLedGroup(name, [(addr, name)])
          addr += 0x10
 
       scd.setMsiRearmOffset(0x190)

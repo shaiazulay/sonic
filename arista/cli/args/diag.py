@@ -1,12 +1,4 @@
-
-from __future__ import absolute_import, division, print_function
-
-from . import registerParser
-from .platform import platformParser
-
-@registerParser('diag', parent=platformParser,
-                help='dump diag information on this platform')
-def diagParser(parser):
+def addDiagCommonParser(parser):
    parser.add_argument('-n', '--noIo', action='store_true',
       help='do not perform any IO to generate the diag info')
    parser.add_argument('-r', '--recursive', action='store_true',

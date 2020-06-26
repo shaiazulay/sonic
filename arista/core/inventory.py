@@ -43,6 +43,8 @@ class Inventory(object):
 
       self.temps = []
 
+      self.gpios = {}
+
    def freeze(self):
       # XXX: compute the range and some basic information from the various
       #      collections present in the inventory
@@ -76,11 +78,11 @@ class Inventory(object):
 
    def getPortToEepromMapping(self):
       eepromPath = '/sys/class/i2c-adapter/i2c-{0}/{0}-{1:04x}/eeprom'
-      return { xcvrId : eepromPath.format(xcvr.addr.bus, xcvr.addr.address)
-               for xcvrId, xcvr in self.xcvrs.items() }
+      return {xcvrId : eepromPath.format(xcvr.addr.bus, xcvr.addr.address)
+               for xcvrId, xcvr in self.xcvrs.items()}
 
    def getPortToI2cAdapterMapping(self):
-      return { xcvrId : xcvr.addr.bus for xcvrId, xcvr in self.xcvrs.items() }
+      return {xcvrId : xcvr.addr.bus for xcvrId, xcvr in self.xcvrs.items()}
 
    # Deprecated
    def addXcvrLed(self, xcvrId, name):
@@ -117,6 +119,9 @@ class Inventory(object):
 
    def getLedGroups(self):
       return self.ledGroups
+
+   def addPsu(self, psu):
+      self.psus.append(psu)
 
    def addPsus(self, psus):
       self.psus.extend(psus)
@@ -193,6 +198,18 @@ class Inventory(object):
    def getTemps(self):
       return self.temps
 
+   def addGpio(self, gpio):
+      self.gpios[gpio.getName()] = gpio
+
+   def addGpios(self, gpios):
+      self.gpios.update(gpios)
+
+   def getGpios(self):
+      return self.gpios
+
+   def getGpio(self, name):
+      return self.gpios[name]
+
    def __diag__(self, ctx):
       return {
          "version": 1,
@@ -204,15 +221,16 @@ class Inventory(object):
          "port_start": self.portStart,
          "port_end": self.portEnd,
          # objects
-         "leds": [ l.genDiag(ctx) for l in self.leds.values() ],
+         "leds": [l.genDiag(ctx) for l in self.leds.values()],
          # TODO led groups
          # TODO watchdog
-         "xcvrs": [ x.genDiag(ctx) for x in self.xcvrs.values() ],
-         "psus": [ p.genDiag(ctx) for p in self.psus ],
-         "fans": [ f.genDiag(ctx) for f in self.fans ],
-         "interrupts": [ i.genDiag(ctx) for i in self.interrupts.values() ],
-         "resets" : [ r.genDiag(ctx) for r in self.resets.values() ],
-         "phys" : [ p.genDiag(ctx) for p in self.phys ],
-         "slot" : [ s.genDiag(ctx) for s in self.slots ],
-         "temps" : [ t.genDiag(ctx) for t in self.temps ],
+         "xcvrs": [x.genDiag(ctx) for x in self.xcvrs.values()],
+         "psus": [p.genDiag(ctx) for p in self.psus],
+         "fans": [f.genDiag(ctx) for f in self.fans],
+         "interrupts": [i.genDiag(ctx) for i in self.interrupts.values()],
+         "resets" : [r.genDiag(ctx) for r in self.resets.values()],
+         "phys" : [p.genDiag(ctx) for p in self.phys],
+         "slot" : [s.genDiag(ctx) for s in self.slots],
+         "temps" : [t.genDiag(ctx) for t in self.temps],
+         "gpios" : [g.genDiag(ctx) for g in self.gpios.values()],
       }

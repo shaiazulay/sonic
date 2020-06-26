@@ -3,12 +3,13 @@ from __future__ import print_function
 import os
 
 from .exception import UnknownPlatformError
-from .fixed import FixedSystem
 from .utils import simulateWith, getCmdlineDict
 from .driver import modprobe
 from .log import getLogger
 
 from . import prefdl
+
+from ..libs.benchmark import timeit
 
 logging = getLogger(__name__)
 
@@ -90,7 +91,10 @@ def readPrefdl():
 
 def getPrefdlDataSim():
    logging.debug('bypass prefdl reading by returning default values')
-   return {'SKU': 'simulation'}
+   return {
+      'SKU': 'simulation',
+      'HwApi': '42',
+   }
 
 @simulateWith(getPrefdlDataSim)
 def getPrefdlData():
@@ -118,29 +122,24 @@ def readHwApi():
 def detectPlatform():
    getSysEeprom()
 
-   hwApi = readHwApi()
-
    sid = readSid()
-   platformCls = platformSidIndex.get(sid) or platformSidIndex.get((sid, hwApi))
+   platformCls = platformSidIndex.get(sid)
    if platformCls is not None:
       return platformCls
 
    sku = readSku()
-   platformCls = platformSkuIndex.get(sku) or platformSkuIndex.get((sku, hwApi))
+   platformCls = platformSkuIndex.get(sku)
    if platformCls is not None:
       return platformCls
 
    name = readPlatformName()
-   platformCls = platformSidIndex.get(name) or platformSidIndex.get((name, hwApi))
+   platformCls = platformSidIndex.get(name)
    if platformCls is not None:
       return platformCls
 
    raise UnknownPlatformError(sku, sid, name, platforms)
 
 def getPlatformCls(*names):
-   return getPlatformClsWithHwApi(None, *names)
-
-def getPlatformClsWithHwApi(hwApi, *names):
    if not names or not [name for name in names if name]:
       return detectPlatform()
 
@@ -148,11 +147,11 @@ def getPlatformClsWithHwApi(hwApi, *names):
       if name is None:
          continue
 
-      platformCls = platformSkuIndex.get(name) or platformSkuIndex.get((name, hwApi))
+      platformCls = platformSkuIndex.get(name)
       if platformCls is not None:
          return platformCls
 
-      platformCls = platformSidIndex.get(name) or platformSidIndex.get((name, hwApi))
+      platformCls = platformSidIndex.get(name)
       if platformCls is not None:
          return platformCls
 
@@ -164,9 +163,7 @@ def getPlatform(name=None):
    platform.refresh()
    return platform
 
-def getPlatformSkus(withHwApi=True):
-   if not withHwApi:
-      return {k : v for k, v in platformSkuIndex.items() if not isinstance(k, tuple)}
+def getPlatformSkus():
    return platformSkuIndex
 
 def getPlatformSids():
@@ -176,8 +173,8 @@ def getPlatforms():
    return platforms
 
 def loadPlatforms():
-   logging.debug('Loading platform definitions')
-   from .. import platforms as _unused
+   with timeit('Loading platform definitions'):
+      from .. import platforms as _
    logging.debug('Loaded %d platforms', len(platforms))
 
 def registerPlatform():
@@ -185,17 +182,9 @@ def registerPlatform():
       platforms.append(cls)
 
       for sid in cls.SID:
-         if hasattr(cls, 'HWAPI') and cls.HWAPI:
-            for hwApi in cls.HWAPI:
-               platformSidIndex[(sid,hwApi)] = cls
-         else:
-            platformSidIndex[sid] = cls
+         platformSidIndex[sid] = cls
       for sku in cls.SKU:
-         if hasattr(cls, 'HWAPI') and cls.HWAPI:
-            for hwApi in cls.HWAPI:
-               platformSkuIndex[(sku,hwApi)] = cls
-         else:
-            platformSkuIndex[sku] = cls
+         platformSkuIndex[sku] = cls
 
       if cls.PLATFORM is not None:
          # this is a hack for older platforms that did not provide sid=

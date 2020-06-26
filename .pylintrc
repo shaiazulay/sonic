@@ -1,0 +1,40 @@
+[MASTER]
+profile=no
+persistent=no
+
+[MESSAGES CONTROL]
+disable-checker=Design,Similarities
+disable=invalid-name,
+        missing-docstring,
+        duplicate-code,
+        too-few-public-methods,
+        bad-continuation,
+        no-self-use,
+        fixme,
+        no-absolute-import,
+        too-many-arguments,
+        too-many-statements,
+        too-many-locals
+
+[BASIC]
+bad-functions=apply,input
+
+[TYPECHECK]
+ignored-classes=RegisterMap,FakeRegisterMap
+
+[VARIABLES]
+dummy-variables-rgx=_
+
+[CLASSES]
+defining-attr-methods=__init__,
+                      __new__,
+                      setUp,
+                      setup_method,
+
+[MISCELLANEOUS]
+notes=FIXME,XXX,TODO
+
+[FORMAT]
+max-line-length=85
+indent-string='   '
+indent-after-paren=3

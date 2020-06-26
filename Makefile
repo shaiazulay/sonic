@@ -35,6 +35,9 @@ SYSTEMD_DESTDIR ?= $(DESTDIR)/lib/systemd/system
 PY_BUILD_ARGS ?=
 PY2_BUILD_ARGS ?= $(PY_BUILD_ARGS) --build-base=$(BUILD_DIR)/python2
 PY3_BUILD_ARGS ?= $(PY_BUILD_ARGS) --build-base=$(BUILD_DIR)/python3
+PYLINTRC ?= $(BASE_DIR)/.pylintrc
+PYLINT_BLACKLIST ?= $(shell "cat $(BASE_DIR)/.pylint_blacklist | tr '\n' ','")
+PYLINT_JOBS ?= 4
 
 # scd
 ARISTA_SCD_DRIVER_CONFIG ?= m
@@ -129,7 +132,17 @@ test-py2:
 test-py3:
 	python3 setup.py test
 
-test: test-py2 test-py3
+pylint:
+	# NOTE: for now we only check py2/py3 compatibility.
+	#       once these are solved we should enable the more generic pylint.
+	# FIXME: make this fatal as soon as possible
+	-pylint --py3k \
+	   --jobs=$(PYLINT_JOBS) \
+	   --rcfile=$(PYLINTRC) \
+	   --ignore=$(PYLINT_BLACKLIST) \
+	   $(PACKAGE_NAME)
+
+test: test-py2 test-py3 pylint
 
 #
 # dev tools

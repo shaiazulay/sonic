@@ -4,6 +4,7 @@ import os
 
 from collections import OrderedDict, namedtuple
 
+from ..accessors.gpio import GpioImpl
 from ..accessors.led import LedImpl
 from ..accessors.psu import PsuImpl
 from ..accessors.reset import ResetImpl
@@ -16,7 +17,7 @@ from ..core.utils import FileWaiter, MmapResource, simulateWith, writeConfig
 from ..core.log import getLogger
 
 from ..drivers.i2c import I2cKernelDriver
-from ..drivers.scd import ScdKernelDriver
+from ..drivers.scd import ScdI2cDevDriver, ScdKernelDriver
 from ..drivers.sysfs import (
    LedSysfsDriver,
    PsuSysfsDriver,
@@ -325,20 +326,31 @@ class Scd(PciComponent):
          'bus': bus,
       }
 
-   def addSmbusMasterRange(self, addr, count, spacing=0x100, bus=8):
-      addrs = range(addr, addr + (count + 1) * spacing, spacing)
+   def addSmbusMasterRange(self, addrStart, count, spacing=0x100, bus=8):
+      addrs = range(addrStart, addrStart + (count + 1) * spacing, spacing)
       for i, addr in enumerate(addrs, 0):
          self.addSmbusMaster(addr, i, bus)
 
    def addFanGroup(self, addr, platform, num):
       self.fanGroups += [(addr, platform, num)]
 
-   def addLed(self, addr, name):
+   def _addLed(self, addr, name):
       self.leds += [(addr, name)]
-      return LedImpl(name=name, driver=self.drivers['LedSysfsDriver'])
+      led = LedImpl(name=name, driver=self.drivers['LedSysfsDriver'])
+      return led
+
+   def addLed(self, addr, name):
+      led = self._addLed(addr, name)
+      self.inventory.addLed(led)
+      return led
 
    def addLeds(self, leds):
       return [self.addLed(*led) for led in leds]
+
+   def addLedGroup(self, groupName, leds):
+      leds = [self._addLed(*led) for led in leds]
+      self.inventory.addLedGroup(groupName, leds)
+      return leds
 
    def addReset(self, gpio):
       scdReset = ScdReset(self.pciSysfs, gpio)
@@ -354,10 +366,18 @@ class Scd(PciComponent):
       return resetDict
 
    def addGpio(self, gpio):
-      self.gpios += [gpio]
+      scdGpio = GpioImpl(self.pciSysfs, gpio.name, gpio.addr, gpio.bit, ro=gpio.ro,
+                         activeLow=gpio.activeLow)
+      self.gpios.append(scdGpio)
+      self.inventory.addGpio(scdGpio)
+      return scdGpio
 
    def addGpios(self, gpios):
-      self.gpios += gpios
+      gpioDict = {}
+      for gpio in gpios:
+         scdGpio = self.addGpio(gpio)
+         gpioDict[scdGpio.getName()] = scdGpio
+      return gpioDict
 
    def _addXcvr(self, xcvrId, xcvrType, bus, interruptLine, leds=None, drvName=None):
       addr = self.i2cAddr(bus, Xcvr.ADDR, t=1, datr=0, datw=3, ed=0)
@@ -390,11 +410,15 @@ class Scd(PciComponent):
       return self._addXcvr(xcvrId, Xcvr.SFP, bus, interruptLine, leds=leds,
                            drvName='optoe2')
 
-   # In platforms, should change "statusGpios" to "statusGpio" and make it a boolean
-   def createPsu(self, psuId, driver='PsuSysfsDriver', statusGpios=True, led=None,
-                 **kwargs):
-      psu = PsuImpl(psuId=psuId, driver=self.drivers[driver],
-                     statusGpio=statusGpios, led=led, **kwargs)
+   def addPsu(self, componentCls, drivers=None, **kwargs):
+      drivers = drivers or []
+      drivers.extend([PsuSysfsDriver(driverName='psuPresenceDriver',
+                                     sysfsPath=self.pciSysfs)])
+      self.newComponent(componentCls, drivers=drivers, **kwargs)
+
+   # this is being deprecated
+   def createPsu(self, psuId, driver='PsuSysfsDriver', led=None, **kwargs):
+      psu = PsuImpl(psuId=psuId, driver=self.drivers[driver], led=led, **kwargs)
       self.inventory.addPsus([psu])
       return psu
 
@@ -422,38 +446,6 @@ class Scd(PciComponent):
       mdio = ScdMdio(self, master, bus, devIndex, portAddr, devAddr, clause, name)
       self.mdios.append(mdio)
       return mdio
-
-   def allGpios(self):
-      def zipXcvr(xcvrType, gpio_names, entries):
-         res = []
-         for data in entries.values():
-            for name, gpio in zip(gpio_names, data['gpios']):
-               res += [ ("%s%d_%s" % (xcvrType, data['id'], name), gpio.ro) ]
-         return res
-
-      sfp_names = [
-         "rxlos", "txfault", "present", "rxlos_changed", "txfault_changed",
-         "present_changed", "txdisable", "rate_select0", "rate_select1",
-      ]
-
-      qsfp_names = [
-         "interrupt", "present", "interrupt_changed", "present_changed",
-         "lp_mode", "reset", "modsel",
-      ]
-
-      osfp_names = [
-         "interrupt", "present", "interrupt_changed", "present_changed",
-         "lp_mode", "reset", "modsel",
-      ]
-
-      gpios = []
-      gpios += zipXcvr("sfp", sfp_names, self.sfps)
-      gpios += zipXcvr("qsfp", qsfp_names, self.qsfps)
-      gpios += zipXcvr("osfp", osfp_names, self.osfps)
-      gpios += [ (gpio.name, gpio.ro) for gpio in self.gpios ]
-      gpios += [ (reset.name, False) for reset in self.resets ]
-
-      return gpios
 
    def getSysfsResetNameList(self, xcvrs=True):
       entries = [reset.name for reset in self.resets]
@@ -484,3 +476,11 @@ class Scd(PciComponent):
          self.uioMapInit()
       return '/dev/%s' % self.uioMap[
             'uio-%s-%x-%d' % (getattr(self, 'addr'), reg, bit)]
+
+class I2cScd(I2cComponent):
+   # XXX: This class should probably be part of the Scd but since it's already a pci
+   #      device, another class is necessary until we find a better model.
+   def __init__(self, addr, drivers=None, registerCls=None, **kwargs):
+      if not drivers:
+         drivers = [ScdI2cDevDriver(addr=addr, registerCls=registerCls)]
+      super(I2cScd, self).__init__(addr=addr, drivers=drivers, **kwargs)

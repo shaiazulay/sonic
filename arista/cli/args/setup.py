@@ -3,9 +3,9 @@ from __future__ import absolute_import, division, print_function
 
 from . import registerParser
 from .common import addPriorityArgs
-from .platform import platformParser
+from .default import defaultPlatformParser
 
-@registerParser('setup', parent=platformParser,
+@registerParser('setup', parent=defaultPlatformParser,
                 help='setup drivers for this platform')
 def setupParser(parser):
    parser.add_argument('-r', '--reset', action='store_true',

@@ -14,8 +14,9 @@ class Fan(FanBase):
    Unimplemented methods:
    - get_model
    - get_serial
-   - get_speed_tolerance
    """
+
+   DEFAULT_TOLERANCE = 100
 
    fanDirectionConversion = {
       'forward': FanBase.FAN_DIRECTION_INTAKE,
@@ -44,6 +45,12 @@ class Fan(FanBase):
    def set_speed(self, speed):
       self._target_speed = speed
       return self._fan.setSpeed(speed)
+
+   def get_speed_tolerance(self):
+      try:
+         return self._fan.getSpeedTolerance()
+      except AttributeError:
+         return self.DEFAULT_TOLERANCE
 
    def set_status_led(self, color):
       try:

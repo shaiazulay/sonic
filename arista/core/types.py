@@ -6,7 +6,6 @@ Register = namedtuple("Register", ["addr", "ro"])
 NamedRegister = namedtuple("NamedRegister", Register._fields + ("name", ))
 
 Gpio = namedtuple("Gpio", ["bit", "ro", "activeLow"])
-NamedGpio = namedtuple("NamedGpio", ("addr",) + Gpio._fields + ("name",))
 
 ResetGpio = namedtuple("ResetGpio", ["addr", "bit", "activeLow", "name"])
 

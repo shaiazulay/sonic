@@ -2,9 +2,9 @@
 from __future__ import absolute_import, division, print_function
 
 from . import registerParser
-from .platform import platformParser
+from .default import defaultPlatformParser
 
-@registerParser('reboot', parent=platformParser,
+@registerParser('reboot', parent=defaultPlatformParser,
                 help='perform a cold reboot for platform',
                 description='''
 Powercycle the switch by cutting power to all components.
