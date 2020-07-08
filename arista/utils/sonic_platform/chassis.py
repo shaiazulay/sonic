@@ -182,13 +182,13 @@ class Chassis(ChassisBase):
             epoll.register(open_file.fileno(), select.EPOLLIN)
 
       while True:
-         timer_value = min(timeout, self.POLL_INTERVAL/1000.) if not block else \
-                       self.POLL_INTERVAL/1000.
+         timer_value = min(timeout, self.POLL_INTERVAL) if not block \
+                       else self.POLL_INTERVAL
          pre_time = time.time()
 
          epoll_detected = False
          try:
-            poll_ret = epoll.poll(timer_value)
+            poll_ret = epoll.poll(timer_value / 1000.)
             if poll_ret:
                epoll_detected = self._process_epoll_result(epoll, poll_ret,
                                                            open_files, res_dict)
@@ -201,14 +201,14 @@ class Chassis(ChassisBase):
          if detected and block or timeout == 0 and not block:
             break
 
-         real_elapsed_time = min(time.time() - pre_time, timeout)
-         timeout = round(timeout - real_elapsed_time, 3)
+         real_elapsed_time = min(int((time.time() - pre_time) * 1000), timeout)
+         timeout = timeout - real_elapsed_time
 
       for _, _, open_file in open_files.values():
          open_file.close()
       epoll.close()
 
-      return res_dict
+      return True, res_dict
 
    def get_thermal_manager(self):
       return ThermalManager
