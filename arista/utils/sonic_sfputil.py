@@ -112,7 +112,7 @@ def getSfpUtil():
                   openFile = open(intr.getFile())
                   openFiles.append((xcvr, openFile))
                   epoll.register(openFile.fileno(), select.EPOLLIN)
-               pollRet = epoll.poll(timeout=timeout if timeout != 0 else -1)
+               pollRet = epoll.poll(timeout=timeout/1000. if timeout != 0 else -1)
                if pollRet:
                   pollRet = dict(pollRet)
                   for xcvr, openFile in openFiles:
@@ -124,6 +124,6 @@ def getSfpUtil():
                   openFile.close()
                epoll.close()
 
-            return False, {}
+            return True, {}
 
     return SfpUtilNative
