@@ -109,18 +109,18 @@ class Chassis(ChassisBase):
             presence_dict[component_type][component.get_name()] = \
                (component, component.get_presence())
 
-      for component in self._component_list:
-         process_component('component', component)
+      #for component in self._component_list:
+      #   process_component('component', component)
       for fan in self._fan_list:
          process_component('fan', fan)
-      for module in self._module_list:
-         process_component('module', module)
+      #for module in self._module_list:
+      #   process_component('module', module)
       for psu in self._psu_list:
          process_component('psu', psu)
       for sfp in self._sfp_list:
          process_component('sfp', sfp)
-      for thermal in self._thermal_list:
-         process_component('thermal', thermal)
+      #for thermal in self._thermal_list:
+      #   process_component('thermal', thermal)
       return interrupt_dict, presence_dict
 
    def _process_epoll_result(self, epoll, poll_ret, open_files, res_dict):
@@ -130,7 +130,7 @@ class Chassis(ChassisBase):
          if fd in open_files:
             detected = True
             component_type, component, open_file = open_files[fd]
-            res_dict[component_type][component.get_name()] = '1' \
+            res_dict[component_type][component.get_id()] = '1' \
                if component.get_presence() else '0'
             epoll.unregister(fd)
             open_file.close()

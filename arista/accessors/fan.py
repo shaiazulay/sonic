@@ -7,6 +7,9 @@ class FanImpl(Fan):
       self.led = led
       self.__dict__.update(kwargs)
 
+   def getId(self):
+      return self.fanId
+
    def getName(self):
       return 'fan%s' % self.fanId
 

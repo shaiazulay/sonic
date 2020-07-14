@@ -7,6 +7,9 @@ class PsuImpl(Psu):
       self.led = led
       self.__dict__.update(kwargs)
 
+   def getId(self):
+      return self.psuId
+
    def getName(self):
       return 'psu%s' % self.psuId
 
@@ -27,6 +30,9 @@ class MixedPsuImpl(Psu):
       self.statusDriver = statusDriver
       self.led = led
       self.__dict__.update(kwargs)
+
+   def getId(self):
+      return self.psuId
 
    def getName(self):
       return 'psu%s' % self.psuId

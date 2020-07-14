@@ -23,6 +23,9 @@ class Psu(PsuBase):
       self._psu = psu
       super(Psu, self).__init__()
 
+   def get_id(self):
+      return self._psu.getId()
+
    def get_name(self):
       return self._psu.getName()
 

@@ -41,6 +41,9 @@ class Sfp(SfpBase):
       self._sfp = sfp
       self._sfputil = None
 
+   def get_id(self):
+      return self._index
+
    def get_name(self):
       return self._sfp.getName()
 

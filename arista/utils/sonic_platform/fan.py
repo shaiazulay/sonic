@@ -27,6 +27,9 @@ class Fan(FanBase):
       self._target_speed = None
       self._fan = fan
 
+   def get_id(self):
+      return self._fan.getId()
+
    def get_name(self):
       return self._fan.getName()
 
